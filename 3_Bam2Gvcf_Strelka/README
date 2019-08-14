@@ -1,0 +1,23 @@
+16/06/2019
+NTM
+
+Making bam2gvcf_strelka.pl to call variants using Strelka2 (must be 
+installed with strelkaGermline.sh in PATH, see ~/Software/Strelka/).
+
+
+#################################
+22/06/2019
+NTM
+
+Writing bam2gvcf_strelka_makeOarJobs.pl, a wrapper to submit 
+bam2gvcf_strelka.pl jobs via OAR (eg on dahu).
+See ../Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/ .
+
+
+#################################
+24/06/2019
+NTM
+
+Writing moveGvcfs.pl to grab and rename each strelka-produced GVCF
+(called genome.S1.vcf.gz for every sample, I want grexomeXXXX.g.vcf.gz)
+from $inDir to $outDir.

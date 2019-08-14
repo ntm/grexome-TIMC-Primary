@@ -1,0 +1,13 @@
+21/06/2019
+NTM
+
+Symlinking fastq2bam.pl and all its deps (programs and .js)
+in this fauve dir.
+
+Wrote fastq2bam_makeOarJobs.pl to submit fastq2bam.pl jobs via OAR,
+one grexome at a time.
+
+To install this package use "rsync -rtvL", eg on dahu:
+cd ..
+rsync -rtvL Fastq2Bam_PackagedWithBinaries_Centos7 f-dahu:
+

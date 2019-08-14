@@ -1,0 +1,13 @@
+13/06/2019
+NTM
+
+Sometimes we get several pairs of FASTQ files for a single sample,
+eg when the sample was sequenced on several lanes.
+Also, the naming conventions are always different.
+
+This script creates a single pair of "files" (symlinks when possible)
+in $outDir for each grexome.
+
+Call eg on luxor in /data/nthierry/PierreRay/FASTQs_All_Grexomized/ ,
+see README there for details.
+

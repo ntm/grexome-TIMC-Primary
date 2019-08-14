@@ -1,0 +1,203 @@
+
+#################################################
+05/07/2019
+NTM
+
+I adapted this script for Strelka GVCFs.
+If I plan to use this script again I should use the improvements I
+implemented in mergeGVCFs_strelka.pl, eg the &eatTmpFiles idea
+that I already planned in 04/2018 (see bottom of this README).
+
+But I also discovered a bug that results in missing data columns
+when a POS is absent from an infile.
+Not sure if this affects GATK since we ran it in BP_RESOLUTION mode,
+but in any case I am fixing this now.
+Archiving previous version as Old/mergeGVCFs_180914.pl .
+
+
+#################################################
+15/04/2018
+NTM
+
+I now have mergeGVCFs.pl, which does the same as GATK-CombineGVCFs but
+much more reliably, faster, less RAM consumption, better, and doesn't crash.
+
+Run with:
+1NTM_MergeGVCFs/mergeGVCFs.pl IndivGVCFs/grexome0*gz 2> MergeGVCFs_Results/grexomeAll.MergedNTM_v3.err | bgzip -c > MergeGVCFs_Results/grexomeAll.MergedNTM_v3.g.vcf.gz &
+
+Time: 20h45 to do the work and produce files in tmpdir_mergeGVCFs/,
+than another 6h for the final cat | bgzip.
+
+TODO:
+Do the cat | bgzip incrementally, just touch a .ok file in each 
+batch-thread when it's done, and have a separate thread look for 
+files in the correct order and send them to a bgzip filehandle
+when the .ok file is seen.
+
+We then still need to:
+tabix -p vcf grexomeAll.MergedNTM_v3.g.vcf.gz
+(approx 30 minutes).
+
+
+The main differences with CombineGVCFs are:
+- my INFO column has '.', most of the fields in the individual
+GVCFs are sample-specific AFAICT and the others are repopulated
+by GenotypeGVCFs.
+- my ID, QUAL and FILTER columns are also replaced by '.': ID
+is useless (we will get dbSNP identifiers with VEP), QUAL is
+sample-specific, and I don't think we have any filters applied 
+when constructing the GVCFs (and if we do they are probably 
+sample-specific).
+- I ripped out the SB format key and data, I have SAC which is
+much better since we have a lot of multi-allelic sites.
+- The ALT alleles are not necessarily in the same order in
+my output file and in CombineGVCFs output file. I sort the
+ALTs by decreasing number of samples present in files where they
+occur, not sure what CombineGVCFs does. When the ALTs are in 
+different orders, the multi-valued DATA fields will also be in 
+different orders (eg AD, PL, SAC...). If GenotypeGVCFs doesn't 
+reorder the ALTs, this will also result in different apparent 
+GTs (eg 0/1 when genotyping from my GVCF vs 0/2 when going through 
+CombineGVCFs or when running genotypeGVCFs directly on the 
+individual GVCFs.
+
+
+Below are the log entries from when I was developing mergeGVCFs.pl,
+left pour memoire.
+
+
+#################################################
+[...]
+Meanwhile I wrote my own mergeGVCFs.pl script.
+The goal is to mimic GATK-CombineGVCFs well enough to obtain
+a single GVCF file than can be fed to GenotypeGVCFs.
+
+I reverse-engineered what is done by GATK (several test
+files and results are in TestMyMerge/ , I won't document
+all my reverse-engineering work but the result is implemented
+in mergeGVCFs.pl (some comments explain what I did and
+why I did it, mainly it comes from playing with files in
+TestMyMerge/ and reading the VCF spec).
+
+
+################
+TODO: 
+- add the mergeGVCFs.pl command-line to the resulting file. 
+-> DONE
+
+- sort ALTs by decreasing number of samples where they occur
+(maybe "where they have at least one supporting read"?), rather
+than by decreasing number of infiles where they occur. This will
+be certainly useful if we use mergeGVCFs.pl incrementally, ie
+when some infiles have several samples. I coded everything so
+it would work with multiple samples in a file, but haven't 
+tested it yet.
+-> DONE by decreasing number of samples appearing in files
+where the ALT appears, but I didn't code the "where they have
+at least one supporting read" yet. We'll see if this is useful,
+it depends on whether GenotypeGVCFs reorders the ALTs or not.
+################
+
+Running:
+xx_MergeGvcfs/mergeGvcfs.pl IndivGVCFs/grexome0*gz | bgzip -c > grexomeAll.MergedNTM.g.vcf.gz 2> grexomeAll.MergedNTM.err &
+
+[NOTE: my .err only captures the bgzip stderr, I think in the future 
+I need to call with:]
+xx_MergeGvcfs/mergeGVCFs.pl IndivGVCFs/grexome0*gz 2> grexomeAll.MergedNTM.err | bgzip -c > grexomeAll.MergedNTM.g.vcf.gz &
+
+NOTE that gvcf2vcf.pl is still running, so we are contesting for
+file/network access and since the indiv GVCFs are on luke this is 
+probably a big bottleneck. So, I'll have to take the runtime with
+a grain of salt.
+
+NOTE also that the 2 TODO issues above were implemented after
+starting this job. I'll have to test them some other time.
+
+Job started on: Apr 9 01:13 .
+
+################
+UPDATE 09/04/2018
+number of lines in grexome0433.raw.g.vcf.gz: 53800290 ~= 53.8M .
+number of lines in grexomeAll.MergedNTM.g.vcf.gz Apr 9 15:16: 2352497 = 2.3M.
+So at this speed we need ~10 days!!
+???
+I'll give it a bit more time to see how much it was penalized by
+GenotypeGVCFs running in parallel on the same files.
+But I think work is needed on the performance aspects...
+
+I should check out how VEP does the parallelizing with --jobs :
+it's efficient and works on VCFs, so maybe I can do something similar.
+
+################
+UPDATE 13/04/2018:
+killed the job Apr 13 02:55. A bit more than 4 days running.
+Last line must be truncated, removing it to get a "clean" though
+inclomplete GVCF:
+gunzip -c grexomeAll.MergedNTM.g.vcf.gz | head --lines=-1 | bgzip -c > grexomeAll.MergedNTM_Truncated.g.vcf.gz
+rm grexomeAll.MergedNTM.g.vcf.gz
+
+I worked on mergeGVCFs.pl, hopefully speeded it up and
+also added parallelization.
+Trying it with 12 jobs and batchSize==10k:
+xx_MergeGVCFs/mergeGVCFs.pl IndivGVCFs/grexome0*gz 2> grexomeAll.MergedNTM_parallel.err | bgzip -c > grexomeAll.MergedNTM_parallel.g.vcf.gz &
+
+Starting Apr 13 at 06:50
+...
+UPDATE Apr 13 at 14:14 (after 7h24) : killing, we have ~1M lines.
+WTF, this is not better than the unoptimized singleThread 
+version with it's 2.3M lines in 14h!!!
+$ mv tmpdir_mergeGVCFs tmpdir_mergeGVCFs_parallel_v1
+Try again with latest changes and 24 threads.
+... hmm, I am totally network-bound, can't get more than 2 processing
+threads... someone is doing a huge rsync on luke, maybe explains it.
+But I already rsynced the gvcfs to patator, switching to that as source.
+Trying: well I'm still waiting for the master process...
+This is actually probably good, it means my processing threads are now
+very fast. I'll try to sync the files to krakenator. If it's still not
+using more than 3 threads it means the parent process is the bottleneck.
+...
+Still using only 2 or 3 processing threads, so indeed my parent
+process is the bottleneck. It seems very fast though, I'll let
+it run and see after a while the speed we get.
+xx_MergeGVCFs/mergeGVCFs.pl IndivGVCFs/grexome0*gz 2> grexomeAll.MergedNTM_parallel.err | bgzip -c > grexomeAll.MergedNTM_parallel.g.vcf.gz &
+
+Starting Apr 13 at 17:40
+...
+At 21:25 chrom1 was finished, ie 5.53M lines in 3h45, ie 1.47M lines per hour.
+(compare to 135kL/h for parallel_v1 and 164kL/h for singleThread).
+So, I got a 10x boost.
+BUT: when chrom1 finished it just stood there eating more and more RAM,
+no more batches were being started, I had to kill the main process.
+Fixed this issue, also improving the code before another try.
+
+I fixed the warnings when we get GT:PGT:PID (and other) format strings: 
+just use the order GT:AD:DP:GQ:PGT:PID:PL:SAC and include any key
+present in at least one line.
+
+I also have the main process just grab chrom:pos so it knows when to
+end a batch, and fill batchToMerge and startNextBatch with plain lines.
+Then the processing threads do the splitting and removing INFO.
+The idea is to unload the parent process as much as possible.
+
+Trying now my current version (v3):
+xx_MergeGVCFs/mergeGVCFs.pl IndivGVCFs/grexome0*gz 2> grexomeAll.MergedNTM_v3.err | bgzip -c > grexomeAll.MergedNTM_v3.g.vcf.gz &
+Starting Apr 14 at 01:04.
+
+Surprisingly I'm down from 3.3GB to ~700MB of RAM per thread now.
+I often have 3-4 processing threads. So, the master process is still 
+the bottleneck, but I don't see how to make it any faster easily now. 
+...
+Processing finished at 21:51, that's 2.6ML/h average. Good!
+Currently at 00:20 it is still workin on the cat | bgzip however,
+it seems that adds a lot of time but I believe we can't avoid it since
+GATK will want a bgzip+tbi version later.
+...
+UPDATE 15/04/2018: it finished Apr 15 03:30. 
+=> the final cat|bgzip took almost 6h!!
+Final gvcf.bgz is 55GB.
+
+TODO: Maybe I could have a thread look at tmpdir and cat the files to a "|bgzip" 
+filehandle when they are finished and in the correct order.
+
+diff -r with the v2 shows only the FORMAT PGT/PID fixes, removing v2 tmpdir.
+

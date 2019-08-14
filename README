@@ -1,0 +1,57 @@
+21/06/2019
+NTM
+
+I am making my own primary analysis pipeline.
+
+1_GrexomizeFastqs/ : 
+take original fastqs and parse patient_summary_*.xlsx , to obtain
+a consolidated uniform dataset of fastqs, see
+luxor:/data/nthierry/PierreRay/FASTQs_All_Grexomized
+
+2_Fastq2Bam/ : process fastqs: trim adaptors, align on ref genome,
+mark duplicates, sort bam, index bam.
+
+3_Bam2Gvcf_Strelka/ : variant calling with strelka.
+
+
+Fastq2Bam_PackagedWithBinaries_Centos7/ : "package" for running fastq2bam
+on other systems, eg f-dahu.
+
+Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/ : "package" for running
+bam2gvcf_strelka on other systems, eg f-dahu.
+
+
+Other subdirs were from my previous GATK-based analyses, I'll probably
+reuse parts but this needs work.
+
+
+
+###########################################
+15/04/2018
+NTM
+
+Below are some notes I took when reverse-engineering
+JT/TK's grexome pipeline for primary analyses, ie
+going from fASTQs to a single VCF file.
+The end is obsolete (after preprecess_wes) because I've
+done all the work (see the [1-3]* subdirs here and
+VariantCalling/ on krakenator), but I haven't reimplemented
+the FASTQ -> single-GVCF part yet, so when I do these notes 
+should be useful.
+
+
+
+CombineGVCFs: peut etre fait en plusieurs etapes si besoin, au final on 
+obtient un GVCF unique avec tous les samples. Probablement identique 
+à mergeVCFs.pl en bcp plus lent?
+
+
+###
+GenotypeGVCFs: lit un ou plusieurs GVCFs et produit un VCF. Must be called 
+on the complete merged GVCF. 
+-> allsamples.raw.vcf 
+
+###
+LeftAlignAndTrimVariants: A VOIR
+-> allsamples.leftaligned.vcf devrait etre OK.
+

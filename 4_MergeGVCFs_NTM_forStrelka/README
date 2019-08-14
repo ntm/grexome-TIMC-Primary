@@ -1,0 +1,69 @@
+25/06/2019
+NTM
+
+Starting from ../4_MergeGVCFs_NTM_forGATK/mergeGVCFs.pl , adapting it
+to work with Strelka-produced GVCFs.
+Strelka uses the condensed GVCF conventions, and some fields are 
+different from GATK.
+
+Goal is to parse several strelka-produced condensed GVCFs, and produce
+a single GVCF.
+I tried https://github.com/Illumina/gvcfgenotyper  but it produces a VCF,
+so you have to run it again on all GVCFs whenever you get a new one...
+I would rather incrementally rebuild a multi-sample GVCF.
+
+#########################################
+04/07/2019
+NTM
+
+Added a thread running &eatTmpFiles, to consume tmp files in correct 
+order and clean up.
+Therefore the tmpDir is now automatically emptied and removed when 
+we are done.
+-> less disk space used, and no slow final "cat".
+
+Compared with previous version: same result (except ##mergeGVCFs=<commandLine=).
+
+
+#########################################
+05/07/2019
+NTM
+
+Fixed bug where trailing samples without data at a POS were missing!
+
+
+#########################################
+07/07/2019
+NTM
+
+Seems to work now, but it feels slow... mostly because of the many positions
+that should just be no-call but have instead very low counts and one or more
+FILTERs.
+I am forking a version called mergeGVCFsAndFilter_strelka.pl , where I will
+replace any position with a non-PASS filter value by '.' == NOCALL.
+Any line where every sample is NOCALL will get skipped.
+
+UPDATE 08/07/2019: DONE, it's much faster and only removing stuff I don't
+care about (calls that would be filtered as NOCALL anyways).
+Archiving previous version as Old/mergeGVCFs_strelka_190707.pl , 
+renaming the new version as simply mergeGVCFs_strelka.pl .
+
+
+#########################################
+08/07/2019
+NTM
+
+My current code is bottle-necked by the main thread: mainly just reading 
+infiles and filtering lines.
+I tried to improve the situation by offloading some of the work (mainly
+the tab-split of the text lines) to the worker threads, but it's actually
+slower.
+Moving the attempt into Old/mergeGVCFs_strelka_FailedSpeedupAttempt_190708.pl .
+
+
+#########################################
+14/08/2019
+NTM
+
+work around Strelka nonVar-followed-by-indel bug (I previously only
+worked around it for blocks-followed-by-indels).

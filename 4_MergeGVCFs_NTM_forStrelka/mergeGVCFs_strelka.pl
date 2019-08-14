@@ -16,7 +16,12 @@
 #   ##mergeGVCFs= lines from all infiles are copied;
 #   #CHROM line is modified by appending the identifiers of all samples.
 # - any line whose FILTER column contains a key from %filtersApplied gets skipped.
-# - any remaining chrom:coord line present in any infile will appear in the output, with:
+# - every variant gets normalized (but not left-aligned): 
+#   * remove bases present at the end of REF and all ALTs;
+#   * remove bases present at the start of REF and all ALTs, and increase POS accordingly;
+#   * make sure there isn't another genotype call (other than non-var) at the new POS, 
+#     and remove any non-var call that was there;
+# - any remaining (adjusted) chrom:pos line from any infile will appear in the output, with:
 #   ID set to '.';
 #   the longest REF from all infiles;
 #   all ALTs from all infiles, adjusted to fit the longest REF (append extra 
@@ -55,6 +60,16 @@
 ## never seen without LowGQX or LowDepth: SiteConflict
 ##  rare, never seen with END, not the most relevant IMO: HighSNVSB
 ## never seen in my data: IndelConflict NotGenotyped PloidyConflict
+#
+# NOTES on normalization and merging of variants:
+# - as stated, I do NOT left-align variants, it's too much overhead. 
+#   I am hoping that Strelka does it correctly, or at least I'm hoping
+#   it is consistent in its behavior. If it is consistent, merging
+#   will work fine and variants can be left-aligned later if needed.
+# - I also do NOT merge lines with different POS values, even if
+#   the REFs overlap. I'm afraid doing this would result in large
+#   REFs and huge lists of complex ALTs (most of which just describe
+#   a SNV...).
 
 
 
@@ -320,7 +335,7 @@ while (!$lastBatch) {
 	if (my $lineR = &grabNextLine($infile)) {
 	    my $chr = $lineR->[0];
 	    if ($chr eq $thisChr) {
-		push(@{$batchToMerge[0]}, $lineR);
+		&addLineToBatch($batchToMerge[0], $lineR);
 	    }
 	    else {
 		# $lineR is from another chrom, will be for next batch
@@ -345,17 +360,9 @@ while (!$lastBatch) {
 	my $lineR = pop(@{$batchToMerge[0]});
 	$posNextBatch = $lineR->[1];
 	$startNextBatch[0] = $lineR;
-	# work-around for strelka nonVar-followed-by-indel bug (search below in this file for details)
-	if (($batchToMerge[0]->[$#{$batchToMerge[0]}]->[1] == $posNextBatch) &&
-	    ($batchToMerge[0]->[$#{$batchToMerge[0]}]->[4] eq '.')) {
-	    # last line of $batchToMerge[0] has same pos as $lineR and is non-var, discard it
-	    pop(@{$batchToMerge[0]});
-	}
-	# otherwise if last line is a block starting earlier we still want it to end
-	# before posNextBatch (splitBlockLine NOOPs if no change needed)
-	&splitBlockLine($batchToMerge[0]->[$#{$batchToMerge[0]}], $posNextBatch - 1);
     }
 
+    # Now deal with all files except the first:
     # move relevant previously stored lines of non-first files to @batchToMerge
     foreach my $i (1..$#infiles) {
 	if (my $lineR = $startNextBatch[$i]) {
@@ -374,8 +381,7 @@ while (!$lastBatch) {
 	}
     }
 
-
-    # Now deal with all files except the first
+    # fill @batchToMerge for non-first files from the infiles themselves
     foreach my $i (1..$#infiles) {
 	# if we already have a line in startNextBatch, this file doesn't
 	# have any more lines for $thisChr before $posNextBatch
@@ -387,7 +393,7 @@ while (!$lastBatch) {
 	    my $pos = $lineR->[1];
 	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch==0))) {
 		$startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
-		push(@{$batchToMerge[$i]},$lineR);
+		&addLineToBatch($batchToMerge[$i], $lineR);
 		# if we produced a continuation blockline, this was the last line for infile $i
 		($startNextBatch[$i]) && last;
 	    }
@@ -449,7 +455,11 @@ warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
 # take a single arg: a filehandle open for reading (GVCF, after headers);
 # return the next "line" that doesn't have a %filtersApplied in FILTER,
 # or undef if no such line exists.
-# a "line" is an arrayref, result of tab-splitting the actual line,
+# Also the variants are normalized: 
+# trailing bases common to REF and all ALTs are removed, 
+# leading bases common to REF and all ALTs are also removed and POS is 
+# adjusted accordingly.
+# A "line" is an arrayref, result of tab-splitting the actual line,
 # with INFO cleared ('.') except if line is a non-var block (ie has END=).
 sub grabNextLine {
     (@_ == 1) || die "grabNextLine needs 1 arg.\n";
@@ -465,10 +475,137 @@ sub grabNextLine {
 	}
 	# if we get here no filters apply, clear INFO if not in a non-var block
 	($line[7] =~ /^END=/) || ($line[7] = ".");
+
+	# normalize variants:
+	# 1. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+	#    common ending bases, remove them (keeping at least 1 base everywhere).
+	while ($line[3] =~ /\w(\w)$/) {
+	    # ref has at least 2 chars
+	    my $lastRef = $1;
+	    # split here because most lines won't even enter the while loop
+	    my @alts = split(/,/,$line[4]);
+	    my $removeLast = 1;
+	    foreach my $alt (@alts) {
+		if ($alt !~ /\w$lastRef$/) {
+		    # this alt is length one or doesn't end with $lastRef
+		    $removeLast = 0;
+		    last;
+		}
+	    }
+	    if ($removeLast) {
+		# OK remove last base from REF and all @alts
+		($line[3] =~ s/$lastRef$//) || 
+		    die "WTF can't remove $lastRef from end of $line[3]\n";
+		foreach my $i (0..$#alts) {
+		    ($alts[$i] =~ s/$lastRef$//) || 
+			die "WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
+		}
+		$line[4] = join(',',@alts);
+	    }
+	    else {
+		# can't remove $lastRef, get out of while loop
+		last;
+	    }
+	}
+
+	# 2. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+	#    common starting bases, remove them (keeping at least 1 base everywhere)
+	#    and adjust POS.
+	while ($line[3] =~ /^(\w)\w/) {
+	    my $firstRef = $1;
+	    my @alts = split(/,/,$line[4]);
+	    my $removeFirst = 1;
+	    foreach my $alt (@alts) {
+		if ($alt !~ /^$firstRef\w/) {
+		    $removeFirst = 0;
+		    last;
+		}
+	    }
+	    if ($removeFirst) {
+		($line[3] =~ s/^$firstRef//) || 
+		    die "WTF can't remove $firstRef from start of $line[3]\n";
+		foreach my $i (0..$#alts) {
+		    ($alts[$i] =~ s/^$firstRef//) || 
+			die "WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
+		}
+		$line[4] = join(',',@alts);
+		$line[1]++;
+	    }
+	    else { last; }
+	}
+
 	return(\@line);
     }
     # no more good lines in infile, return undef
     return();
+}
+
+###############
+# addLineToBatch: args are:
+# - $batchR, a ref to an array of arraylines;
+# - $lineR, a ref to an arrayline.
+# This function "pushes" $lineR onto @$batchR, but does the right thing
+# when $lineR->POS isn't simply greater than the POS of the line at the
+# top of $batchR.
+# This happens when &grabNextLine shifted POS of the previous line,
+# or also due to some Strelka bugs (sometimes a non-var call is made
+# (whether individually or in a block) and then in the next line an indel
+# call is made with the same POS)
+# Precondition, caller must ensure it (not checked here!):
+# $lineR->chrom is the same as chrom in batchR
+sub addLineToBatch {
+    (@_ == 2) || die "addLineToBatch needs 2 args.\n";
+    my ($batchR,$lineR) = @_;
+
+    # if batchR is empty, fast return (can happen due to recursion below)
+    if (! @$batchR) {
+	push(@$batchR, $lineR);
+	return();
+    }
+
+    my $prevLineR = $batchR->[$#$batchR];
+    
+    if ($lineR->[1] > $prevLineR->[1]) {
+	# newPOS > prevPOS, just make prevLine end at newPos-1 if it was a block
+	&splitBlockLine($prevLineR, $lineR->[1] - 1);
+	push(@$batchR, $lineR);
+    }
+    elsif ($lineR->[1] == $prevLineR->[1]) {
+	if ($lineR->[4] eq '.') {
+	    # if lineR is non-var ignore it at POS, but make it start at POS+1
+	    # if it's a block (just skip it if it's not a block)
+	    $lineR = &splitBlockLine($lineR,$lineR->[1]);
+	    ($lineR) && (push(@$batchR,$lineR));
+	}
+	elsif($prevLineR->[4] eq '.') {
+	    # prevLineR was non-var, replace it with lineR
+	    pop(@$batchR);
+	    push(@$batchR,$lineR);
+	}
+	else {
+	    # this shouldn't happen, it would mean infile has contradictory 
+	    # calls at the same POS...
+	    # we could try to deal with it (it DOES happen with strelka...),
+	    # but it's rare and usually corresponds to 2 HET calls on different
+	    # ALT alleles (ie would be 1/2 calls if we merged them). These calls
+	    # are typically ignored downstream (they go in the OTHER column).
+	    # So, for now just keep the first line, ie NOOP
+
+	    # following warn was used to analyze the problem, don't use it in production
+	    #warn "W: addLineToBatch, 2 lines with ALTs and same POS, ignoring the second line:\n".
+	    # join("\t",@$prevLineR)."\n".join("\t",@$lineR)."\n\n";
+	}
+    }
+    else {
+	# newPOS < prevPOS, we can switch the 2 lines and recurse,
+	# but how far back do we have to go?
+	# easy to code with recursive function, but I sure hope
+	# this doesn't happen too often!
+	warn "I: addLineToBatch is recursing, around $lineR->[0] $lineR->[1]\n";
+	pop(@$batchR);
+	&addLineToBatch($batchR, $lineR);
+	&addLineToBatch($batchR, $prevLineR);
+    }
 }
 
 
@@ -556,27 +693,6 @@ sub mergeBatchOfLines {
 	foreach my $i (0..$#infiles) {
 	    # ignore files without remaining lines in this batch
 	    ($batchToMergeR->[$i]->[0]) || next;
-
-	    # work around Strelka nonVar-followed-by-indel bug: non-var blocks can extend into
-	    # the next POS (which is variant) if an indel is present there...
-	    # similarly we can have non-var single positions with an indel at same POS in next line.
-	    # our work-around: make the block one base shorter if possible, otherwise if
-	    # block was size one or if it was a single non-var position (ie in both cases the POS of
-	    # this line and the next are the same) we discard it
-	    if (($batchToMergeR->[$i]->[1]) &&  #file $i has a next line...
-		($batchToMergeR->[$i]->[1]->[1] == $batchToMergeR->[$i]->[0]->[1]) &&  ## and it has same POS...
-		($batchToMergeR->[$i]->[0]->[4] eq '.')) { # and it's a non-var
-		# discard size-one block or single non-var in file $i
-		shift(@{$batchToMergeR->[$i]});
-	    }
-	    elsif ($batchToMergeR->[$i]->[1]) {
-		# preemptively shorten the block by one if it's overflowing into the next POS,
-		# discarding the "continuation block" (it is size 1 and contradicting the call 
-		# in the next line).
-		# if this is not a block or it's not overflowing, this is a NOOP.
-		# otherwise this line is fixed once and for all
-		&splitBlockLine($batchToMergeR->[$i]->[0], $batchToMergeR->[$i]->[1]->[1] - 1);
-	    }
 	    
 	    # $fieldsR just to simplify code
 	    my $fieldsR = $batchToMergeR->[$i]->[0];
@@ -693,7 +809,7 @@ sub mergeBatchOfLines {
 # ref to @numSamples == same indexes as @infiles, value is the number of samples in the infile
 # $longestRef wich contains the longest REF among the strings
 # ref to @longestFormat: array of all FORMAT keys present in at least one line
-# Return the string to print, result of merging the strings
+# Return the string to print, result of merging the lines.
 # NOTE: arrays referenced in $toMergeR WILL BE modified (ALTs are changed)
 # Preconditions: 
 # - MIN_DP must be AFTER DP in FORMAT if it's there (this is checked)

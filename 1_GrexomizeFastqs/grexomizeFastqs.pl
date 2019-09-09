@@ -222,7 +222,8 @@ foreach my $gNum (50..$#grex2sample) {
     $grexome = "grexome$grexome";
 
     if ((-e "$parentDir$outDir/${grexome}_1.fq.gz") && (-e "$parentDir$outDir/${grexome}_2.fq.gz")) {
-	warn "I: skipping sample $sample == grexome $grexome because targets $parentDir$outDir/${grexome}_[12].fq.gz already exist\n";
+	# 09/09/2019: don't INFO when skipping, it's too much noise
+	# warn "I: skipping sample $sample == grexome $grexome because targets $parentDir$outDir/${grexome}_[12].fq.gz already exist\n";
 	next;
     }
     elsif ((-e "$parentDir$outDir/${grexome}_1.fq.gz") || (-e "$parentDir$outDir/${grexome}_2.fq.gz")) {

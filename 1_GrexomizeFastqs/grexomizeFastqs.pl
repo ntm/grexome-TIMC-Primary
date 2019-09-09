@@ -131,6 +131,8 @@ my @grex2sample = ();
     my ($grexCol, $specimenCol, $centerCol) = (-1,-1,-1);
     foreach my $col ($colMin..$colMax) {
 	my $cell = $worksheet->get_cell($rowMin, $col);
+	# skip empty columns
+	($cell) || next;
 	($cell->value() eq "grexomeID") &&
 	    ($grexCol = $col);
 	($cell->value() eq "specimenID") &&

@@ -91,7 +91,7 @@ use Parallel::ForkManager;
 # less overhead from sub calls, process creations, tmpFiles creations, etc...
 # With ~450 samples, each thread uses ~1GB RAM with batchSize==10k in my hands;
 # while with 10 samples we're down to 32MB RAM per thread (still batchSize==10k).
-my $batchSize = 10000;
+my $batchSize = 25000;
 
 
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied
@@ -890,18 +890,26 @@ sub mergeLines {
 	    die "E in mergeLines: longestFormat contains MIN_DP, it MUST NOT!\n";
 	$formatIndex{$longestFormatR->[$i]} = $i;
     }
-    
 
     ####################################
-    # STEP 4: fix the data columns and add them to $toPrint
+    # STEP 4: fix the data columns if needed and add them to $toPrint
     foreach my $fileIndex (0..$#$numSamplesR) {
 	if (! $toMergeR->[$fileIndex]) {
 	    # no line, use blank data for all samples from this file
-	    foreach my $j (1..$$numSamplesR[$fileIndex]) {
+	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
 		$toPrint .= "\t.";
 	    }
 	}
+	elsif (($toMergeR->[$fileIndex]->[3] eq $longestRef) && 
+	       ($toMergeR->[$fileIndex]->[4] eq join(',',@newAlts)) && 
+	       ($toMergeR->[$fileIndex]->[8] eq join(':',@$longestFormatR))) {
+	    # REF ALT FORMAT didn't change for this file, just copy the data
+	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
+		$toPrint .= "\t".$toMergeR->[$fileIndex]->[8+$j];
+	    }
+	}
 	else {
+	    # no shortcut, have to examine and fix everything
 	    my @alts = split(/,/,$toMergeR->[$fileIndex]->[4]);
 	    # @altsNew2Old: same indexes as @newAlts,
 	    # value is the index of $newAlts[$i] in @alts, or undef if it's not there
@@ -920,7 +928,7 @@ sub mergeLines {
 	    my @format = split(/:/,$toMergeR->[$fileIndex]->[8]);
 
 	    # deal with each DATA column
-	    foreach my $j (1..$$numSamplesR[$fileIndex]) {
+	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
 		my @data = split(/:/, $toMergeR->[$fileIndex]->[8+$j]);
 
 		# fixed DATA for this sample, one value per longestFormat key
@@ -1221,7 +1229,7 @@ sub mergeLinesNonVarBlock {
 	    else {
 		# file $fileIndex doesn't have a line for this position, print 
 		# "blank" data for each sample from infile
-		foreach my $j (1..$$numSamplesR[$fileIndex]) {
+		foreach my $j (1..$numSamplesR->[$fileIndex]) {
 		    $toPrint .= "\t.";
 		}
 	    }

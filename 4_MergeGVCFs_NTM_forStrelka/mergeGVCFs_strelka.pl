@@ -91,7 +91,7 @@ use Parallel::ForkManager;
 # less overhead from sub calls, process creations, tmpFiles creations, etc...
 # With ~450 samples, each thread uses ~1GB RAM with batchSize==10k in my hands;
 # while with 10 samples we're down to 32MB RAM per thread (still batchSize==10k).
-my $batchSize = 25000;
+my $batchSize = 100000;
 
 
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied
@@ -459,15 +459,18 @@ warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
 # trailing bases common to REF and all ALTs are removed, 
 # leading bases common to REF and all ALTs are also removed and POS is 
 # adjusted accordingly.
-# A "line" is an arrayref, result of tab-splitting the actual line,
-# with INFO cleared ('.') except if line is a non-var block (ie has END=).
+# A "line" is an arrayref, result of tab-splitting the actual line up to
+# DATA columns, with INFO cleared ('.') except if line is a non-var block
+# (ie has END=).
+# The last array element has all DATA columns in a single string.
 sub grabNextLine {
     (@_ == 1) || die "grabNextLine needs 1 arg.\n";
     my ($infile) = @_;
   LINE:
     while (my $li = <$infile>) {
 	chomp($li);
-	my @line = split(/\t/,$li);
+	# split into 10 fields, last one has all DATA columns
+	my @line = split(/\t/, $li, 10);
 	# filter bad lines
 	my @filters = split(/;/,$line[6]);
 	foreach my $f (@filters) {
@@ -904,9 +907,7 @@ sub mergeLines {
 	       ($toMergeR->[$fileIndex]->[4] eq join(',',@newAlts)) && 
 	       ($toMergeR->[$fileIndex]->[8] eq join(':',@$longestFormatR))) {
 	    # REF ALT FORMAT didn't change for this file, just copy the data
-	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		$toPrint .= "\t".$toMergeR->[$fileIndex]->[8+$j];
-	    }
+	    $toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
 	}
 	else {
 	    # no shortcut, have to examine and fix everything
@@ -928,8 +929,9 @@ sub mergeLines {
 	    my @format = split(/:/,$toMergeR->[$fileIndex]->[8]);
 
 	    # deal with each DATA column
-	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		my @data = split(/:/, $toMergeR->[$fileIndex]->[8+$j]);
+	    my @dataCols = split("\t",$toMergeR->[$fileIndex]->[9]);
+	    foreach my $j (0..$#dataCols) {
+		my @data = split(/:/, $dataCols[$j]);
 
 		# fixed DATA for this sample, one value per longestFormat key
 		my @fixedData;
@@ -1221,10 +1223,8 @@ sub mergeLinesNonVarBlock {
 		    die "E: in mergeLinesNonVarBlock, format $format in first file $firstNonNull is different from ".
 		    $toMergeR->[$fileIndex]->[8]." in file $fileIndex\n";
 
-		foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		    my $data = $toMergeR->[$fileIndex]->[8+$j];
-		    $toPrint .= "\t$data";
-		}
+		# print data columns
+		$toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
 	    }
 	    else {
 		# file $fileIndex doesn't have a line for this position, print 
@@ -1296,17 +1296,16 @@ sub mergeLinesNonVarBlock {
 			die "E in mergeLinesNonVarBlock: no shared, pos $pos, INFO differs in file $fileIndex from $infoFirstNonNull\n"; 
 		    ($toMergeR->[$fileIndex]->[8] eq $formatFirstNonNull) ||
 			die "E in mergeLinesNonVarBlock: no shared, pos $pos, FORMAT differs in file $fileIndex from $formatFirstNonNull\n";
-
-		    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-			my $data = $toMergeR->[$fileIndex]->[8+$j];
+		    my @dataCols = split("\t",$toMergeR->[$fileIndex]->[9]);
+		    foreach my $data (@dataCols) {
 			# if no data, leave as '.'
 			if ($data ne '.') {
 			    # remove MIN_DP and replace DP with its value
 			    ($data =~ s/:\d+:(\d+):(\d+)$/:$2:$1/) ||
-				die "E in mergeLinesNonVarBlock: no shared, cannot remove MIN_DP and use its value for DP in data $j from file $fileIndex:$data\n"; 
+				die "E in mergeLinesNonVarBlock: no shared, cannot remove MIN_DP and use its value for DP in data from file $fileIndex:$data\n"; 
 			    # add filters in second field, after GT
 			    ($data =~ s/^([^:]+):/$1:$filters[$fileIndex]:/) ||
-				die "E in mergeLinesNonVarBlock: no shared, cannot add FT values in data $j from file $fileIndex:$data\n"; 
+				die "E in mergeLinesNonVarBlock: no shared, cannot add FT values in data from file $fileIndex:$data\n"; 
 			}
 			$line .= "\t$data";
 		    }

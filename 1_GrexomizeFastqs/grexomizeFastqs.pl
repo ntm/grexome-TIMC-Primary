@@ -172,20 +172,16 @@ my @grex2sample = ();
 my %infilesDone = ();
 
 foreach my $gNum (50..$#grex2sample) {
+    # silently skip grexomes that have been obsoleted (dupes)
+    if (($gNum == 312) || ($gNum == 428) || ($gNum == 497)) {
+	next;
+    }
     # warn & skip if no specimen found
     (defined $grex2sample[$gNum]) || 
 	((warn "W: no specimen found for grexome $gNum, skipping this grexome number\n") && next);
 
     my $sample = $grex2sample[$gNum];
 
-    # skip FrancoisVialard  files, they gave us clean BAMs
-    # UPDATE 19/06/19: no actually let's gexomize them too, I don't
-    # think they did the postalt step (for ALT contigs)
-    # if ($sample =~ /^fv_20/) {
-    # 	warn "I: skipping Francois Vialard sample $sample == grexome $gNum , we got clean BAMs\n";
-    # 	next;
-    # }
-    
     # precise filename patterns for each dataset:
     # strasbourg: /${sample}-R1.fastq.gz (because we prepended PRY- to $sample)
     # integragen: /Sample_${sample}_R1_fastq.gz
@@ -276,9 +272,13 @@ foreach my $gNum (50..$#grex2sample) {
 
 my $nbInfiles = scalar(keys(%infilesDone));
 my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
-if ($nbInfiles == $nbFqFiles) {
-    warn "\nI: examined $nbInfiles source FASTQ files in total, this seems to be the expected number!\n";
+# some grexomes have been obsoleted because they were dupes,
+# the corresponding FASTQs are still there, there are $nbObsoleteFiles,
+# don't warn about them
+my $nbObsoleteFiles = 6;
+if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
+    warn "\nI: examined $nbInfiles source FASTQ files and skipped $nbObsoleteFiles obsoletes in total, this is the expected number.\n";
 }
 else {
-    warn "\nW: examined $nbInfiles source FASTQ files in total, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
+    warn "\nW: examined $nbInfiles source FASTQ files and skipped $nbObsoleteFiles obsoletes in total, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
 }

@@ -46,8 +46,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 my $outDir = "";
 
 # subdir where BAMs are stored, defaults to current correct dir on 
-# krakenator (where the BAMS are currently stored), and also on luxor 
-# and fauve (and others) via ~/sshMounts/krakenator/
+# luxor (where the BAMS are currently stored), and also on fauve (and
+# others) via ~/sshMounts/luxor/
 my $inDir = "PierreRay_DATA/BAMs_All_Selected/";
 
 if (-e "/home/nthierry/sshMounts/luxor/") {
@@ -96,7 +96,7 @@ GetOptions ("outdir=s" => \$outDir,
 (-d $outDir) || (mkdir($outDir)) || 
     die "E: outDir $outDir doesn't exist as a dir but can't be created\n";
 (-d $inDir) || 
-    die "E: inDir $inDir doesn't exist, maybe you just need to mount ~/sshMounts/krakenator ?\n";
+    die "E: inDir $inDir doesn't exist or isn't a dir\n";
 (($firstGrex >= 50) && ($lastGrex >= $firstGrex)) ||
     die "E: first grexomeNum must be >=50 and last must be >=first\n";
 

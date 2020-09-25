@@ -42,8 +42,8 @@ use File::Glob qw(:globally :nocase);
 my $USAGE = '
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --grexome2sample fileWithPath [required] : full path to an xlsx file
-    with "grexomeID" in some col and "specimenID" in another 
-    (eg .../patient_summary*.xlsx). 
+    with "sampleID" in some col and "specimenID" in another 
+    (eg .../patient_summary.xlsx). 
 --inpath path : path to a directory containing subdirs, each containing the
     actual original fastq.gz files (eg "FASTQs_grexome/").
 --outdir subdir : name of brother-dir of $inPath where grexome*.fq.gz files are 
@@ -133,7 +133,7 @@ my @grex2sample = ();
 	my $cell = $worksheet->get_cell($rowMin, $col);
 	# skip empty columns
 	($cell) || next;
-	($cell->value() eq "grexomeID") &&
+	($cell->value() eq "sampleID") &&
 	    ($grexCol = $col);
 	($cell->value() eq "specimenID") &&
 	    ($specimenCol = $col);
@@ -141,7 +141,7 @@ my @grex2sample = ();
 	    ($centerCol = $col);
     }
     ($grexCol >= 0) ||
-	die "E parsing xlsx: no column title is grexomeID\n";
+	die "E parsing xlsx: no column title is sampleID\n";
     ($specimenCol >= 0) ||
 	die "E parsing xlsx: no col title is specimenID\n";
     ($centerCol >= 0) ||
@@ -173,7 +173,7 @@ my %infilesDone = ();
 
 foreach my $gNum (50..$#grex2sample) {
     # silently skip grexomes that have been obsoleted (dupes)
-    if (($gNum == 312) || ($gNum == 428) || ($gNum == 497)) {
+    if (($gNum == 312) || ($gNum == 428) || ($gNum == 497) || ($gNum == 525) || ($gNum == 527)) {
 	next;
     }
     # warn & skip if no specimen found
@@ -275,7 +275,7 @@ my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
 # some grexomes have been obsoleted because they were dupes,
 # the corresponding FASTQs are still there, there are $nbObsoleteFiles,
 # don't warn about them
-my $nbObsoleteFiles = 6;
+my $nbObsoleteFiles = 10;
 if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
     warn "\nI: examined $nbInfiles source FASTQ files and skipped $nbObsoleteFiles obsoletes in total, this is the expected number.\n";
 }

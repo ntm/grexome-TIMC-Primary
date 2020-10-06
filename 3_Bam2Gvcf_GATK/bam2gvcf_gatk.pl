@@ -96,7 +96,7 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 ($inDir) ||
     die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n";
 (-d $inDir) ||
-    die "E $0: inDir specified is not a folder!");
+    die "E $0: inDir specified is not a folder!";
 
 ($outDir) || 
     die "E $0: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n";

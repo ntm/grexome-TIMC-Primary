@@ -95,15 +95,16 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 
 ($inDir) ||
     die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n";
-(-d $inDir || die "E : inDir specified is not a folder!");
+(-d $inDir) ||
+    die "E $0: inDir specified is not a folder!");
 
 ($outDir) || 
     die "E $0: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n";
 (-d $outDir) || (mkdir($outDir)) || 
-    die "E: outDir $outDir doesn't exist as a dir but can't be created\n";
+    die "E $0: outDir $outDir doesn't exist as a dir but can't be created\n";
 
 (($firstGrex >= 50) && ($lastGrex >= $firstGrex)) ||
-    die "E: first grexomeNum must be >=50 and last must be >=first\n";
+    die "E $0: first grexomeNum must be >=50 and last must be >=first\n";
 
 # bring $lastGrex down to the largest existing grexome*.bam in inDir
 # (mostly in case we have the default 9999)
@@ -120,7 +121,7 @@ while($lastGrex > $firstGrex) {
 
 # make sure gatk executable is found
 (`which $gatk` =~ /$gatk$/) ||
-    die "E: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n";
+    die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n";
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
@@ -194,13 +195,13 @@ foreach (my $gNum = $firstGrex; $gNum<=$lastGrex; $gNum++) {
     # make sure we have bam and bai files for $grexome, otherwise skip
     my $bam = "$inDir/${grexome}.bam";
     ((-e $bam) && (-e "$bam.bai")) || 
-	((warn "W: no BAM or BAI for $grexome in inDir $inDir, skipping $grexome\n") && next);
+	((warn "W $0: no BAM or BAI for $grexome in inDir $inDir, skipping $grexome\n") && next);
 
     # gvcf to produce
     my $gvcf = "$outDir/${grexome}.g.vcf.gz";
     # don't squash existing outfiles
     (-e "$outDir/${grexome}.g.vcf.gz") && 
-	(warn "W: GVCF for $grexome already exists in outDir $outDir, skipping $grexome.\n") && next;
+	(warn "W $0: GVCF for $grexome already exists in outDir $outDir, skipping $grexome.\n") && next;
     
     # OK build the full GATK command
     my $fullCmd = "$cmd -I $bam -O $gvcf";
@@ -209,14 +210,15 @@ foreach (my $gNum = $firstGrex; $gNum<=$lastGrex; $gNum++) {
     $fullCmd .= " &> $log";
 
     if (! $real) {
-        warn "I: dryrun, would run GATK4-HaplotypeCaller for $grexome with:\n$fullCmd\n";
+        warn "I $0: dryrun, would run GATK4-HaplotypeCaller for $grexome with:\n$fullCmd\n";
     }
     else {
+	$pm->start && next;
 	my $now = strftime("%F %T", localtime);
 	warn "I: $now - $0 starting GATK4-HaplotypeCaller for $grexome\n";
         if (system($fullCmd) != 0) {
             $now = strftime("%F %T", localtime);
-            warn "E: $now - GATK4-HaplotypeCaller for $grexome FAILED ($?)! INSPECT THE LOGFILE $log\n";
+            warn "E: $now - $0 running GATK4-HaplotypeCaller for $grexome FAILED ($?)! INSPECT THE LOGFILE $log\n";
         }
 	else{
 	    $now = strftime("%F %T", localtime);

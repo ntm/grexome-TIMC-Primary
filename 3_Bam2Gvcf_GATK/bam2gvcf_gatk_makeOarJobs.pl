@@ -9,7 +9,7 @@
 # in each job, with 2h time limit.
 #
 # takes 2 args: $first and $last, the first and last grexomes
-# for this run of bam2gvcf_strelka_makeOarJobs.pl
+# for this run of bam2gvcf_gatk_makeOarJobs.pl
 # NOTE: not more than 50*$grexomesPerJob at a time, or you get error:
 # Admission Rule ERROR : [ADMISSION RULE] Error: you cannot have more than 50 jobs waiting in the queue at the same time.
 

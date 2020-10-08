@@ -65,8 +65,10 @@ sub refGenomeChromsBed {
 # You can make the mount automatic on boot by adding to /etc/fstab:
 ### tmpfs /mnt/RamDisk tmpfs size=192g 0 0
 sub fastTmpPath {
-    my $ramdisk = "/mnt/RamDisk/";
-    (-d $ramdisk) && return($ramdisk);
+    foreach my $ramdisk ("/mnt/RamDisk/", "/var/tmp") {
+	(-d $ramdisk) && return($ramdisk);
+    }
+    # if we get here no dir was found...
     die "E: no fastTmpPath found, you need to edit *config.pm";
 }
 

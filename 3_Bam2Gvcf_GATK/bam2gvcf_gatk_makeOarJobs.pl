@@ -44,6 +44,8 @@ my $logDir = "/bettik/nthierry/ProcessBams_GATK_2010_dahu_logs/";
 my $bam2gvcf = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/bam2gvcf_gatk.pl";
 # path/to/latest/gatk
 my $gatk = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest/gatk";
+# path/to/config.pm
+my $config = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/grexomeTIMCprim_config.pm";
 # bams are in $inDir
 my $inDir = "/bettik/nthierry/BAMs_All_Selected/";
 # produce gvcfs in $outDir
@@ -58,7 +60,7 @@ my $grex2 = $first + $grexomesPerJob - 1;
 while ($grex1 <= $last) {
     ($grex2 <= $last) || ($grex2 = $last);
     my $oar = $oarBase."-O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
-    $oar .= "\"perl $bam2gvcf --indir $inDir --outdir $outDir --gatk $gatk --first $grex1 --last $grex2 --jobs $jobs --real\"";
+    $oar .= "\"perl $bam2gvcf --indir $inDir --outdir $outDir --gatk $gatk --first $grex1 --last $grex2 --config $config --jobs $jobs --real\"";
 
     system($oar);
     

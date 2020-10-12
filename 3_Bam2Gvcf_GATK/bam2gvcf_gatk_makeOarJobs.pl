@@ -5,6 +5,8 @@
 # NTM
 #
 # submit bam2gvcf_gatk.pl jobs on dahu with oar.
+# GATK is executed via singularity (calling gatk directly results
+# in death with a cryptic error message).
 # Given timings on luxor, I should be fine processing 10 grexomes
 # in each job, with 2h time limit.
 #
@@ -42,14 +44,22 @@ my $jobs = 24;
 my $logDir = "/bettik/nthierry/ProcessBams_GATK_2010_dahu_logs/";
 # path to bam2gvcf_gatk.pl
 my $bam2gvcf = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/bam2gvcf_gatk.pl";
-# path/to/latest/gatk
-my $gatk = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest/gatk";
 # path/to/config.pm
 my $config = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/grexomeTIMCprim_config.pm";
 # bams are in $inDir
 my $inDir = "/bettik/nthierry/BAMs_All_Selected/";
 # produce gvcfs in $outDir
 my $outDir = "/bettik/nthierry/ProcessBams_GATK_2010_dahu/";
+
+# path/to/latest/gatk : doesn't work, gatk dies with cryptic message
+#my $gatk = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest/gatk";
+# -> instead we use a singularity image
+my $gatk = 'singularity exec';
+# bind /bettik/nthierry/ (ie make it rw-accessible from within the container),
+# /home/nthierry/ is bound by default
+$gatk .= ' -B /bettik/nthierry/';
+# path/to/image and finally gatk command
+$gatk .= ' ~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest.sif gatk';
 
 # oarsub command with params:
 # run on my project ngs-timc, ask for 1 full node, 24h walltime max
@@ -60,7 +70,7 @@ my $grex2 = $first + $grexomesPerJob - 1;
 while ($grex1 <= $last) {
     ($grex2 <= $last) || ($grex2 = $last);
     my $oar = $oarBase."-O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
-    $oar .= "\"perl $bam2gvcf --indir $inDir --outdir $outDir --gatk $gatk --first $grex1 --last $grex2 --config $config --jobs $jobs --real\"";
+    $oar .= "\"perl $bam2gvcf --indir $inDir --outdir $outDir --gatk \"$gatk\" --first $grex1 --last $grex2 --config $config --jobs $jobs --real\"";
 
     system($oar);
     

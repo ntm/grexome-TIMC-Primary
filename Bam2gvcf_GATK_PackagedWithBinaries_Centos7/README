@@ -1,7 +1,7 @@
 08/10/2020
 NTM
 
-Symlinking bam2gvcf_gatk.pl, *_makeOarJobs.pl and GATK distribution.
+Symlinking bam2gvcf_gatk.pl, *_makeOarJobs.pl and GATK singularity image.
 
 To install this package use "rsync -rtvL", eg to install from fauve onto dahu:
 cd ..
@@ -9,5 +9,5 @@ rsync -rtvL Bam2gvcf_GATK_PackagedWithBinaries_Centos7 f-dahu:
 
 
 If I update GATK on fauve I must rsync again, dahu will only have
-an unversioned subdir gatk-latest/ .
+an unversioned gatk-latest.sif .
 

@@ -140,7 +140,7 @@ my $pm = new Parallel::ForkManager($jobs);
 #############################################
 ## build the generic GATK command-line common for all samples
 
-# TODO: compare runtimes with larger/samller -Xmx ?
+# TODO: compare runtimes with larger/smaller -Xmx ?
 my $cmd = "$gatk --java-options \"-Xmx8g\" HaplotypeCaller";
 $cmd .= " -R $refGenome --emit-ref-confidence GVCF";
 

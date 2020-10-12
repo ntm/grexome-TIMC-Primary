@@ -119,9 +119,11 @@ while($lastGrex > $firstGrex) {
     $lastGrex--;
 }
 
-# make sure gatk executable is found
-(`which $gatk` =~ /$gatk$/) ||
-    die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n";
+# make sure gatk executable is found, this test is disabled if
+# we will be running GATK from a singularity container
+($gatk =~ /singularity/) ||
+    (`which $gatk` =~ /$gatk$/) ||
+    die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk, you provided:\n$gatk\n";
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
@@ -208,6 +210,10 @@ foreach (my $gNum = $firstGrex; $gNum<=$lastGrex; $gNum++) {
     # GATK logging: one file per sample
     my $log = "$outDir/${grexome}.log";
     $fullCmd .= " &> $log";
+    # if running via singularity assume --gatk contained opening '"(' and 
+    # close them here (this is ugly but I can't figure out a cleaner way
+    # to capture stderr when run via singularity)
+    ($gatk =~ /singularity/) && ($fullCmd .= ' ) " ');
 
     if (! $real) {
         warn "I $0: dryrun, would run GATK4-HaplotypeCaller for $grexome with:\n$fullCmd\n";

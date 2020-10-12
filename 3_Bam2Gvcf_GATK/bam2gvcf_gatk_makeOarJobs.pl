@@ -57,9 +57,12 @@ my $outDir = "/bettik/nthierry/ProcessBams_GATK_2010_dahu/";
 my $gatk = 'singularity exec';
 # bind /bettik/nthierry/ (ie make it rw-accessible from within the container),
 # /home/nthierry/ is bound by default
-$gatk .= ' -B /bettik/nthierry/';
-# path/to/image and finally gatk command
-$gatk .= ' ~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest.sif gatk';
+$gatk .= ' --bind /bettik/nthierry/';
+# path/to/image
+$gatk .= ' ~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest.sif';
+# run gatk in bash -c with leading "( so we can capture stderr... $bam2gvcf must
+# close the paren and quote after redirecting stderr
+$gatk .= ' bash -c \" ( gatk';
 
 # oarsub command with params:
 # run on my project ngs-timc, ask for 1 full node, 24h walltime max
@@ -69,12 +72,11 @@ my $grex1 = $first;
 my $grex2 = $first + $grexomesPerJob - 1;
 while ($grex1 <= $last) {
     ($grex2 <= $last) || ($grex2 = $last);
-    my $oar = $oarBase."-O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
-    $oar .= "\"perl $bam2gvcf --indir $inDir --outdir $outDir --gatk \"$gatk\" --first $grex1 --last $grex2 --config $config --jobs $jobs --real\"";
+    my $oar = $oarBase." -O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
+    $oar .= "\" perl $bam2gvcf --indir $inDir --outdir $outDir --gatk \'$gatk\' --first $grex1 --last $grex2 --config $config --jobs $jobs --real\"";
 
     system($oar);
     
     $grex1 = $grex2 + 1;
     $grex2 = $grex1 + $grexomesPerJob - 1;
 }
-

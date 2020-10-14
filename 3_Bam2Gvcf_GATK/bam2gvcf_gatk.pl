@@ -228,7 +228,7 @@ foreach (my $gNum = $firstGrex; $gNum<=$lastGrex; $gNum++) {
         }
 	else{
 	    $now = strftime("%F %T", localtime);
-	    warn "I: $now - $0 running GATK4-HaplotypeCaller for $grexome completed sucessfully\n";
+	    warn "I: $now - $0 running GATK4-HaplotypeCaller for $grexome completed successfully\n";
 	}
         $pm->finish;
     }

@@ -7,10 +7,8 @@
 # submit bam2gvcf_gatk.pl jobs on dahu with oar.
 # GATK is executed via singularity (calling gatk directly results
 # in death with a cryptic error message).
-# Given timings on luxor, I should be fine processing 10 grexomes
-# in each job, with 2h time limit.
 #
-# takes 2 args: $first and $last, the first and last grexomes
+# Takes 2 args: $first and $last, the first and last grexomes
 # for this run of bam2gvcf_gatk_makeOarJobs.pl
 # NOTE: not more than 50*$grexomesPerJob at a time, or you get error:
 # Admission Rule ERROR : [ADMISSION RULE] Error: you cannot have more than 50 jobs waiting in the queue at the same time.
@@ -19,9 +17,9 @@
 use strict;
 use warnings;
 
-# number of grexomes to process in a single OAR job of 24h, 
-# assume 6h for 24 samples in parallel -> up to 96 could be OK
-my $grexomesPerJob = 82;
+# max number of grexomes to process in a single OAR job of 24h, 
+# assume 8h for 24 samples in parallel -> up to 72 should be OK
+my $grexomesPerJob = 72;
 
 (@ARGV == 2) || die "E: need two ints as arguments, first and last\n";
 my ($first,$last) = @ARGV;
@@ -59,14 +57,20 @@ my $gatk = 'singularity exec';
 # /home/nthierry/ is bound by default
 $gatk .= ' --bind /bettik/nthierry/';
 # path/to/image
-$gatk .= ' ~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest.sif';
+##$gatk .= ' ~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest.sif';
+# running from the sif doesn't work, trying a sandbox
+$gatk .= ' ~/gatk_4.1.8.1_SANDBOX';
+
 # run gatk in bash -c with leading "( so we can capture stderr... $bam2gvcf must
 # close the paren and quote after redirecting stderr
 $gatk .= ' bash -c \" ( gatk';
 
-# oarsub command with params:
-# run on my project ngs-timc, ask for 1 full node, 24h walltime max
-my $oarBase = "oarsub --project ngs-timc -l /nodes=1,walltime=24 ";
+# oarsub command with params: run on my project ngs-timc, and...
+my $oarBase = "oarsub --project ngs-timc";
+## INITIAL BUG JOB TO PROCESS GREXOMES 50-489: ask for 1 full node, 24h walltime
+##$oarBase .= " -l /nodes=1,walltime=24 ";
+# for a single sample: 4 cores on 1 node for 12h:
+$oarBase .= " -l /nodes=1/core=4,walltime=12 ";
 
 my $grex1 = $first;
 my $grex2 = $first + $grexomesPerJob - 1;

@@ -11,3 +11,7 @@ rsync -rtvL Bam2gvcf_GATK_PackagedWithBinaries_Centos7 f-dahu:
 If I update GATK on fauve I must rsync again, dahu will only have
 an unversioned gatk-latest.sif .
 
+
+NOTE 14/10/2020: the gatk .sif can't be used on dahu, unlinking here and
+building a sandbox directly on dahu with the singularity version available 
+there, see README_bam2gvcf_gatk on dahu.

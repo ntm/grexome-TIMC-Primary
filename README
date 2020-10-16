@@ -22,6 +22,9 @@ per sample.
 GVCFs to obtain a single multi-sample GVCF, and along the way: filter
 low-quality variants, normalize variants, and clean up everything.
 
+4_GVCFs2GenomicsDB/ : import single-sample GATK GVCFs into a GenomicsDB.
+
+
 
 
 Fastq2Bam_PackagedWithBinaries_Centos7/ :

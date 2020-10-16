@@ -129,7 +129,7 @@ while($lastGrex > $firstGrex) {
 my $refGenome = &refGenome();
 my $chromsBed = &refGenomeChromsBed();
 
-#tmp dir
+# tmp dir
 my $tmpDir = &fastTmpPath();
 
 
@@ -176,7 +176,7 @@ $cmd .= " -L $chromsBed";
 # don't know why GATK doesn't default to FASTEST for SW
 $cmd .= " --smith-waterman FASTEST_AVAILABLE";
 
-# TMP_DIR undocumented but try it anyways, with some fast temp storage
+# use fast temp storage
 $cmd .= " --tmp-dir $tmpDir";
 
 # -G -A -AX : annotations to add or exclude, defaults for now

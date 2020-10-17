@@ -30,10 +30,20 @@ $0 = basename($0);
 ## hard-coded stuff that shouldn't change much
 
 # RAM we give to GATK
-my $ram = "288g";
+my $ram = "192g";
 # number of threads to use - RAM usage seems to scales linearly, and
 # number of open file descriptors definitely scales linearly
-my $threads = 8;
+my $threads = 12;
+
+# NOTES:
+# 1. GATK opens more than ($threads * $samples) files simultaneously,
+#    when importing many samples you will probably need to increase
+#    the "open files" limit in your shell to its hard limit (ulimit),
+#    and then maybe decrease $threads until you're within the limit.
+# 2. An alterative could be --batch-size (and maybe --consolidate).
+# 3. I successfully imported 490 samples without batching using
+#    $mem="288g" and $threads=8.
+
 
 
 #############################################

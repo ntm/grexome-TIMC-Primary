@@ -118,8 +118,13 @@ my $logDir = $outFile."_GATKlogs/";
 
 # Create subdir in &fastTmpPath so we can CLEANUP when we
 # are done, because GATK leaves a lot of sh*t behind.
-# We will also create the temporary chrom-specific VCFs here.
 my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
+
+# Also make a temp subdir of $logDir where we will create the
+# temporary chrom-specific VCFs (not placing them in $tmpDir
+# because these VCFs are huge while &fastTmpPath can be on a 
+# smallish ramdisk)
+my $tmpVcfDir = tempdir(DIR => $logDir, CLEANUP => 1);
 
 # ref genome
 my $genome = &refGenome();
@@ -138,7 +143,7 @@ while(my $line = <CHROMS>) {
 	(warn "W $0: cannot extract chrom from chromsBed $chromsBed line, skipping this line:\n$line\n" && next);
     my $chr = $1;
     push(@chroms,$chr);
-    my $out = "$tmpDir/tmpvcf_$chr.vcf";
+    my $out = "$tmpVcfDir/tmpvcf_$chr.vcf";
     push(@tempVcfs,$out);
 }
 close(CHROMS);
@@ -162,7 +167,7 @@ $cmd .= " --seconds-between-progress-updates 600";
 # don't create vcf.idx, if anything we will bgzip and tabix-index the VCF
 $cmd .= " --create-output-variant-index false";
 
-# use fast and big tmp storage
+# use fast tmp storage
 $cmd .= " --tmp-dir $tmpDir";
 
 # -G -A -AX : annotations to add or exclude, defaults for now

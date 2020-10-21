@@ -1,8 +1,11 @@
 21/06/2019
 NTM
 
-Primary analysis pipeline: from FASTQs to a single multi-sample GVCF.
+Primary analysis pipeline: from FASTQs to a single multi-sample 
+GVCF (Strelka pipeline) or VCF (GATK4 pipeline).
 
+
+##### COMMON STEPS FOR STRELKA AND GATK4 #####
 
 1_GrexomizeFastqs/ : house-keeping script:
 take original fastqs and parse patient_summary_*.xlsx , to obtain
@@ -12,20 +15,29 @@ luxor:/data/nthierry/PierreRay/FASTQs_All_Grexomized
 2_Fastq2Bam/ : process fastqs: trim adaptors, align on ref genome,
 mark duplicates, sort bam, index bam.
 
-3_Bam2Gvcf_Strelka/ : variant calling with strelka, produces one GVCF
-per sample.
 
-3_Bam2Gvcf_GATK/ : variant calling with GATK4, produces one GVCF
+##### SPECIFIC STEPS FOR STRELKA #####
+
+3_Bam2Gvcf_Strelka/ : variant calling with strelka, produces one GVCF
 per sample.
 
 4_MergeGVCFs_NTM_forStrelka/ : merge several single- or multi-sample
 GVCFs to obtain a single multi-sample GVCF, and along the way: filter
 low-quality variants, normalize variants, and clean up everything.
 
+
+##### SPECIFIC STEPS FOR GATK4 #####
+
+3_Bam2Gvcf_GATK/ : variant calling with GATK4, produces one GVCF
+per sample.
+
 4_GVCFs2GenomicsDB/ : import single-sample GATK GVCFs into a GenomicsDB.
 
+5_GenomicsDB2VCF/ : perform joint genotyping with GATK GenotypeGVCFs 
+from a GenomicsDB.
 
 
+##### "PACKAGED" VERSIONS FOR RUNNING SOME STEPS ON CLUSTERS #####
 
 Fastq2Bam_PackagedWithBinaries_Centos7/ :
 Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/ :

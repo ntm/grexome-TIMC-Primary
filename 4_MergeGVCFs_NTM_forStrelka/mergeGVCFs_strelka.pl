@@ -38,12 +38,14 @@
 #   CORRECTED means:
 #     if a key was missing for a sample it gets '.'
 #     GT gets corrected values for ALTs
-#     GQ, GQX, DPI, DP, DPF, SB, FT, PS don't change
+#     GQ, GQX, DPI, DP, DPF, SB, FT, PS, PGT, PID don't change
 #     AD/ADF/ADR, get 0 for new ALTs
 #     PL gets correct new values, using 255 for missing alleles (see explanation in the code)
 #
-# NOTES on FORMAT (Strelka2 v2.9.10):
-# for non-variant blocks it is always GT:GQX:DP:DPF:MIN_DP
+###########
+# NOTES on FORMAT:
+# From Strelka2 v2.9.10, for non-variant blocks it is always
+# GT:GQX:DP:DPF:MIN_DP
 # we also see this for non-variant sites (ie without END)
 # the only formats for variant sites are:
 # GT:GQ:GQX:DPI:AD:ADF:ADR:FT:PL
@@ -51,16 +53,29 @@
 # or same 2 but replace DPI with DP:DPF and add SB:
 # GT:GQ:GQX:DP:DPF:AD:ADF:ADR:SB:FT:PL
 # GT:GQ:GQX:DP:DPF:AD:ADF:ADR:SB:FT:PL:PS
+#
+# From GATK 4.1.8.1, in VCFs from GenotypeGVCFs via GenomicsDB we have only:
+# GT:AD:DP:GQ:PGT:PID:PL:PS
+# GT:AD:DP:GQ:PL
+# in GATK GVCFs straight from HaplotypeCaller we have:
+# GT
+# GT:AD:DP:GQ:PGT:PID:PL:PS:SB
+# GT:AD:DP:GQ:PL:SB
+# GT:DP:GQ:MIN_DP:PL
+# GT:GQ:PL
+# GT:PGT:PID:PS
+#
 # In my output files I can change the order of fields and
 # create different combinations. But this script can read 
 # it's own output.
-#
+###########
 # NOTES on FILTERS (Strelka2 v2.9.10):
 ## frequent and seem all relevant: LowGQX LowDepth HighDPFRatio
 ## never seen without LowGQX or LowDepth: SiteConflict
 ##  rare, never seen with END, not the most relevant IMO: HighSNVSB
 ## never seen in my data: IndelConflict NotGenotyped PloidyConflict
 #
+###########
 # NOTES on normalization and merging of variants:
 # - as stated, I do NOT left-align variants, it's too much overhead. 
 #   I am hoping that Strelka does it correctly, or at least I'm hoping
@@ -453,7 +468,8 @@ warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
 ###############
 # grabNextLine:
 # take a single arg: a filehandle open for reading (GVCF, after headers);
-# return the next "line" that doesn't have a %filtersApplied in FILTER,
+# return the next "line" that doesn't have a %filtersApplied in FILTER
+# and that isn't a useless "GT:PGT:PID:PS" line from GATK,
 # or undef if no such line exists.
 # Also the variants are normalized: 
 # trailing bases common to REF and all ALTs are removed, 
@@ -471,6 +487,8 @@ sub grabNextLine {
 	chomp($li);
 	# split into 10 fields, last one has all DATA columns
 	my @line = split(/\t/, $li, 10);
+	# ignore GATK "GT:PGT:PID:PS" lines, these are useless
+	($line[8] eq "GT:PGT:PID:PS") && (next LINE);
 	# filter bad lines
 	my @filters = split(/;/,$line[6]);
 	foreach my $f (@filters) {
@@ -791,7 +809,7 @@ sub mergeBatchOfLines {
 	else {
 	    # build array from %longestFormat, respecting the order specified 
 	    # in @maxFormatSorted, and ignoring MIN_DP since we are not in a non-var block
-	    my @maxFormatSorted = ('GT','FT','GQ','GQX','DP','DPF','DPI','AD','ADF','ADR','SB','PL','PS');
+	    my @maxFormatSorted = ('GT','FT','GQ','GQX','DP','DPF','DPI','AD','ADF','ADR','SB','PL','PS','PGT','PID');
 	    my @longestFormat = ();
 	    foreach my $fkey (@maxFormatSorted) {
 		# we must add FT even if it wasn't there
@@ -811,7 +829,7 @@ sub mergeBatchOfLines {
 #    all array-lines have same chrom:pos or are undef
 # ref to @numSamples == same indexes as @infiles, value is the number of samples in the infile
 # $longestRef wich contains the longest REF among the strings
-# ref to @longestFormat: array of all FORMAT keys present in at least one line
+# ref to @longestFormat: array of all FORMAT keys present in at least one line (ignoring MIN_DP)
 # Return the string to print, result of merging the lines.
 # NOTE: arrays referenced in $toMergeR WILL BE modified (ALTs are changed)
 # Preconditions: 
@@ -921,9 +939,9 @@ sub mergeLines {
 		$altsNew2Old[$newAlts{$alts[$i]}] = $i;
 	    }
 
-	    # make sure MIN_DP is last if present, so we know it comes after DP
-	    ($toMergeR->[$fileIndex]->[8] =~ /MIN_DP:/) &&
-		die "E: in mergeLines MIN_DP is in a FORMAT but not last! in file $fileIndex:\n".
+	    # make sure MIN_DP comes after DP if present
+	    ($toMergeR->[$fileIndex]->[8] =~ /:MIN_DP.*:DP/) &&
+		die "E: in mergeLines MIN_DP is in a FORMAT but before DP! in file $fileIndex:\n".
 		join("\t",@{$toMergeR->[$fileIndex]})."\n";
 
 	    my @format = split(/:/,$toMergeR->[$fileIndex]->[8]);
@@ -938,7 +956,7 @@ sub mergeLines {
 
 		foreach my $fi (0..$#format) {
 		    #     GT gets adjusted values from %altsNew2Old
-		    #     GQ GQX DPF DPI SB PS don't change
+		    #     GQ GQX DPF DPI SB PS PGT PID don't change
 		    #     DP gets MIN_DP value if it exists, otherwise doesn't change
 		    #     AD ADF ADR get 0 for new ALTs
 		    #     FT gets value from FILTER if it didn't exist, otherwise doesn't change
@@ -979,13 +997,14 @@ sub mergeLines {
 
 		    elsif (($format[$fi] eq "GQ") || ($format[$fi] eq "GQX") || 
 			   ($format[$fi] eq "DP") || ($format[$fi] eq "DPF") || ($format[$fi] eq "DPI") || 
-			   ($format[$fi] eq "SB") || ($format[$fi] eq "PS") || ($format[$fi] eq "FT")) {
+			   ($format[$fi] eq "SB") || ($format[$fi] eq "FT") ||
+			   ($format[$fi] eq "PS") || ($format[$fi] eq "PGT") || ($format[$fi] eq "PID") ) {
 			# just copy values
 			$fixedData[$formatIndex{$format[$fi]}] = $data[$fi];
 		    }
 
 		    elsif ($format[$fi] eq "MIN_DP") {
-			# we verified that if MIN_DP exists it is last in FORMAT,
+			# we verified that if MIN_DP exists it is after DP in FORMAT,
 			# therefore if we find MIN_DP we can just use it for DP and 
 			# it will squash any pre-exising value
 			(defined $formatIndex{"DP"}) && ($fixedData[$formatIndex{"DP"}] = $data[$fi]);
@@ -1150,7 +1169,8 @@ sub mergeLines {
 # -> if all lines share at least one FILTER value, we return a new blockline 
 # using as FILTER the largest set of common FILTER values
 # -> else no FILTER value is shared, we return a bunch of single-position lines
-# Precondition: FORMAT ends with DP:DPF:MIN_DP, this is checked
+# Precondition: FORMAT ends with DP:DPF:MIN_DP (strelka) or DP:GQ:MIN_DP:PL (gatk),
+#    this is checked
 sub mergeLinesNonVarBlock {
     (@_ == 3) || die "mergeLinesNonVarBlock needs 3 args.\n";
     my ($toMergeR,$numSamplesR, $longestRef) = @_;
@@ -1263,10 +1283,19 @@ sub mergeLinesNonVarBlock {
 	# files have the same, but we strip MIN_DP and add FT
 	my $formatFirstNonNull = $toMergeR->[$firstNonNull]->[8];
 	my $format = $formatFirstNonNull;
-	# remove MIN_DP, must be last and follow DP:DPF
+	# remove MIN_DP
+	# behavior depends on $caller: "strelka" or "gatk"
 	# if this code changes you MUST also change the substitutions of $data below 
-	($format =~ s/:DP:DPF:MIN_DP$/:DP:DPF/) || 
+	my $caller;
+	if ($format =~ s/:DP:DPF:MIN_DP$/:DP:DPF/) {
+	    $caller = "strelka";
+	}
+	elsif ($format =~ s/:DP:GQ:MIN_DP:PL$/:DP:GQ:PL/) {
+	    $caller = "gatk";
+	}
+	else {
 	    die "E in mergeLinesNonVarBlock: no shared filters but cannot remove MIN_DP from FORMAT in first file $firstNonNull, format is $format\n";
+	}
 	# add FT right after GT
 	($format =~ s/^GT:/GT:FT:/) || 
 	    die "E in mergeLinesNonVarBlock: no shared filters but cannot add FT to FORMAT in first file $firstNonNull, format is $format\n";
@@ -1287,7 +1316,7 @@ sub mergeLinesNonVarBlock {
 	    $line .= "\t.";
 	    # FORMAT
 	    $line .= "\t$format";
-	    # sample data: just remove MIN_DP, replace DP value with MIN_DP value,
+	    # geno-data: remove MIN_DP, replace DP value with MIN_DP value,
 	    # and add the correct FT for each, but go all the way to $#$numSamplesR
 	    foreach my $fileIndex (0..$#$numSamplesR) {
 		if ($toMergeR->[$fileIndex]) {
@@ -1301,8 +1330,17 @@ sub mergeLinesNonVarBlock {
 			# if no data, leave as '.'
 			if ($data ne '.') {
 			    # remove MIN_DP and replace DP with its value
-			    ($data =~ s/:\d+:(\d+):(\d+)$/:$2:$1/) ||
-				die "E in mergeLinesNonVarBlock: no shared, cannot remove MIN_DP and use its value for DP in data from file $fileIndex:$data\n"; 
+			    if ($caller eq "strelka") {
+				($data =~ s/:\d+:(\d+):(\d+)$/:$2:$1/) ||
+				    die "E in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
+			    }
+			    elsif ($caller eq "gatk") {
+				($data =~ s/:\d+:(\d+):(\d+):([^:]+)$/:$2:$1:$3/) ||
+				    die "E in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
+			    }
+			    else {
+				die "E in mergeLinesNonVarBlock: caller $caller not implemented!\n";
+			    }
 			    # add filters in second field, after GT
 			    ($data =~ s/^([^:]+):/$1:$filters[$fileIndex]:/) ||
 				die "E in mergeLinesNonVarBlock: no shared, cannot add FT values in data from file $fileIndex:$data\n"; 

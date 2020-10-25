@@ -122,7 +122,7 @@ my $batchSize = 100000;
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied
 # will be skipped.
 # For performance reasons we do NOT check the FT fields for these keys, we assume
-# that the infiles are single-sample Strelka GVCFs or were produced by this script
+# that the infiles are single-sample Strelka/GATK GVCFs or were produced by this script
 # with the same %filtersApplied.
 # [see NOTES on FILTERS above for how I chose these]
 my %filtersApplied = ('LowGQX'=>1, 'LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>1);
@@ -151,7 +151,10 @@ my $help = '';
 
 my $USAGE = 'Merge several GVCFs into a single multi-sample GVCF, printed on STDOUT.
 This software was developed and tested for merging single-sample GVCFs produced by 
-Strelka 2.9.10 or by GATK 4.1.8.1, and for multi-sample GVCFs produced by itself.
+Strelka (2.9.10) or by GATK (4.1.8.1), and for multi-sample GVCFs produced by itself.
+However it tries to be very defensive, so it should detect and report any problem it 
+has with the GVCFs you provide. If this happens please report the issues so we can 
+fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --filelist string [no default] : file containing a list of GVCF filenames to merge,
     including paths, one file per line
@@ -183,7 +186,7 @@ grexomeTIMCprim_config->import( qw(fastTmpPath) );
 
 # Create subdir in &fastTmpPath so we can CLEANUP when we
 # are done
-my $tmpDir = tempdir(DIR => $logDir, CLEANUP => 1);
+my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
 
 
 #############################################

@@ -82,8 +82,8 @@
 ###########
 # NOTES on normalization and merging of variants:
 # - as stated, I do NOT left-align variants, it's too much overhead. 
-#   I am hoping that Strelka does it correctly, or at least I'm hoping
-#   it is consistent in its behavior. If it is consistent, merging
+#   I am hoping that Strelka/GATK do it correctly, or at least I'm hoping
+#   they're consistent in their behavior. If they are consistent, merging
 #   will work fine and variants can be left-aligned later if needed.
 # - I also do NOT merge lines with different POS values, even if
 #   the REFs overlap. I'm afraid doing this would result in large
@@ -131,28 +131,16 @@ my %filtersApplied = ('LowGQX'=>1, 'LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>
 #############################################
 ## options / params from the command-line
 
-my $USAGE = '
-Arguments (all can be abbreviated to shortest unambiguous prefixes):
---filelist string [required] : file containing a list of GVCF filenames to merge,
-    including paths, one file per line
---tmpdir string [default = tmpdir_mergeGVCFs/] : subdir where tmp files will
-    be created, must not pre-exist and will be removed after execution
---jobs N [default = 16] : number of parallel jobs=threads to run
---cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
---help : print this USAGE';
-
-
 # file containing list of GVCFs, no default
 my $fileList;
 
-# for multi-threading, need to create a tmpDir. It will
-# be removed when we are done and must not pre-exist.
-# to improve performance if you have ample RAM you could
-# create a RAMDISK and provide a subdir in it
-my $tmpDir = "tmpdir_mergeGVCFs/";
+# path+file of the config file holding all install-specific params,
+# defaults to the distribution-povided file that you can edit but
+# you can also copy it elsewhere and customize it, then use --config
+my $config = "$RealBin/../grexomeTIMCprim_config.pm";
 
-# number of jobs
-my $numJobs = 16;
+# number of parallel jobs to run
+my $jobs = 16;
 
 # if $cleanHeaders, don't print ##contig headers except for regular 
 # chroms (1-22, X, Y, M)
@@ -161,24 +149,41 @@ my $cleanHeaders = '';
 # help: if true just print $USAGE and exit
 my $help = '';
 
+my $USAGE = 'Merge several GVCFs into a single multi-sample GVCF, printed on STDOUT.
+This software was developed and tested for merging single-sample GVCFs produced by 
+Strelka 2.9.10 or by GATK 4.1.8.1, and for multi-sample GVCFs produced by itself.
+Arguments (all can be abbreviated to shortest unambiguous prefixes):
+--filelist string [no default] : file containing a list of GVCF filenames to merge,
+    including paths, one file per line
+--config string [$config] : your customized copy (with path) of the distributed *config.pm
+--jobs N [$jobs] : number of parallel jobs=threads to run
+--cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
+--help : print this USAGE';
+
+
 GetOptions ("filelist=s" => \$fileList,
-	    "tmpdir=s" => \$tmpDir,
-	    "jobs=i" => \$numJobs,
+	    "config=s" => \$config,
+	    "jobs=i" => \$jobs,
 	    "cleanheaders" => \$cleanHeaders,
 	    "help" => \$help)
     or die("E: Error in command line arguments\n\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
-($help) &&
-    die "$USAGE\n\n";
+($help) && die "$USAGE\n\n";
 
-(-e $tmpDir) && 
-    die "E $0: tmpDir $tmpDir exists, please remove or rename it, or provide a different one with --tmpdir\n";
+# immediately import $config, so we die if file is broken
+(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
+require($config);
+grexomeTIMCprim_config->import( qw(fastTmpPath) );
 
 ($fileList) ||
     die "E $0: you MUST provide a list of GVCFs to merge in a file, with --filelist.\n$USAGE\n";
 (-f $fileList) ||
     die "E $0: provided --filelist $fileList doesn't exist or can't be read\n";
+
+# Create subdir in &fastTmpPath so we can CLEANUP when we
+# are done
+my $tmpDir = tempdir(DIR => $logDir, CLEANUP => 1);
 
 
 #############################################
@@ -209,10 +214,6 @@ while(my $file = <FILES>) {
 }
 
 close(FILES);
-
-# mkdir only now so any previous error doesn't leave an existing tmpDir 
-mkdir($tmpDir) || 
-    die "E $0: cannot mkdir tmpDir $tmpDir\n";
 
 
 #############################################
@@ -304,7 +305,7 @@ STDOUT->flush();
 # done with headers, now deal with bodies...
 
 # create fork manager
-my $pm = new Parallel::ForkManager($numJobs);
+my $pm = new Parallel::ForkManager($jobs);
 
 # spawn a child process that waits for workers to finish producing batches,
 # and prints the tmpfiles to stdout in correct order, cleaning up behind itself
@@ -462,11 +463,8 @@ foreach my $i (0..$#infiles) {
 foreach my $infile (@infiles) {
     close($infile);
 }
-# clean up: remove $tmpDir 
-$now = strftime("%F %T", localtime);
 
-rmdir($tmpDir) || 
-    die "E $0: $now - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
+$now = strftime("%F %T", localtime);
 warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
 
 

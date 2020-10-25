@@ -7,8 +7,9 @@
 
 # Take as arg a filename containing a list of GVCF filenames (with full path, 
 # possible gzipped, one file per line) with one or more data columns (ie samples).
-# These GVCFs should be produced by Strelka or by this program, if you feed random
-# GVCF files you will probably need to adapt the code (although I try to be defensive).
+# These GVCFs should be produced by Strelka, by GATK4 or by this program.
+# If you feed random GVCF files you will probably need to adapt the code (although
+# I try to be defensive).
 # Produce to stdout a GVCF file, where:
 # - header is copied from first file, except: 
 #   all INFO descriptions except END and BLOCKAVG_min30p3a are stripped;
@@ -69,12 +70,15 @@
 # create different combinations. But this script can read 
 # it's own output.
 ###########
-# NOTES on FILTERS (Strelka2 v2.9.10):
-## frequent and seem all relevant: LowGQX LowDepth HighDPFRatio
-## never seen without LowGQX or LowDepth: SiteConflict
-##  rare, never seen with END, not the most relevant IMO: HighSNVSB
-## never seen in my data: IndelConflict NotGenotyped PloidyConflict
-#
+# NOTES on FILTERS
+## -> Strelka2 v2.9.10:
+## - frequent and seem all relevant: LowGQX LowDepth HighDPFRatio
+## - never seen without LowGQX or LowDepth: SiteConflict
+## - rare, never seen with END, not the most relevant IMO: HighSNVSB
+## - never seen in my data: IndelConflict NotGenotyped PloidyConflict
+## -> GATK 4.1.8.1:
+## - only available FILTER is LowQual, never seen in my data but should
+##   be relevant
 ###########
 # NOTES on normalization and merging of variants:
 # - as stated, I do NOT left-align variants, it's too much overhead. 
@@ -91,9 +95,15 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use POSIX qw(strftime);
 use Parallel::ForkManager;
+use POSIX qw(strftime);
+use File::Basename qw(basename);
+use FindBin qw($RealBin);
+use File::Temp qw(tempdir);
 
+# we use $0 in every stderr message but we really only want
+# the program name, not the path
+$0 = basename($0);
 
 #############################################
 ## hard-coded stuff that shouldn't change much
@@ -115,7 +125,7 @@ my $batchSize = 100000;
 # that the infiles are single-sample Strelka GVCFs or were produced by this script
 # with the same %filtersApplied.
 # [see NOTES on FILTERS above for how I chose these]
-my %filtersApplied = ('LowGQX'=>1, 'LowDepth'=>1, 'HighDPFRatio'=>1);
+my %filtersApplied = ('LowGQX'=>1, 'LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>1);
 
 
 #############################################
@@ -163,12 +173,12 @@ GetOptions ("filelist=s" => \$fileList,
     die "$USAGE\n\n";
 
 (-e $tmpDir) && 
-    die "E: tmpDir $tmpDir exists, please remove or rename it, or provide a different one with --tmpdir\n";
+    die "E $0: tmpDir $tmpDir exists, please remove or rename it, or provide a different one with --tmpdir\n";
 
 ($fileList) ||
-    die "E: you MUST provide a list of GVCFs to merge in a file, with --filelist.\n$USAGE\n";
+    die "E $0: you MUST provide a list of GVCFs to merge in a file, with --filelist.\n$USAGE\n";
 (-f $fileList) ||
-    die "E: provided --filelist $fileList doesn't exist or can't be read\n";
+    die "E $0: provided --filelist $fileList doesn't exist or can't be read\n";
 
 
 #############################################
@@ -178,23 +188,23 @@ GetOptions ("filelist=s" => \$fileList,
 my @infiles = ();
 
 open(FILES, $fileList) ||
-    die "E: cannot open provided argument $fileList\n";
+    die "E $0: cannot open provided argument $fileList\n";
 
 while(my $file = <FILES>) {
     chomp($file);
     # skip blank lines
     ($file =~ /^\s*$/) && next;
-    (-f $file) || die "E: infile $file from fileList $fileList doesn't exist\n";
+    (-f $file) || die "E $0: infile $file from fileList $fileList doesn't exist\n";
     if ($file =~ /\.vcf$/) {
-	open(my $infile, $file) || die "E: cannot open infile $file for reading\n";
+	open(my $infile, $file) || die "E $0: cannot open infile $file for reading\n";
 	push(@infiles, $infile);
     }
     elsif ($file =~ /\.vcf\.gz$/) {
-	open(my $infile, "gunzip -c $file |") || die "E: cannot gunzip-open infile $file for reading\n";
+	open(my $infile, "gunzip -c $file |") || die "E $0: cannot gunzip-open infile $file for reading\n";
 	push(@infiles, $infile);
     }
     else {
-	die "E: infile $file from fileList $fileList does not end in .vcf or .vcf.gz, why?\n";
+	die "E $0: infile $file from fileList $fileList does not end in .vcf or .vcf.gz, why?\n";
     }
 }
 
@@ -202,7 +212,7 @@ close(FILES);
 
 # mkdir only now so any previous error doesn't leave an existing tmpDir 
 mkdir($tmpDir) || 
-    die "E: cannot mkdir tmpDir $tmpDir\n";
+    die "E $0: cannot mkdir tmpDir $tmpDir\n";
 
 
 #############################################
@@ -251,7 +261,7 @@ while(my $line = <$infile>) {
 	last;
     }
     else {
-	die "E: parsing header from first infile of $ARGV[0], found bad line:\n$line";
+	die "E $0: parsing header from first infile of $ARGV[0], found bad line:\n$line";
     }
 }
 
@@ -271,12 +281,12 @@ foreach my $i (1..$#infiles) {
 	    my @f = split(/\t/,$line);
 	    push(@numSamples, scalar(@f) - 9);
 	    ($line =~ /\tFORMAT(\t.+)$/) ||
-		die "E parsing CHROM header line from file $i:\n$line\n";
+		die "E $0: parsing CHROM header line from file $i:\n$line\n";
 	    $headerEnd .= $1;
 	    last;
 	}
 	else {
-	    die "E: parsing header from infile $ARGV[$i], found bad line:\n$line";
+	    die "E $0: parsing header from infile $ARGV[$i], found bad line:\n$line";
 	}
     }
 }
@@ -285,7 +295,7 @@ print "$headerEnd\n";
 
 # sanity
 (@numSamples == @infiles) || 
-    die "numSamples and infiles disagree...\n@numSamples\n@infiles\n";
+    die "E $0: numSamples and infiles disagree...\n@numSamples\n@infiles\n";
 
 # flush stdout before starting our eatTmpFiles job
 STDOUT->flush();
@@ -317,7 +327,7 @@ foreach  my $i (0..$#infiles) {
     my $lineR = &grabNextLine($infile);
     # every infile must have at least one non-filtered dataline
     ($lineR) || 
-	die "E: infile $i doesn't have ANY non-filtered dataline?? Something must be wrong";
+	die "E $0: infile $i doesn't have ANY non-filtered dataline?? Something must be wrong";
     push(@startNextBatch, $lineR);
 }
 
@@ -424,12 +434,12 @@ while (!$lastBatch) {
     $pm->start && next;
     # if you change $tmpOut or $tmpOutFlag you MUST EDIT &eatTmpFiles()
     my $tmpOut = "$tmpDir/$batchNum.g.vcf";
-    open(my $outFH, "> $tmpOut") || die "cannot open $tmpOut for writing\n";
+    open(my $outFH, "> $tmpOut") || die "E $0: cannot open $tmpOut for writing\n";
     &mergeBatchOfLines(\@batchToMerge, \@numSamples, $outFH);
     close($outFH);
     # done building this tmpfile, create flag-file
     my $tmpOutFlag = $tmpOut."_done";
-    open(OUTFLAG, "> $tmpOutFlag") || die "cannot open flagfile $tmpOutFlag for writing\n";
+    open(OUTFLAG, "> $tmpOutFlag") || die "E $0: cannot open flagfile $tmpOutFlag for writing\n";
     print OUTFLAG "$batchNum\n";
     close(OUTFLAG);
     $pm->finish;
@@ -439,7 +449,7 @@ while (!$lastBatch) {
 # batchNum that will ever exist, tell &eatTmpFiles() so it can exit
 # (of course if you change $tmpOutLast you have to edit &eatTmpFiles)
 my $tmpOutLast = "$tmpDir/lastBatch";
-open(OUTLAST, "> $tmpOutLast") || die "cannot open tmp-last-file $tmpOutLast for writing\n";
+open(OUTLAST, "> $tmpOutLast") || die "E $0: cannot open tmp-last-file $tmpOutLast for writing\n";
 print OUTLAST "$batchNum\n";
 close OUTLAST;
 
@@ -447,7 +457,7 @@ $pm->wait_all_children;
 # sanity: 
 foreach my $i (0..$#infiles) {
     ($startNextBatch[$i]) && 
-	die "All done but startNextBatch not empty for file $i:\n".join("\t",@{$startNextBatch[$i]})."\n";
+	die "E $0: All done but startNextBatch not empty for file $i:\n".join("\t",@{$startNextBatch[$i]})."\n";
 }
 foreach my $infile (@infiles) {
     close($infile);
@@ -456,7 +466,7 @@ foreach my $infile (@infiles) {
 $now = strftime("%F %T", localtime);
 
 rmdir($tmpDir) || 
-    die "E: $now - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
+    die "E $0: $now - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
 warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
 
 
@@ -480,7 +490,7 @@ warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
 # (ie has END=).
 # The last array element has all DATA columns in a single string.
 sub grabNextLine {
-    (@_ == 1) || die "grabNextLine needs 1 arg.\n";
+    (@_ == 1) || die "E $0: grabNextLine needs 1 arg.\n";
     my ($infile) = @_;
   LINE:
     while (my $li = <$infile>) {
@@ -516,10 +526,10 @@ sub grabNextLine {
 	    if ($removeLast) {
 		# OK remove last base from REF and all @alts
 		($line[3] =~ s/$lastRef$//) || 
-		    die "WTF can't remove $lastRef from end of $line[3]\n";
+		    die "E $0: WTF can't remove $lastRef from end of $line[3]\n";
 		foreach my $i (0..$#alts) {
 		    ($alts[$i] =~ s/$lastRef$//) || 
-			die "WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
+			die "E $0: WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
 		}
 		$line[4] = join(',',@alts);
 	    }
@@ -544,10 +554,10 @@ sub grabNextLine {
 	    }
 	    if ($removeFirst) {
 		($line[3] =~ s/^$firstRef//) || 
-		    die "WTF can't remove $firstRef from start of $line[3]\n";
+		    die "E $0: WTF can't remove $firstRef from start of $line[3]\n";
 		foreach my $i (0..$#alts) {
 		    ($alts[$i] =~ s/^$firstRef//) || 
-			die "WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
+			die "E $0: WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
 		}
 		$line[4] = join(',',@alts);
 		$line[1]++;
@@ -575,7 +585,7 @@ sub grabNextLine {
 # Precondition, caller must ensure it (not checked here!):
 # $lineR->chrom is the same as chrom in batchR
 sub addLineToBatch {
-    (@_ == 2) || die "addLineToBatch needs 2 args.\n";
+    (@_ == 2) || die "E $0: addLineToBatch needs 2 args.\n";
     my ($batchR,$lineR) = @_;
 
     # if batchR is empty, fast return (can happen due to recursion below)
@@ -613,7 +623,7 @@ sub addLineToBatch {
 	    # So, for now just keep the first line, ie NOOP
 
 	    # following warn was used to analyze the problem, don't use it in production
-	    #warn "W: addLineToBatch, 2 lines with ALTs and same POS, ignoring the second line:\n".
+	    #warn "W $0: addLineToBatch, 2 lines with ALTs and same POS, ignoring the second line:\n".
 	    # join("\t",@$prevLineR)."\n".join("\t",@$lineR)."\n\n";
 	}
     }
@@ -622,7 +632,7 @@ sub addLineToBatch {
 	# but how far back do we have to go?
 	# easy to code with recursive function, but I sure hope
 	# this doesn't happen too often!
-	warn "I: addLineToBatch is recursing, around $lineR->[0] $lineR->[1]\n";
+	warn "I $0: addLineToBatch is recursing, around $lineR->[0] $lineR->[1]\n";
 	pop(@$batchR);
 	&addLineToBatch($batchR, $lineR);
 	&addLineToBatch($batchR, $prevLineR);
@@ -641,7 +651,7 @@ sub addLineToBatch {
 #    content as $lineR except POS becomes $newEnd+1 and REF becomes 'N';
 #    and also modify $lineR: END becomes $newEnd.
 sub splitBlockLine {
-    (@_ == 2) || die "splitBlockLine needs 2 args.\n";
+    (@_ == 2) || die "E $0: splitBlockLine needs 2 args.\n";
     my ($lineR,$newEnd) = @_;
 
     # if $newEnd < 0, NOOP
@@ -654,7 +664,7 @@ sub splitBlockLine {
 
     # sanity: can't have newEnd positive but < POS
     ($newEnd < $lineR->[1]) &&
-	die "E splitBlockLine, newEnd $newEnd smaller than POS in:\n".join("\t",@$lineR)."\n";
+	die "E $0: splitBlockLine, newEnd $newEnd smaller than POS in:\n".join("\t",@$lineR)."\n";
 
     # else make fresh line, initially copy content of $lineR
     my @newLine = @$lineR ;
@@ -663,7 +673,7 @@ sub splitBlockLine {
     $newLine[3] = 'N';
     # modify END in $lineR
     ($lineR->[7] =~ s/^END=$oldEnd;/END=$newEnd;/) ||
-	die "E splitBlockLine, cannot subst END $oldEnd with $newEnd in:\n".join("\t",@$lineR)."\n";
+	die "E $0: splitBlockLine, cannot subst END $oldEnd with $newEnd in:\n".join("\t",@$lineR)."\n";
     return(\@newLine);
 }
 
@@ -686,7 +696,7 @@ sub splitBlockLine {
 # -> Any line storing a non-variant block has END < the first file's
 #   starting chrom:pos in the NEXT batch (splitBlockLine facilitates this)
 sub mergeBatchOfLines {
-    (@_ == 3) || die "mergeBatchOfLines needs 3 args.\n";
+    (@_ == 3) || die "E $0: mergeBatchOfLines needs 3 args.\n";
     my ($batchToMergeR, $numSamplesR, $outFH) = @_;
 
     # number of files that still have at least one line to merge
@@ -802,7 +812,7 @@ sub mergeBatchOfLines {
 	    # $nonVarBlockEnd would have been set to $pos
 	    # make sure all blocks have the same FORMAT
 	    (keys(%seenFormats) == 1) ||
-		die "E: in mergeBatchOfLines I want to merge non-var blocks at pos $smallestPos but I have several formats:".
+		die "E $0: in mergeBatchOfLines I want to merge non-var blocks at pos $smallestPos but I have several formats:".
 		keys(%seenFormats);
 	    print($outFH &mergeLinesNonVarBlock(\@nextToMerge,$numSamplesR, $longestRef));
 	}
@@ -837,7 +847,7 @@ sub mergeBatchOfLines {
 # - any non-variant blockline should have END==POS (but we don't actually
 #   examine or use END, so this doesn't matter)
 sub mergeLines {
-    (@_ == 4) || die "mergeLines needs 4 args.\n";
+    (@_ == 4) || die "E $0: mergeLines needs 4 args.\n";
     my ($toMergeR, $numSamplesR, $longestRef, $longestFormatR) = @_;
 
     ####################################
@@ -854,7 +864,7 @@ sub mergeLines {
 	($alts eq '.') && next;
 	if ($longestRef ne $ref) {
 	    ($longestRef =~ /^$ref(\w+)$/) || 
-		die "longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
+		die "E $0: longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
 		join("\t",@{$toMergeR->[$fileIndex]})."\n";
 	    my $extraBases = $1;
 	    my @fixedAlts = ();
@@ -908,7 +918,7 @@ sub mergeLines {
     my %formatIndex = ();
     foreach my $i (0..$#$longestFormatR) {
 	($longestFormatR->[$i] eq "MIN_DP") &&
-	    die "E in mergeLines: longestFormat contains MIN_DP, it MUST NOT!\n";
+	    die "E $0: in mergeLines: longestFormat contains MIN_DP, it MUST NOT!\n";
 	$formatIndex{$longestFormatR->[$i]} = $i;
     }
 
@@ -941,7 +951,7 @@ sub mergeLines {
 
 	    # make sure MIN_DP comes after DP if present
 	    ($toMergeR->[$fileIndex]->[8] =~ /:MIN_DP.*:DP/) &&
-		die "E: in mergeLines MIN_DP is in a FORMAT but before DP! in file $fileIndex:\n".
+		die "E $0: in mergeLines MIN_DP is in a FORMAT but before DP! in file $fileIndex:\n".
 		join("\t",@{$toMergeR->[$fileIndex]})."\n";
 
 	    my @format = split(/:/,$toMergeR->[$fileIndex]->[8]);
@@ -990,7 +1000,7 @@ sub mergeLines {
 			    $fixedData[$formatIndex{$format[$fi]}] = "$geno1";
 			}
 			else {
-			    die "E: trying to adjust GT $data[$fi] but can't parse it, in file $fileIndex, line:\n".
+			    die "E $0: trying to adjust GT $data[$fi] but can't parse it, in file $fileIndex, line:\n".
 				join("\t",@{$toMergeR->[$fileIndex]})."\n";
 			}
 		    }
@@ -1112,7 +1122,7 @@ sub mergeLines {
 		    }
 
 		    else {
-			die "unknown format key $format[$fi] found, add some code to deal with it!\n".
+			die "E $0: unknown format key $format[$fi] found, add some code to deal with it!\n".
 			    join("\t",@{$toMergeR->[$fileIndex]})."\n";
 		    }
 		}
@@ -1172,7 +1182,7 @@ sub mergeLines {
 # Precondition: FORMAT ends with DP:DPF:MIN_DP (strelka) or DP:GQ:MIN_DP:PL (gatk),
 #    this is checked
 sub mergeLinesNonVarBlock {
-    (@_ == 3) || die "mergeLinesNonVarBlock needs 3 args.\n";
+    (@_ == 3) || die "E $0: mergeLinesNonVarBlock needs 3 args.\n";
     my ($toMergeR,$numSamplesR, $longestRef) = @_;
 
     # find first non-null line
@@ -1236,11 +1246,11 @@ sub mergeLinesNonVarBlock {
 	    if ($toMergeR->[$fileIndex]) {
 		# check INFO
 		($toMergeR->[$fileIndex]->[7] eq $info) ||
-		    die "E: in mergeLinesNonVarBlock, info $info in first file $firstNonNull is different from ".
+		    die "E $0: in mergeLinesNonVarBlock, info $info in first file $firstNonNull is different from ".
 		    $toMergeR->[$fileIndex]->[7]." in file $fileIndex\n";
 		# check FORMAT
 		($toMergeR->[$fileIndex]->[8] eq $format) || 
-		    die "E: in mergeLinesNonVarBlock, format $format in first file $firstNonNull is different from ".
+		    die "E $0: in mergeLinesNonVarBlock, format $format in first file $firstNonNull is different from ".
 		    $toMergeR->[$fileIndex]->[8]." in file $fileIndex\n";
 
 		# print data columns
@@ -1276,7 +1286,7 @@ sub mergeLinesNonVarBlock {
 	# grab END from first INFO, we will check that all files have the same
 	my $infoFirstNonNull = $toMergeR->[$firstNonNull]->[7];
 	($infoFirstNonNull =~ /^END=(\d+);/) ||
-	    die "E in mergeLinesNonVarBlock: cant grab END from firstNonNull $firstNonNull\n";
+	    die "E $0: in mergeLinesNonVarBlock: cant grab END from firstNonNull $firstNonNull\n";
 	my $end = $1;
 
 	# FORMAT can also be grabbed from the first file, we will check that all
@@ -1294,11 +1304,11 @@ sub mergeLinesNonVarBlock {
 	    $caller = "gatk";
 	}
 	else {
-	    die "E in mergeLinesNonVarBlock: no shared filters but cannot remove MIN_DP from FORMAT in first file $firstNonNull, format is $format\n";
+	    die "E $0: in mergeLinesNonVarBlock: no shared filters but cannot remove MIN_DP from FORMAT in first file $firstNonNull, format is $format\n";
 	}
 	# add FT right after GT
 	($format =~ s/^GT:/GT:FT:/) || 
-	    die "E in mergeLinesNonVarBlock: no shared filters but cannot add FT to FORMAT in first file $firstNonNull, format is $format\n";
+	    die "E $0: in mergeLinesNonVarBlock: no shared filters but cannot add FT to FORMAT in first file $firstNonNull, format is $format\n";
 
 	my $firstPos = $toMergeR->[$firstNonNull]->[1];
 	foreach my $pos ($firstPos..$end) {
@@ -1322,9 +1332,9 @@ sub mergeLinesNonVarBlock {
 		if ($toMergeR->[$fileIndex]) {
 		    # sanity: check INFO and FORMAT
 		    ($toMergeR->[$fileIndex]->[7] eq $infoFirstNonNull) ||
-			die "E in mergeLinesNonVarBlock: no shared, pos $pos, INFO differs in file $fileIndex from $infoFirstNonNull\n"; 
+			die "E $0: in mergeLinesNonVarBlock: no shared, pos $pos, INFO differs in file $fileIndex from $infoFirstNonNull\n"; 
 		    ($toMergeR->[$fileIndex]->[8] eq $formatFirstNonNull) ||
-			die "E in mergeLinesNonVarBlock: no shared, pos $pos, FORMAT differs in file $fileIndex from $formatFirstNonNull\n";
+			die "E $0: in mergeLinesNonVarBlock: no shared, pos $pos, FORMAT differs in file $fileIndex from $formatFirstNonNull\n";
 		    my @dataCols = split("\t",$toMergeR->[$fileIndex]->[9]);
 		    foreach my $data (@dataCols) {
 			# if no data, leave as '.'
@@ -1332,18 +1342,18 @@ sub mergeLinesNonVarBlock {
 			    # remove MIN_DP and replace DP with its value
 			    if ($caller eq "strelka") {
 				($data =~ s/:\d+:(\d+):(\d+)$/:$2:$1/) ||
-				    die "E in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
+				    die "E $0: in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
 			    }
 			    elsif ($caller eq "gatk") {
 				($data =~ s/:\d+:(\d+):(\d+):([^:]+)$/:$2:$1:$3/) ||
-				    die "E in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
+				    die "E $0: in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
 			    }
 			    else {
-				die "E in mergeLinesNonVarBlock: caller $caller not implemented!\n";
+				die "E $0: in mergeLinesNonVarBlock: caller $caller not implemented!\n";
 			    }
 			    # add filters in second field, after GT
 			    ($data =~ s/^([^:]+):/$1:$filters[$fileIndex]:/) ||
-				die "E in mergeLinesNonVarBlock: no shared, cannot add FT values in data from file $fileIndex:$data\n"; 
+				die "E $0: in mergeLinesNonVarBlock: no shared, cannot add FT values in data from file $fileIndex:$data\n"; 
 			}
 			$line .= "\t$data";
 		    }
@@ -1372,7 +1382,7 @@ sub mergeLinesNonVarBlock {
 # we also watch for $tmpOutLast, a file that will tell us
 # the last batch number to wait for
 sub eatTmpFiles {
-    (@_ == 1) || die "eatTmpFiles needs 1 arg.\n";
+    (@_ == 1) || die "E $0: eatTmpFiles needs 1 arg.\n";
     my ($tmpD) = @_;
 
     # when created, $tmpOutLast will contain the number of the last batch
@@ -1390,28 +1400,28 @@ sub eatTmpFiles {
 	if (-e $tmpOutFlag) {
 	    # next batch tmp file is ready
 	    open (IN, $tmpOut) || 
-		die "E in eatTmpFiles, flagfile $tmpOutFlag exists but cant open tmpout $tmpOut: $!\n";
+		die "E $0: in eatTmpFiles, flagfile $tmpOutFlag exists but cant open tmpout $tmpOut: $!\n";
 	    while(<IN>) {
 		print;
 	    }
 	    close(IN);
 	    (unlink($tmpOut,$tmpOutFlag) == 2) ||
-		die "E in eatTmpFiles, done with files for batch $nextBatch but cannot unlink (both of) them: $!\n";
+		die "E $0: in eatTmpFiles, done with files for batch $nextBatch but cannot unlink (both of) them: $!\n";
 
 	    my $now = strftime("%F %T", localtime);
-	    warn("I: $now - done printing results from batch $nextBatch\n");
+	    warn("I $0: $now - done printing results from batch $nextBatch\n");
 	    $nextBatch++;
 	    next;
 	}
 
 	elsif (-e $tmpOutLast) {
 	    open (IN, $tmpOutLast) || 
-		die "E in eatTmpFiles, cannot open tmpOutLast $tmpOutLast although it exists: $!\n";
+		die "E $0: in eatTmpFiles, cannot open tmpOutLast $tmpOutLast although it exists: $!\n";
 	    $lastBatch = <IN>;
 	    chomp($lastBatch);
 	    close(IN);
 	    unlink($tmpOutLast) || 
-		die "E in eatTmpFiles, cannot unlink tmpOutLast $tmpOutLast: $!\n";
+		die "E $0: in eatTmpFiles, cannot unlink tmpOutLast $tmpOutLast: $!\n";
 	    next;
 	}
 

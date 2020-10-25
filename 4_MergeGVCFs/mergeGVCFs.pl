@@ -61,11 +61,11 @@
 # GT:AD:DP:GQ:PL
 # in GATK GVCFs straight from HaplotypeCaller we have:
 # GT
+# GT:GQ:PL
+# GT:PGT:PID:PS
 # GT:AD:DP:GQ:PGT:PID:PL:PS:SB
 # GT:AD:DP:GQ:PL:SB
 # GT:DP:GQ:MIN_DP:PL
-# GT:GQ:PL
-# GT:PGT:PID:PS
 #
 # In my output files I can change the order of fields and
 # create different combinations. But this script can read 
@@ -510,65 +510,104 @@ sub grabNextLine {
 	($line[7] =~ /^END=/) || ($line[7] = ".");
 
 	# normalize variants:
-	# 1. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
-	#    common ending bases, remove them (keeping at least 1 base everywhere).
-	while ($line[3] =~ /\w(\w)$/) {
-	    # ref has at least 2 chars
-	    my $lastRef = $1;
-	    # split here because most lines won't even enter the while loop
+	# most REFs are a single base => cannot be normalized -> test first
+	if (length($line[3]) >= 2) {
+	    my $ref = $line[3];
 	    my @alts = split(/,/,$line[4]);
-	    my $removeLast = 1;
-	    foreach my $alt (@alts) {
-		if ($alt !~ /\w$lastRef$/) {
-		    # this alt is length one or doesn't end with $lastRef
-		    $removeLast = 0;
+	    # never normalize <NON_REF> or * : if they are here, store their indexes
+	    # in @alts and splice them out (trick start from the end)
+	    my ($nonrefi,$stari) = (-1,-1);
+	    foreach my $i (reverse(0..$#alts)) {
+		if ($alts[$i] eq '<NON_REF>') {
+		    $nonrefi = $i;
+		    splice(@alts,$i,1);
+		}
+		elsif ($alts[$i] eq '*') {
+		    $stari = $i;
+		    splice(@alts,$i,1);
+		}
+	    }
+
+	    # 1. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+	    #    common ending bases, remove them (keeping at least 1 base everywhere).
+	    while ($ref =~ /\w(\w)$/) {
+		# ref has at least 2 chars
+		my $lastRef = $1;
+		my $removeLast = 1;
+		foreach my $alt (@alts) {
+		    if ($alt !~ /\w$lastRef$/) {
+			# this alt is length one or doesn't end with $lastRef
+			$removeLast = 0;
+			last;
+		    }
+		}
+		if ($removeLast) {
+		    # OK remove last base from REF and all @alts
+		    ($ref =~ s/$lastRef$//) || 
+			die "E $0: WTF can't remove $lastRef from end of $ref\n";
+		    foreach my $i (0..$#alts) {
+			($alts[$i] =~ s/$lastRef$//) || 
+			    die "E $0: WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
+		    }
+		}
+		else {
+		    # can't remove $lastRef, get out of while loop
 		    last;
 		}
 	    }
-	    if ($removeLast) {
-		# OK remove last base from REF and all @alts
-		($line[3] =~ s/$lastRef$//) || 
-		    die "E $0: WTF can't remove $lastRef from end of $line[3]\n";
-		foreach my $i (0..$#alts) {
-		    ($alts[$i] =~ s/$lastRef$//) || 
-			die "E $0: WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
-		}
-		$line[4] = join(',',@alts);
-	    }
-	    else {
-		# can't remove $lastRef, get out of while loop
-		last;
-	    }
-	}
 
-	# 2. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
-	#    common starting bases, remove them (keeping at least 1 base everywhere)
-	#    and adjust POS.
-	while ($line[3] =~ /^(\w)\w/) {
-	    my $firstRef = $1;
-	    my @alts = split(/,/,$line[4]);
-	    my $removeFirst = 1;
-	    foreach my $alt (@alts) {
-		if ($alt !~ /^$firstRef\w/) {
-		    $removeFirst = 0;
+	    # 2. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+	    #    common starting bases, remove them (keeping at least 1 base everywhere)
+	    #    and adjust POS.
+	    while ($ref =~ /^(\w)\w/) {
+		my $firstRef = $1;
+		my $removeFirst = 1;
+		foreach my $alt (@alts) {
+		    if ($alt !~ /^$firstRef\w/) {
+			$removeFirst = 0;
+			last;
+		    }
+		}
+		if ($removeFirst) {
+		    ($ref =~ s/^$firstRef//) || 
+			die "E $0: WTF can't remove $firstRef from start of $ref\n";
+		    foreach my $i (0..$#alts) {
+			($alts[$i] =~ s/^$firstRef//) || 
+			    die "E $0: WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
+		    }
+		    $line[1]++;
+		}
+		else {
 		    last;
 		}
 	    }
-	    if ($removeFirst) {
-		($line[3] =~ s/^$firstRef//) || 
-		    die "E $0: WTF can't remove $firstRef from start of $line[3]\n";
-		foreach my $i (0..$#alts) {
-		    ($alts[$i] =~ s/^$firstRef//) || 
-			die "E $0: WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
-		}
-		$line[4] = join(',',@alts);
-		$line[1]++;
-	    }
-	    else { last; }
-	}
 
+	    # place <NON_REF> and/or * back where they belong: need to splice
+	    # in correct order, smallest index first
+	    if ($stari != -1) {
+		if ($nonrefi == -1) {
+		    splice(@alts, $stari, 0, '*');
+		}
+		elsif ($nonrefi > $stari) {
+		    splice(@alts, $stari, 0, '*');
+		    splice(@alts, $nonrefi, 0, '<NON_REF>');
+		}
+		else {
+		    # nonref needs to be spliced back in first, then *
+		    splice(@alts, $nonrefi, 0, '<NON_REF>');
+		    splice(@alts, $stari, 0, '*');
+		}
+	    }
+	    elsif ($nonrefi != -1) {
+		splice(@alts, $nonrefi, 0, '<NON_REF>');
+	    }
+
+	    $line[3] = $ref;
+	    $line[4] = join(',',@alts);
+	}
+	
 	return(\@line);
-    }
+  }
     # no more good lines in infile, return undef
     return();
 }

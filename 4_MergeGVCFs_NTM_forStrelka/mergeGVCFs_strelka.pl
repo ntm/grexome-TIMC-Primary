@@ -17,6 +17,7 @@
 #   ##mergeGVCFs= lines from all infiles are copied;
 #   #CHROM line is modified by appending the identifiers of all samples.
 # - any line whose FILTER column contains a key from %filtersApplied gets skipped.
+# - lines whose FORMAT is "GT:PGT:PID:PS" are skipped (GATK4 produces these useless lines).
 # - every variant gets normalized (but not left-aligned): 
 #   * remove bases present at the end of REF and all ALTs;
 #   * remove bases present at the start of REF and all ALTs, and increase POS accordingly;

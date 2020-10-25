@@ -21,9 +21,9 @@ mark duplicates, sort bam, index bam.
 3_Bam2Gvcf_Strelka/ : variant calling with strelka, produces one GVCF
 per sample.
 
-4_MergeGVCFs_NTM_forStrelka/ : merge several single- or multi-sample
-GVCFs to obtain a single multi-sample GVCF, and along the way: filter
-low-quality variants, normalize variants, and clean up everything.
+4_MergeGVCFs/ : merge several single- or multi-sample GVCFs to obtain 
+a single multi-sample GVCF, and along the way: filter low-quality 
+variants, normalize variants, and clean up everything.
 
 
 ##### SPECIFIC STEPS FOR GATK4 #####

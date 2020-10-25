@@ -159,8 +159,8 @@ fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --filelist string [no default] : file containing a list of GVCF filenames to merge,
     including paths, one file per line
---config string [$config] : your customized copy (with path) of the distributed *config.pm
---jobs N [$jobs] : number of parallel jobs=threads to run
+--config string ['.$config.'] : your customized copy (with path) of the distributed *config.pm
+--jobs N ['.$jobs.'] : number of parallel jobs=threads to run
 --cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
 --help : print this USAGE';
 

@@ -966,7 +966,7 @@ sub mergeLines {
 			last;
 		    }
 		    elsif ($format[$fi] eq "GT") {
-			if (($data[$fi] eq '.') || ($data[$fi] eq './.')) {
+			if (($data[$fi] eq '.') || ($data[$fi] eq './.') || ($data[$fi] eq '.|.')) {
 			    # nocall, just copy
 			    $fixedData[$formatIndex{$format[$fi]}] = $data[$fi];
 			}

@@ -910,7 +910,11 @@ sub mergeLines {
 	    my $extraBases = $1;
 	    my @fixedAlts = ();
 	    foreach my $thisAlt (split(/,/,$alts)) {
-		my $fixedAlt = "$thisAlt$extraBases";
+		my $fixedAlt = $thisAlt;
+		# never extend NON_REF or *
+		if (($fixedAlt ne '<NON_REF>') && ($fixedAlt ne '*')) {
+		    $fixedAlt .= $extraBases;
+		}
 		$newAlts{$fixedAlt} = 1;
 		push(@fixedAlts, $fixedAlt);
 	    }

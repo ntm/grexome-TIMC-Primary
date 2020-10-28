@@ -698,7 +698,7 @@ sub splitBlockLine {
     # if $newEnd < 0, NOOP
     ($newEnd >= 0) || (return());
     # if $lineR isn't a block, NOOP
-    ($lineR->[7] =~ /^END=(\d+);/) || (return());
+    ($lineR->[7] =~ /^END=(\d+)/) || (return());
     my $oldEnd = $1;
     # if $lineR is a block but ends before or at $newEnd, NOOP
     ($newEnd < $oldEnd) ||  (return());
@@ -713,7 +713,7 @@ sub splitBlockLine {
     $newLine[1] = $newEnd + 1;
     $newLine[3] = 'N';
     # modify END in $lineR
-    ($lineR->[7] =~ s/^END=$oldEnd;/END=$newEnd;/) ||
+    ($lineR->[7] =~ s/^END=$oldEnd/END=$newEnd/) ||
 	die "E $0: splitBlockLine, cannot subst END $oldEnd with $newEnd in:\n".join("\t",@$lineR)."\n";
     return(\@newLine);
 }
@@ -781,7 +781,7 @@ sub mergeBatchOfLines {
 		}
 		%seenFormats = ();
 		$seenFormats{$format} = 1;
-		if ($fieldsR->[7] =~ /^END=(\d+);/) {
+		if ($fieldsR->[7] =~ /^END=(\d+)/) {
 		    my $newBlockEnd = $1;
 		    # examine the previous $smallestPos here!
 		    if ((! $smallestPos) || ($newBlockEnd < $smallestPos)) {
@@ -814,7 +814,7 @@ sub mergeBatchOfLines {
 		    }
 		    $seenFormats{$format} = 1;
 		}
-		if ($fieldsR->[7] =~ /^END=(\d+);/) {
+		if ($fieldsR->[7] =~ /^END=(\d+)/) {
 		    my $thisEnd = $1;
 		    ($thisEnd < $nonVarBlockEnd) && ($nonVarBlockEnd = $thisEnd);
 		}
@@ -902,7 +902,7 @@ sub mergeLines {
 	($toMergeR->[$fileIndex]) || next;
 	my ($ref,$alts) = @{$toMergeR->[$fileIndex]}[3,4];
 	# if we're in a non-variant position in this file, nothing to do here
-	($alts eq '.') && next;
+	(($alts eq '.') || ($alts eq '<NON_REF>')) && next;
 	if ($longestRef ne $ref) {
 	    ($longestRef =~ /^$ref(\w+)$/) || 
 		die "E $0: longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
@@ -1330,7 +1330,7 @@ sub mergeLinesNonVarBlock {
 
 	# grab END from first INFO, we will check that all files have the same
 	my $infoFirstNonNull = $toMergeR->[$firstNonNull]->[7];
-	($infoFirstNonNull =~ /^END=(\d+);/) ||
+	($infoFirstNonNull =~ /^END=(\d+)/) ||
 	    die "E $0: in mergeLinesNonVarBlock: cant grab END from firstNonNull $firstNonNull\n";
 	my $end = $1;
 

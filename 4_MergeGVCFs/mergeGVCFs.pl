@@ -26,8 +26,10 @@
 # - any remaining (adjusted) chrom:pos line from any infile will appear in the output, with:
 #   ID set to '.';
 #   the longest REF from all infiles;
-#   all ALTs from all infiles, adjusted to fit the longest REF (append extra 
-#      bases if needed);
+#   '*' and <NON_REF> are removed from ALTs (along with any associated values, eg PL:
+#      this seems to be what GATK-GenotypeGVCFs does!)
+#   ALT becomes the list of all remaining ALTs from all infiles, adjusted to fit the 
+#      longest REF (appending extra bases if needed);
 #   QUAL replaced by '.'
 #   INFO and FILTER replaced by '.' except for non-variant blocks:
 #      * if all infiles have overlapping blocks with some common FILTERs, we produce a new 
@@ -40,7 +42,8 @@
 #   CORRECTED means:
 #     if a key was missing for a sample it gets '.'
 #     GT gets corrected values for ALTs
-#     GQ, GQX, DPI, DP, DPF, SB, FT, PS, PGT, PID don't change
+#     GQ gets its corrected value if needed (eg '*' got removed and was in a GT with a small PL) 
+#     GQX, DPI, DP, DPF, SB, FT, PS, PGT, PID don't change
 #     AD/ADF/ADR, get 0 for new ALTs
 #     PL gets correct new values, using 255 for missing alleles (see explanation in the code)
 #
@@ -643,13 +646,13 @@ sub addLineToBatch {
 	push(@$batchR, $lineR);
     }
     elsif ($lineR->[1] == $prevLineR->[1]) {
-	if ($lineR->[4] eq '.') {
+	if (($lineR->[4] eq '.') || ($lineR->[4] eq '<NON_REF>')) {
 	    # if lineR is non-var ignore it at POS, but make it start at POS+1
 	    # if it's a block (just skip it if it's not a block)
 	    $lineR = &splitBlockLine($lineR,$lineR->[1]);
 	    ($lineR) && (push(@$batchR,$lineR));
 	}
-	elsif($prevLineR->[4] eq '.') {
+	elsif(($prevLineR->[4] eq '.') || ($prevLineR->[4] eq '<NON_REF>')) {
 	    # prevLineR was non-var, replace it with lineR
 	    pop(@$batchR);
 	    push(@$batchR,$lineR);
@@ -862,9 +865,14 @@ sub mergeBatchOfLines {
 	    # in @maxFormatSorted, and ignoring MIN_DP since we are not in a non-var block
 	    my @maxFormatSorted = ('GT','FT','GQ','GQX','DP','DPF','DPI','AD','ADF','ADR','SB','PL','PS','PGT','PID');
 	    my @longestFormat = ();
+	    # if any infile had FILTER ne '.', we need to add FT to FORMAT even if it wasn't there
+	    my $addFT = 0;
+	    foreach my $lineR (@nextToMerge) {
+		($lineR->[6] ne '.') && ($addFT = 1) && last;
+	    }
 	    foreach my $fkey (@maxFormatSorted) {
-		# we must add FT even if it wasn't there
-		if (($longestFormat{$fkey}) || ($fkey eq 'FT')) {
+		# if $addFT, we must add FT even if it wasn't there
+		if ( ($longestFormat{$fkey}) || (($fkey eq 'FT') && $addFT) ) {
 		    push(@longestFormat,$fkey);
 		}
 	    }

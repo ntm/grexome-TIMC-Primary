@@ -31,8 +31,8 @@
 #   QUAL replaced by '.'
 #   INFO and FILTER replaced by '.' except for non-variant blocks:
 #      * if all infiles have overlapping blocks with some common FILTERs, we produce a new 
-#        block covering the intersection (POS and END get updated, BLOCKAVG_* stays) with
-#        the largest common set of FILTER values;
+#        block covering the intersection with the largest common set of FILTER values 
+#        (POS and END get updated, any other info such as BLOCKAVG_* from Strelka stays);
 #      * otherwise we print individual lines, not a block, and each sample gets its FT
 #        with all its FILTERs;
 #   FORMAT contains the union of FORMAT keys from all files (see below);
@@ -515,7 +515,7 @@ sub grabNextLine {
 	    my $ref = $line[3];
 	    my @alts = split(/,/,$line[4]);
 	    # never normalize <NON_REF> or * : if they are here, store their indexes
-	    # in @alts and splice them out (trick start from the end)
+	    # in @alts and splice them out (trick: start from the end)
 	    my ($nonrefi,$stari) = (-1,-1);
 	    foreach my $i (reverse(0..$#alts)) {
 		if ($alts[$i] eq '<NON_REF>') {

@@ -901,8 +901,10 @@ sub mergeLines {
     foreach my $fileIndex (0..$#$toMergeR) {
 	($toMergeR->[$fileIndex]) || next;
 	my ($ref,$alts) = @{$toMergeR->[$fileIndex]}[3,4];
-	# if we're in a non-variant position in this file, nothing to do here
-	(($alts eq '.') || ($alts eq '<NON_REF>')) && next;
+	# if we're in a non-variant position in this file: $ref might be 'N' and anyways
+	# no extension of alts is needed, but for gatk NON_REF must still go in newAlts
+	($alts eq '.') && next;
+	($alts eq '<NON_REF>') && ($newAlts{$alts} = 1) && next;
 	if ($longestRef ne $ref) {
 	    ($longestRef =~ /^$ref(\w+)$/) || 
 		die "E $0: longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
@@ -932,8 +934,15 @@ sub mergeLines {
     ####################################
     # STEP 2 (NO LOOP): build @newAlts, the list of fixed ALTs sorted appropriately:
     # by increasing length, and at equal length in alphabetical order (so we are
-    # deterministic)
+    # deterministic), always keeping '*' and NON_REF last (in that order) if present
+    my ($starPresent,$nonrefPresent) = (0,0);
+    ($newAlts{'*'}) && ($starPresent = 1) && (delete($newAlts{'*'}));
+    ($newAlts{'<NON_REF>'}) && ($nonrefPresent = 1) && (delete($newAlts{'<NON_REF>'}));
+
     my @newAlts = sort {(length($a) <=> length($b)) || ($a cmp $b)} keys(%newAlts);
+    # add back * and NON_REF if they were here
+    ($starPresent) && (push(@newAlts, '*'));
+    ($nonrefPresent) && (push(@newAlts, '<NON_REF>'));
     # if no ALTs, use '.' as a bogus ALT
     (@newAlts) || push(@newAlts, '.');
 

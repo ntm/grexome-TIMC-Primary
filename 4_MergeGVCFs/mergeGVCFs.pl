@@ -26,10 +26,8 @@
 # - any remaining (adjusted) chrom:pos line from any infile will appear in the output, with:
 #   ID set to '.';
 #   the longest REF from all infiles;
-#   '*' and <NON_REF> are removed from ALTs (along with any associated values, eg PL:
-#      this seems to be what GATK-GenotypeGVCFs does!)
-#   ALT becomes the list of all remaining ALTs from all infiles, adjusted to fit the 
-#      longest REF (appending extra bases if needed);
+#   all ALTs from all infiles, adjusted to fit the longest REF (append extra 
+#      bases if needed);
 #   QUAL replaced by '.'
 #   INFO and FILTER replaced by '.' except for non-variant blocks:
 #      * if all infiles have overlapping blocks with some common FILTERs, we produce a new 
@@ -42,8 +40,7 @@
 #   CORRECTED means:
 #     if a key was missing for a sample it gets '.'
 #     GT gets corrected values for ALTs
-#     GQ gets its corrected value if needed (eg '*' got removed and was in a GT with a small PL) 
-#     GQX, DPI, DP, DPF, SB, FT, PS, PGT, PID don't change
+#     GQ, GQX, DPI, DP, DPF, SB, FT, PS, PGT, PID don't change
 #     AD/ADF/ADR, get 0 for new ALTs
 #     PL gets correct new values, using 255 for missing alleles (see explanation in the code)
 #
@@ -888,7 +885,8 @@ sub mergeBatchOfLines {
 #    all array-lines have same chrom:pos or are undef
 # ref to @numSamples == same indexes as @infiles, value is the number of samples in the infile
 # $longestRef wich contains the longest REF among the strings
-# ref to @longestFormat: array of all FORMAT keys present in at least one line (ignoring MIN_DP)
+# ref to @longestFormat: array of all FORMAT keys present in at least one line 
+#    (ignoring MIN_DP but adding FT if it's needed)
 # Return the string to print, result of merging the lines.
 # NOTE: arrays referenced in $toMergeR WILL BE modified (ALTs are changed)
 # Preconditions: 

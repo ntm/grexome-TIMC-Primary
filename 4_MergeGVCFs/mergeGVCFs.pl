@@ -865,7 +865,7 @@ sub mergeBatchOfLines {
 	    # if any infile had FILTER ne '.', we need to add FT to FORMAT even if it wasn't there
 	    my $addFT = 0;
 	    foreach my $lineR (@nextToMerge) {
-		($lineR->[6] ne '.') && ($addFT = 1) && last;
+		($lineR) && ($lineR->[6] ne '.') && ($addFT = 1) && last;
 	    }
 	    foreach my $fkey (@maxFormatSorted) {
 		# if $addFT, we must add FT even if it wasn't there

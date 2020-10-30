@@ -164,6 +164,15 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
 --help : print this USAGE';
 
+# construct string with full command-line for adding to headers, must be
+# done before GetOptions
+my $addToHeader = "$0 ".join(" ",@ARGV);
+chomp($addToHeader);
+$addToHeader .= " > ".`readlink -f /proc/$$/fd/1` ;
+chomp($addToHeader);
+$addToHeader .= " 2> ".`readlink -f /proc/$$/fd/2` ;
+chomp($addToHeader);
+$addToHeader = "##mergeGVCFs=<commandLine=\"$addToHeader\">\n";
 
 GetOptions ("filelist=s" => \$fileList,
 	    "config=s" => \$config,
@@ -230,8 +239,8 @@ warn("I: $now - $0 STARTING TO WORK\n");
 my @numSamples;
 
 # end of header == current command-line and #CHROM line . This allows to
-# print the ##mergeGVCFs lines from all files.
-my $headerEnd = "";
+# print the sample-column IDs from all files.
+my $headerEnd = "$addToHeader";
 
 # copy header from first file
 my $infile = $infiles[0];
@@ -249,15 +258,6 @@ while(my $line = <$infile>) {
     }
     elsif ($line =~ /^#CHROM/) {
 	# add full command-line to headers
-	my $com = qx/ps -o args= $$/;
-	chomp($com);
-	#$com .= " < ".`readlink -f /proc/$$/fd/0` ;
-	#chomp($com);
-	$com .= " > ".`readlink -f /proc/$$/fd/1` ;
-	chomp($com);
-	$com .= " 2> ".`readlink -f /proc/$$/fd/2` ;
-	chomp($com);
-	$headerEnd = "##mergeGVCFs=<commandLine=\"$com\">\n";
 	chomp($line);
 	$headerEnd .= $line;
 	# VCF has 9 columns in addition to the data columns
@@ -281,7 +281,7 @@ foreach my $i (1..$#infiles) {
 	    #NOOP, skip
 	}
 	elsif ($line =~ /^#CHROM/) {
-	    # grab sample id
+	    # grab sample ids
 	    chomp($line);
 	    my @f = split(/\t/,$line);
 	    push(@numSamples, scalar(@f) - 9);

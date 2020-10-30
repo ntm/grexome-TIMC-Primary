@@ -74,6 +74,7 @@
 # NOTES on FILTERS
 ## -> Strelka2 v2.9.10:
 ## - frequent and seem all relevant: LowGQX LowDepth HighDPFRatio
+##   UPDATE 30/10/2020 LowGQX is discarding variants that look good!
 ## - never seen without LowGQX or LowDepth: SiteConflict
 ## - rare, never seen with END, not the most relevant IMO: HighSNVSB
 ## - never seen in my data: IndelConflict NotGenotyped PloidyConflict
@@ -126,7 +127,7 @@ my $batchSize = 100000;
 # that the infiles are single-sample Strelka/GATK GVCFs or were produced by this script
 # with the same %filtersApplied.
 # [see NOTES on FILTERS above for how I chose these]
-my %filtersApplied = ('LowGQX'=>1, 'LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>1);
+my %filtersApplied = ('LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>1);
 
 
 #############################################

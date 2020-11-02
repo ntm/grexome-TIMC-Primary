@@ -111,14 +111,16 @@ $0 = basename($0);
 ## hard-coded stuff that shouldn't change much
 
 # max number of lines to read in a single batch (from the first infile,
-# number of lines from other infiles will be similar). Each batch is then 
+# number of lines from other infiles should be similar). Each batch is then 
 # processed by a worker thread.
 # Increasing $batchSize increases the RAM consumption linearly, but should
 # improve performance due to better read performance (because better OS buffering),
 # less overhead from sub calls, process creations, tmpFiles creations, etc...
-# With ~450 samples, each thread uses ~1GB RAM with batchSize==10k in my hands;
-# while with 10 samples we're down to 32MB RAM per thread (still batchSize==10k).
-my $batchSize = 100000;
+# With 54 files each containing 10 samples (previously merged), each thread
+# uses 1-10 GB RAM with batchSize==10k in my hands;
+# while with 10 single-sample files we're down to 32MB RAM per thread (still
+# batchSize==10k).
+my $batchSize = 10000;
 
 
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied

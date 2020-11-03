@@ -40,7 +40,7 @@
 #   CORRECTED means:
 #     if a key was missing for a sample it gets '.'
 #     GT gets corrected values for ALTs
-#     GQ, GQX, DPI, DP, DPF, SB, FT, PS, PGT, PID don't change
+#     GQ, GQX, DPI, DP, DPF, AF, SB, FT, PS, PGT, PID don't change
 #     AD/ADF/ADR, get 0 for new ALTs
 #     PL gets correct new values, using 255 for missing alleles (see explanation in the code)
 #
@@ -52,7 +52,6 @@
 # the only formats for variant sites are:
 # GT:GQ:GQX:DPI:AD:ADF:ADR:FT:PL
 # GT:GQ:GQX:DPI:AD:ADF:ADR:FT:PL:PS
-# or same 2 but replace DPI with DP:DPF and add SB:
 # GT:GQ:GQX:DP:DPF:AD:ADF:ADR:SB:FT:PL
 # GT:GQ:GQX:DP:DPF:AD:ADF:ADR:SB:FT:PL:PS
 #
@@ -67,7 +66,10 @@
 # GT:AD:DP:GQ:PL:SB
 # GT:DP:GQ:MIN_DP:PL
 #
-# In my output files I can change the order of fields and
+# AF is also accepted as a key (so input can be produced by 
+# our 1_filterBadCalls.pl from grexome-TIMC-Secondary repo).
+#
+# In the output files we can change the order of fields and
 # create different combinations. But this script can read 
 # it's own output.
 ###########
@@ -863,7 +865,7 @@ sub mergeBatchOfLines {
 	else {
 	    # build array from %longestFormat, respecting the order specified 
 	    # in @maxFormatSorted, and ignoring MIN_DP since we are not in a non-var block
-	    my @maxFormatSorted = ('GT','FT','GQ','GQX','DP','DPF','DPI','AD','ADF','ADR','SB','PL','PS','PGT','PID');
+	    my @maxFormatSorted = ('GT','AF','FT','GQ','GQX','DP','DPF','DPI','AD','ADF','ADR','SB','PL','PS','PGT','PID');
 	    my @longestFormat = ();
 	    # if any infile had FILTER ne '.', we need to add FT to FORMAT even if it wasn't there
 	    my $addFT = 0;
@@ -1029,7 +1031,7 @@ sub mergeLines {
 
 		foreach my $fi (0..$#format) {
 		    #     GT gets adjusted values from %altsNew2Old
-		    #     GQ GQX DPF DPI SB PS PGT PID don't change
+		    #     AF GQ GQX DPF DPI SB PS PGT PID don't change
 		    #     DP gets MIN_DP value if it exists, otherwise doesn't change
 		    #     AD ADF ADR get 0 for new ALTs
 		    #     FT gets value from FILTER if it didn't exist, otherwise doesn't change
@@ -1068,7 +1070,7 @@ sub mergeLines {
 			}
 		    }
 
-		    elsif (($format[$fi] eq "GQ") || ($format[$fi] eq "GQX") || 
+		    elsif (($format[$fi] eq "AF") || ($format[$fi] eq "GQ") || ($format[$fi] eq "GQX") || 
 			   ($format[$fi] eq "DP") || ($format[$fi] eq "DPF") || ($format[$fi] eq "DPI") || 
 			   ($format[$fi] eq "SB") || ($format[$fi] eq "FT") ||
 			   ($format[$fi] eq "PS") || ($format[$fi] eq "PGT") || ($format[$fi] eq "PID") ) {

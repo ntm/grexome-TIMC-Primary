@@ -329,8 +329,6 @@ if (! $pm->start) {
 # in the next batch
 my @startNextBatch;
 
-# boolean flag, true iff current batch is the last
-my $lastBatch = 0;
 # initialize with first non-filtered dataline from each file
 foreach  my $i (0..$#infiles) {
     my $infile = $infiles[$i];
@@ -344,44 +342,58 @@ foreach  my $i (0..$#infiles) {
 # need $batchNum for the tmpFiles
 my $batchNum = 0;
 
-while (!$lastBatch) {
-    # precondition: if (!$lastBatch) we must have a line
-    # for file 0 in @startNextBatch
+# index of first file that still has at least one line
+my $firstFile = 0;
+
+# key== a CHROM that we believe we are done with, value==1
+# this allows to catch cases where the $firstFile doesn't contain
+# any line for a chrom but has lines for subsequent chroms.
+# Currently if this happens we just die, implementing a correct
+# processing of this corner-case isn't trivial and I don't expect 
+# it to happen...
+my %chromsDone;
+
+while ($firstFile <= $#infiles) {
+    # precondition: we must have a line for file $firstFile in @startNextBatch
     $batchNum++;
     # chrom to deal with in the current batch, grab it from first file
-    # (we assume first file has at least one non-filtered line with each
-    # chrom, this is checked at the end)
-    my $thisChr = $startNextBatch[0]->[0] ;
+    my $thisChr = $startNextBatch[$firstFile]->[0] ;
+    ($chromsDone{$thisChr}) &&
+	die "E $0: found line with chrom $thisChr in file $firstFile, but we thought we had processed all lines for this chrom. ".
+	"Expected cause: some file < $firstFile has NO lines for a chrom (probably just before $thisChr). ".
+	"Fix the code if you want to deal with this corner-case.";
+    ($firstFile > 0) &&
+	warn "W $0: surprisingly it seems infile(s) @infiles[0..$firstFile-1] do(es)n't have any variants for chrom $thisChr, maybe check that they aren't truncated. Processing anyways.\n";
 
     # array of refs (one per infile) to arrays of (lines == arrayrefs)
     my @batchToMerge;
     # move stored line from first file to @batchToMerge
-    $batchToMerge[0] = [$startNextBatch[0]];
-    $startNextBatch[0] = undef;
+    $batchToMerge[$firstFile] = [$startNextBatch[$firstFile]];
+    $startNextBatch[$firstFile] = undef;
 
     # smallest position to deal with in next batch, or 0 if all remaining
-    # lines for current chrom must be parsed (ie next batch is another chrom or 
+    # lines for current chrom must be eaten (ie next batch is another chrom or 
     # this is the last batch). Initialize with some non-zero value.
     my $posNextBatch = 1;
 
     # start with first file, so we can set $posNextBatch
-    my $infile = $infiles[0];
+    my $infile = $infiles[$firstFile];
     foreach my $j (1..$batchSize) {
 	if (my $lineR = &grabNextLine($infile)) {
 	    my $chr = $lineR->[0];
 	    if ($chr eq $thisChr) {
-		&addLineToBatch($batchToMerge[0], $lineR);
+		&addLineToBatch($batchToMerge[$firstFile], $lineR);
 	    }
 	    else {
 		# $lineR is from another chrom, will be for next batch
 		$posNextBatch = 0;
-		$startNextBatch[0] = $lineR;
+		$startNextBatch[$firstFile] = $lineR;
+		$chromsDone{$thisChr} = 1;
 		last;
 	    }
 	}
 	else {
 	    # no more non-filtered lines in $infile
-	    $lastBatch = 1;
 	    $posNextBatch = 0;
 	    last;
 	}
@@ -389,21 +401,21 @@ while (!$lastBatch) {
     # 3 possibilities:
     # - we ran out of lines -> $posNextBatch==0
     # - we read a line with a different chrom -> $posNextBatch==0 again
-    # - otherwise we have one too many lines in @{$batchToMerge[0]}, move it
-    #   to @startNextBatch and set $posNextBatch
+    # - otherwise we have one too many lines in @{$batchToMerge[$firstFile]},
+    #   move it to @startNextBatch and set $posNextBatch
     if ($posNextBatch) {
-	my $lineR = pop(@{$batchToMerge[0]});
+	my $lineR = pop(@{$batchToMerge[$firstFile]});
 	$posNextBatch = $lineR->[1];
-	$startNextBatch[0] = $lineR;
+	$startNextBatch[$firstFile] = $lineR;
     }
 
     # Now deal with all files except the first:
     # move relevant previously stored lines of non-first files to @batchToMerge
-    foreach my $i (1..$#infiles) {
+    foreach my $i ($firstFile+1..$#infiles) {
 	if (my $lineR = $startNextBatch[$i]) {
 	    my $chr = $lineR->[0];
 	    my $pos = $lineR->[1];
-	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch==0))) {
+	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
 		# stored line for file $i is from good chrom and pos, we will move it to
 		# @batchToMerge, but if it's a long non-var block that extends beyond 
 		# $posNextBatch we also have to continue the block for the next batch.
@@ -417,7 +429,7 @@ while (!$lastBatch) {
     }
 
     # fill @batchToMerge for non-first files from the infiles themselves
-    foreach my $i (1..$#infiles) {
+    foreach my $i ($firstFile+1..$#infiles) {
 	# if we already have a line in startNextBatch, this file doesn't
 	# have any more lines for $thisChr before $posNextBatch
 	($startNextBatch[$i]) && next;
@@ -426,7 +438,7 @@ while (!$lastBatch) {
 	while (my $lineR = &grabNextLine($infile)) {
 	    my $chr = $lineR->[0];
 	    my $pos = $lineR->[1];
-	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch==0))) {
+	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
 		$startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
 		&addLineToBatch($batchToMerge[$i], $lineR);
 		# if we produced a continuation blockline, this was the last line for infile $i
@@ -438,6 +450,11 @@ while (!$lastBatch) {
 		last; # last line for infile $i
 	    }
 	}
+    }
+
+    # increment $firstFile if needed, for next batch
+    while ((!$startNextBatch[$firstFile]) && ($firstFile <= $#infiles)) {
+	$firstFile++;
     }
 
     # OK we can merge the batch and print the result to a tmpfile
@@ -689,7 +706,7 @@ sub addLineToBatch {
 ###############
 # splitBlockLine: args are:
 # - $lineR, a ref to an arrayline;
-# - $newEnd, an int which must be >= $lineR->POS.
+# - $newEnd, an int which must be >= $lineR->POS or < 0.
 # -> if $lineR doesn't contain a non-variant block: NOOP & return undef
 # -> elsif $newEnd < 0: NOOP & return undef
 # -> elsif $newEnd >= $lineR->END: NOOP & return undef

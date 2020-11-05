@@ -363,7 +363,8 @@ while ($firstFile <= $#infiles) {
 	"Expected cause: some file < $firstFile has NO lines for a chrom (probably just before $thisChr). ".
 	"Fix the code if you want to deal with this corner-case.";
     ($firstFile > 0) &&
-	warn "W $0: surprisingly it seems infile(s) @infiles[0..$firstFile-1] do(es)n't have any variants for chrom $thisChr, maybe check that they aren't truncated. Processing anyways.\n";
+	warn "W $0: surprisingly one or more infiles (indexes 0-".($firstFile-1).
+	") don't have any variants for chrom $thisChr, maybe check that they aren't truncated. Proceeding anyways.\n";
 
     # array of refs (one per infile) to arrays of (lines == arrayrefs)
     my @batchToMerge;

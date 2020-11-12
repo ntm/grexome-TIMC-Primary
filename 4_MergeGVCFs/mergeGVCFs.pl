@@ -470,12 +470,12 @@ while ($firstFile <= $#infiles) {
     my $tmpOut = "$tmpDir/$batchNum.g.vcf";
     open(my $outFH, "> $tmpOut") || die "E $0: cannot open $tmpOut for writing\n";
     &mergeBatchOfLines(\@batchToMerge, \@numSamples, $outFH);
-    close($outFH);
+    close($outFH) || die "E $0: cannot close $tmpOut after writing ($!), is your tmpDir full?\n";
     # done building this tmpfile, create flag-file
     my $tmpOutFlag = $tmpOut."_done";
     open(OUTFLAG, "> $tmpOutFlag") || die "E $0: cannot open flagfile $tmpOutFlag for writing\n";
     print OUTFLAG "$batchNum\n";
-    close(OUTFLAG);
+    close(OUTFLAG) || die "E $0: cannot close $tmpOutFlag ($!), is your tmpDir full?\n";
     $pm->finish;
 }
 
@@ -485,7 +485,7 @@ while ($firstFile <= $#infiles) {
 my $tmpOutLast = "$tmpDir/lastBatch";
 open(OUTLAST, "> $tmpOutLast") || die "E $0: cannot open tmp-last-file $tmpOutLast for writing\n";
 print OUTLAST "$batchNum\n";
-close OUTLAST;
+close(OUTLAST) || die "E $0: cannot close $tmpOutLast ($!), is your tmpDir full?\n";
 
 $pm->wait_all_children;
 # sanity: 
@@ -1488,7 +1488,7 @@ sub eatTmpFiles {
 	my $tmpOut = "$tmpD/$nextBatch.g.vcf";
 	my $tmpOutFlag = $tmpOut."_done";
 
-	if (-e $tmpOutFlag) {
+	if ((-e $tmpOutFlag)  && (! -z $tmpOutFlag)) {
 	    # next batch tmp file is ready
 	    open (IN, $tmpOut) || 
 		die "E $0: in eatTmpFiles, flagfile $tmpOutFlag exists but cant open tmpout $tmpOut: $!\n";

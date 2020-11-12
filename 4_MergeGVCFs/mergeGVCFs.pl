@@ -122,7 +122,7 @@ $0 = basename($0);
 # uses 1-10 GB RAM with batchSize==10k in my hands;
 # while with 10 single-sample files we're down to 32MB RAM per thread (still
 # batchSize==10k).
-my $batchSize = 10000;
+my $batchSize = 100000;
 
 
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied
@@ -198,6 +198,12 @@ grexomeTIMCprim_config->import( qw(fastTmpPath) );
     die "E $0: you MUST provide a list of GVCFs to merge in a file, with --filelist.\n$USAGE\n";
 (-f $fileList) ||
     die "E $0: provided --filelist $fileList doesn't exist or can't be read\n";
+
+if ($jobs <= 2) {
+    #  need one thread for eatTmpFiles and at least one worker thread
+    warn "W $0: you set jobs=$jobs but we need at least 2 jobs, setting jobs=2 and proceeding\n";
+    $jobs = 2;
+}
 
 # Create subdir in &fastTmpPath so we can CLEANUP when we
 # are done
@@ -1288,6 +1294,8 @@ sub mergeLinesNonVarBlock {
 	# trick: start at the end so we can splice out any unshared filters
 	foreach my $i (reverse(0..$#sharedFilters)) {
 	    my $thisShared = $sharedFilters[$i];
+	    # protect for regexp search if it's '.'
+	    ($thisShared eq '.') && ($thisShared = '\.');
 	    if ($thisFilter !~ /$thisShared/) {
 		# remove thisShared from @sharedFilters
 		splice(@sharedFilters,$i,1);
@@ -1497,7 +1505,7 @@ sub eatTmpFiles {
 	    next;
 	}
 
-	elsif (-e $tmpOutLast) {
+	elsif ((-e $tmpOutLast) && (! -z $tmpOutLast)) {
 	    open (IN, $tmpOutLast) || 
 		die "E $0: in eatTmpFiles, cannot open tmpOutLast $tmpOutLast although it exists: $!\n";
 	    $lastBatch = <IN>;

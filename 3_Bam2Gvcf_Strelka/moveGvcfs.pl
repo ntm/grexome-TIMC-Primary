@@ -9,6 +9,9 @@
 # grexomeXXXX subdir of $inDir, and move them to $outDir, 
 # renaming to grexomeXXXX.g.vcf.gz .
 
+use strict;
+use warnings;
+
 # inDir: dir containing grexomeXXXX subdirs as produced by strelka
 my $inDir;
 

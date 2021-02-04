@@ -17,45 +17,24 @@ use strict;
 use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
+use File::Basename qw(basename);
+use FindBin qw($RealBin);
 
+
+# we use $0 in every stderr message but we really only want
+# the program name, not the path
+$0 = basename($0);
 
 
 #############################################
 ## options / params from the command-line
 
-my $USAGE = '
-Arguments (all can be abbreviated to shortest unambiguous prefixes):
---outdir string [required] : dir where GVCF-containing subdirs will be
-    created (one subdir per grexome)
---indir string [defaults to a working path on krakenator, luxor and fauve] : 
-    subdir containing the BAMs
---strelka [default "strelkaGermline.sh"] : must be either the path+name of
-    configureStrelkaGermlineWorkflow.py (from strelka distrib), or a wrapper script
-    (eg strelkaGermline.sh on fauve, this is the default) that can be in your PATH
---first int [default = 50] : first grexomeNum to process (>= 50)
---last int [default = 9999] : last grexomeNum to process (>= $first)
---genome string [defaults to searching in NTM\'s standard places] : path+filename
-    of the reference genome in fasta format, subdir must also contain chroms-only BED
----jobs N [default = 4] : number of cores that strelka can use
---real : actually do the work, otherwise this is a dry run, just print 
-    info on what would be done
---help : print this USAGE';
 
+# subdir where BAMs can be found
+my $inDir;
 
-# dir where GVCF-containing subdirs will be created, no default => MUST BE PROVIDED
-my $outDir = "";
-
-# subdir where BAMs are stored, defaults to current correct dir on 
-# luxor (where the BAMS are currently stored), and also on fauve (and
-# others) via ~/sshMounts/luxor/
-my $inDir = "PierreRay_DATA/BAMs_All_Selected/";
-
-if (-e "/home/nthierry/sshMounts/luxor/") {
-    $inDir = "/home/nthierry/sshMounts/luxor/$inDir";
-}
-else {
-    $inDir = "/home/nthierry/$inDir";
-}
+# dir where GVCF-containing subdirs will be created
+my $outDir;
 
 # first and last grexomeNums to process, default to everything!
 my ($firstGrex, $lastGrex) = (50,9999);
@@ -65,11 +44,13 @@ my ($firstGrex, $lastGrex) = (50,9999);
 # this is the default (works on fauve, luxor...)
 my $strelka = "strelkaGermline.sh";
 
-# full path to ref genome, must be the one used for producing the BAMs
-my $refGenome;
+# path+file of the config file holding all install-specific params,
+# defaults to the distribution-povided file that you can edit but
+# you can also copy it elsewhere and customize it, then use --config
+my $config = "$RealBin/../grexomeTIMCprim_config.pm";
 
 # number of parallel jobs to run, get from command-line --jobs, default to 4
-my $jobs = 4;
+my $jobs = 12;
 
 # $real: if not true don't actually process anything, just print INFO 
 # messages on what would be done. Default to false
@@ -78,25 +59,51 @@ my $real = '';
 # help: if true just print $USAGE and exit
 my $help = '';
 
-GetOptions ("outdir=s" => \$outDir,
-	    "indir=s" => \$inDir,
+my $USAGE = "
+Arguments (all can be abbreviated to shortest unambiguous prefixes):
+--indir string [no default] : subdir containing the BAMs
+--outdir string [no default] : dir where GVCF-containing subdirs will be
+    created (one subdir per grexome)
+--first int [$firstGrex] : first grexomeNum to process (>= 50)
+--last int [$lastGrex] : last grexomeNum to process (>= first)
+--strelka [default \"$strelka\"] : must be either the path+name of
+    configureStrelkaGermlineWorkflow.py (from strelka distrib), or a wrapper script
+    (eg strelkaGermline.sh) that can be in your PATH
+---jobs N [default = $jobs] : number of cores that strelka can use
+--real : actually do the work, otherwise this is a dry run, just print 
+    info on what would be done
+--help : print this USAGE";
+
+
+GetOptions ("indir=s" => \$inDir,
+	    "outdir=s" => \$outDir,
 	    "first=i" => \$firstGrex,
 	    "last=i" => \$lastGrex,
 	    "strelka=s" => \$strelka,
+	    "config=s" => \$config,
 	    "jobs=i" => \$jobs, 
 	    "real" => \$real,
 	    "help" => \$help)
-    or die("E: Error in command line arguments\n\n$USAGE\n");
+    or die("E: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
-($help) &&
-    die "$USAGE\n\n";
+($help) && die "$USAGE\n\n";
+
+# immediately import $config, so we die if file is broken
+(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
+require($config);
+grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
+
+($inDir) ||
+    die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n$USAGE\n";
+(-d $inDir) ||
+    die "E $0: inDir specified is not a folder!";
+
 ($outDir) || 
-    die "$USAGE\n\nE: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n";
+    die "$USAGE\n\nE: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
     die "E: outDir $outDir doesn't exist as a dir but can't be created\n";
-(-d $inDir) || 
-    die "E: inDir $inDir doesn't exist or isn't a dir\n";
+
 (($firstGrex >= 50) && ($lastGrex >= $firstGrex)) ||
     die "E: first grexomeNum must be >=50 and last must be >=first\n";
 
@@ -117,36 +124,9 @@ while($lastGrex > $firstGrex) {
 (`which $strelka` =~ /$strelka$/) || 
     die "E: the strelka python (or shell wrapper) $strelka can't be found\n";
 
-# make sure refGenome exists if provided
-if ($refGenome) {
-    (-f "$refGenome") ||
-	die "E: the provided reference genome $refGenome doesn't exist or can't be read\n";
-}
-else {
-    # if refGenome wasn't provided try to find it in several default subdirs
-    # so it works on fauve, luxor, luke, dahu...
-    if (-f "/data/HumanGenome/hs38DH.fa") {
-	$refGenome = "/data/HumanGenome/hs38DH.fa";
-    }
-    elsif (-f "/home/nthierry/HumanGenome/hs38DH.fa") {
-	$refGenome = "/home/nthierry/HumanGenome/hs38DH.fa";
-    }
-    elsif (-f "/bettik/nthierry/HumanGenome/hs38DH.fa") {
-	$refGenome = "/bettik/nthierry/HumanGenome/hs38DH.fa";
-    }
-    else {
-	die "E: cannot find human ref genome in the default paths, you must use eg --refgenome path/to/ref/hs38DH.fa";
-    }
-}
-
-# full path to hs38_chrom-only BED file, to ignore decoy/unplaced/alt 
-# regions, should be alongside the ref genome
-my $chromsBed = $refGenome;
-($chromsBed =~ s/hs38DH.fa$/hs38_chroms.bed.gz/) ||
-    die "E: cannot substitute hs38 fasta for bed\n";
-(-f $chromsBed) ||
-    die "E: chromsBed file $chromsBed doesn't exist, rsync it from somewhere or fix the code";
-
+# ref genome and BED with chromosomes 1-22, X, Y, M
+my $refGenome = &refGenome();
+my $chromsBed = &refGenomeChromsBed();
 
 
 #############################################

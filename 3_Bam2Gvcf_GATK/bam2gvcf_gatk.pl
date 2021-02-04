@@ -60,18 +60,18 @@ my $real = '';
 # help: if true just print $USAGE and exit
 my $help = '';
 
-my $USAGE = '
+my $USAGE = "
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir string [no default] : subdir containing the BAMs
 --outdir string [no default] : dir where GVCF files will be created
 --first int [$firstGrex] : first grexomeNum to process (>= 50)
---last int [$lastGrex] : last grexomeNum to process (>= $first)
---gatk [default to "gatk" which should be in PATH] : full path to gatk executable
+--last int [$lastGrex] : last grexomeNum to process (>= first)
+--gatk [default to \"$gatk\" which should be in PATH] : full path to gatk executable
 --config string [$config] : your customized copy (with path) of the distributed *config.pm
 --jobs N [default = $jobs] : number of samples to process in parallel.
 --real : actually do the work, otherwise this is a dry run, just print 
     info on what would be done
---help : print this USAGE';
+--help : print this USAGE";
 
 
 GetOptions ("indir=s" => \$inDir,
@@ -89,17 +89,17 @@ GetOptions ("indir=s" => \$inDir,
 ($help) && die "$USAGE\n\n";
 
 # immediately import $config, so we die if file is broken
-(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
+(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
 require($config);
 grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 
 ($inDir) ||
-    die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n";
+    die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n$USAGE\n";
 (-d $inDir) ||
     die "E $0: inDir specified is not a folder!";
 
 ($outDir) || 
-    die "E $0: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n";
+    die "E $0: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
     die "E $0: outDir $outDir doesn't exist as a dir but can't be created\n";
 

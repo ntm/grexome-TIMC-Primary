@@ -194,10 +194,11 @@ foreach my $gNum (50..$#grex2sample) {
     # Biomnis19: /${sample}_*_R1_001.fastq.gz
     # IBP_2019: /${sample}_R1_001.fastq.gz (they fucked up the names with i for 1 but I fixed it)
     # IBP_2019 second batch (01/08/2019): /${sample}_R1.fastq.gz
+    # BGI_2021: /\w+_L\d_{$sample}-\d+_1.fq.gz (eg: V300096729_L4_B5EHUMazpEBAAIBAA-522_1.fq.gz)
     # these are unified into the following globs, update if needed when
     # new datasets arrive (we error out if something is fishy)
-    my @files1 = glob("${inPath}/*/${sample}[-_]R1.fastq.gz ${inPath}/*/*${sample}_*R1_*.gz ${inPath}/*/*${sample}_*_1*.gz " );
-    my @files2 = glob("${inPath}/*/${sample}[-_]R2.fastq.gz ${inPath}/*/*${sample}_*R2_*.gz ${inPath}/*/*${sample}_*_2*.gz " );
+    my @files1 = glob("${inPath}/*/${sample}[-_]R1.fastq.gz ${inPath}/*/*${sample}_*R1_*.gz ${inPath}/*/*${sample}_*_1*.gz ${inPath}/*/*_${sample}-*_1.fq.gz " );
+    my @files2 = glob("${inPath}/*/${sample}[-_]R2.fastq.gz ${inPath}/*/*${sample}_*R2_*.gz ${inPath}/*/*${sample}_*_2*.gz ${inPath}/*/*_${sample}-*_2.fq.gz " );
 
     (@files1) || 
 	((warn "W: no files found for sample $sample == grexome $gNum, fix the globs, skipping this sample for now\n") && next);

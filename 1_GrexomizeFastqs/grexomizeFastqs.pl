@@ -149,8 +149,8 @@ my @grex2sample = ();
     
     foreach my $row ($rowMin+1..$rowMax) {
 	my $grexome = $worksheet->get_cell($row, $grexCol)->value;
-	# skip "none" lines
-	($grexome eq "none") && next;
+	# skip "0" lines
+	($grexome eq "0") && next;
 	($grexome =~ /^grexome(\d\d\d\d)$/) || 
 	    die "E parsing xlsx: found a grexome name that I can't parse: $grexome in row $row\n";
 	my $gNum = $1;

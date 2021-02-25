@@ -15,6 +15,7 @@ use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
 use File::Basename qw(basename);
+use File::Temp qw(tempdir);
 use FindBin qw($RealBin);
 use Parallel::ForkManager;
 
@@ -130,8 +131,7 @@ my $refGenome = &refGenome();
 my $chromsBed = &refGenomeChromsBed();
 
 # tmp dir
-my $tmpDir = &fastTmpPath();
-
+my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
 
 my $pm = new Parallel::ForkManager($jobs);
 {

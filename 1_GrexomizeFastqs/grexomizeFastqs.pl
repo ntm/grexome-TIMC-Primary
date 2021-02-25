@@ -173,7 +173,7 @@ my %infilesDone = ();
 
 foreach my $gNum (50..$#grex2sample) {
     # silently skip grexomes that have been obsoleted (dupes)
-    if (($gNum == 312) || ($gNum == 428) || ($gNum == 497) || ($gNum == 525) || ($gNum == 527)) {
+    if (($gNum == 312) || ($gNum == 340) || ($gNum == 428) || ($gNum == 497) || ($gNum == 525) || ($gNum == 527)) {
 	next;
     }
     # warn & skip if no specimen found
@@ -276,7 +276,7 @@ my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
 # some grexomes have been obsoleted because they were dupes,
 # the corresponding FASTQs are still there, there are $nbObsoleteFiles,
 # don't warn about them
-my $nbObsoleteFiles = 10;
+my $nbObsoleteFiles = 12;
 if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
     warn "\nI: examined $nbInfiles source FASTQ files and skipped $nbObsoleteFiles obsoletes in total, this is the expected number.\n";
 }

@@ -148,7 +148,7 @@ my @grex2sample = ();
 	die "E parsing xlsx: no column title is Center\n";
     
     foreach my $row ($rowMin+1..$rowMax) {
-	my $grexome = $worksheet->get_cell($row, $grexCol)->value;
+	my $grexome = $worksheet->get_cell($row, $grexCol)->unformatted();
 	# skip "0" lines
 	($grexome eq "0") && next;
 	($grexome =~ /^grexome(\d\d\d\d)$/) || 

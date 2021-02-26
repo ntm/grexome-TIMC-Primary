@@ -28,15 +28,14 @@ $0 = basename($0);
 #############################################
 ## options / params from the command-line
 
-
 # subdir where BAMs can be found
 my $inDir;
 
 # dir where GVCF-containing subdirs will be created
 my $outDir;
 
-# first and last grexomeNums to process, default to everything!
-my ($firstGrex, $lastGrex) = (50,9999);
+# comma-separated list of samples (FASTQs) to process (required)
+my $samples = '';
 
 # path+name of GATK wrapper distributed with GATK4, defaults to "gatk"
 # which should be in your PATH
@@ -64,21 +63,19 @@ my $help = '';
 my $USAGE = "
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir string [no default] : subdir containing the BAMs
+--samples : comma-separated list of sampleIDs to process, for each sample we expect
+	  [sample].bam and [sample].bam.bai files in indir
 --outdir string [no default] : dir where GVCF files will be created
---first int [$firstGrex] : first grexomeNum to process (>= 50)
---last int [$lastGrex] : last grexomeNum to process (>= first)
 --gatk [default to \"$gatk\" which should be in PATH] : full path to gatk executable
 --config string [$config] : your customized copy (with path) of the distributed *config.pm
 --jobs N [default = $jobs] : number of samples to process in parallel.
---real : actually do the work, otherwise this is a dry run, just print 
-    info on what would be done
+--real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
 
 
 GetOptions ("indir=s" => \$inDir,
+	    "samples=s" => \$samples,
 	    "outdir=s" => \$outDir,
-	    "first=i" => \$firstGrex,
-	    "last=i" => \$lastGrex,
 	    "gatk=s" => \$gatk,
 	    "config=s" => \$config,
 	    "jobs=i" => \$jobs, 
@@ -104,27 +101,30 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 (-d $outDir) || (mkdir($outDir)) || 
     die "E $0: outDir $outDir doesn't exist as a dir but can't be created\n";
 
-(($firstGrex >= 50) && ($lastGrex >= $firstGrex)) ||
-    die "E $0: first grexomeNum must be >=50 and last must be >=first\n";
-
-# bring $lastGrex down to the largest existing grexome*.bam in inDir
-# (mostly in case we have the default 9999)
-while($lastGrex > $firstGrex) {
-    my $grexome = $lastGrex;
-    # left-pad with zeroes to 4 digits
-    ($grexome < 10) && ($grexome = "0$grexome");
-    ($grexome < 100) && ($grexome = "0$grexome");
-    ($grexome < 1000) && ($grexome = "0$grexome");
-    $grexome = "grexome$grexome";
-    (-f "$inDir/${grexome}.bam") && last;
-    $lastGrex--;
-}
-
 # make sure gatk executable is found, this test is disabled if
 # we will be running GATK from a singularity container
 ($gatk =~ /singularity/) ||
     (`which $gatk` =~ /$gatk$/) ||
     die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk, you provided:\n$gatk\n";
+
+
+#############################################
+# build list of sanity-checked samples to process
+# key == sampleID, value == 1
+my %samples;
+foreach my $sample (split(/,/, $samples)) {
+    if ($samples{$sample}) {
+	print "W $0: sample $sample was specified twice, is that a typo?\n";
+	next;
+    }
+    # make sure we have bam and bai files for $sample, otherwise skip
+    # NOTE $bam string here should match the one used later
+    my $bam = "$inDir/$sample.bam";
+    ((-e $bam) && (-e "$bam.bai")) || 
+	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
+    # AOK, sample will be processed
+    $samples{$sample} = 1;
+}
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
@@ -132,12 +132,6 @@ my $chromsBed = &refGenomeChromsBed();
 
 # tmp dir
 my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
-
-my $pm = new Parallel::ForkManager($jobs);
-{
-    my $now = strftime("%F %T", localtime);
-    warn "I: $now - $0 STARTING TO WORK\n";
-}
 
 #############################################
 ## build the generic GATK command-line common for all samples
@@ -181,34 +175,27 @@ $cmd .= " --tmp-dir $tmpDir";
 
 # -G -A -AX : annotations to add or exclude, defaults for now
 
-
 #############################################
 ## call variants
 
-foreach (my $gNum = $firstGrex; $gNum<=$lastGrex; $gNum++) {
-    # grexome name
-    my $grexome = $gNum;
-    # left-pad with zeroes to 4 digits
-    ($gNum < 10) && ($grexome = "0$grexome");
-    ($gNum < 100) && ($grexome = "0$grexome");
-    ($gNum < 1000) && ($grexome = "0$grexome");
-    $grexome = "grexome$grexome";
+my $pm = new Parallel::ForkManager($jobs);
+{
+    my $now = strftime("%F %T", localtime);
+    warn "I: $now - $0 STARTING TO WORK\n";
+}
 
-    # make sure we have bam and bai files for $grexome, otherwise skip
-    my $bam = "$inDir/${grexome}.bam";
-    ((-e $bam) && (-e "$bam.bai")) || 
-	((warn "W $0: no BAM or BAI for $grexome in inDir $inDir, skipping $grexome\n") && next);
-
+foreach my $sample (sort keys(%samples)) {
+    my $bam = "$inDir/$sample.bam";
     # gvcf to produce
-    my $gvcf = "$outDir/${grexome}.g.vcf.gz";
+    my $gvcf = "$outDir/${sample}.g.vcf.gz";
     # don't squash existing outfiles
-    (-e "$outDir/${grexome}.g.vcf.gz") && 
-	(warn "W $0: GVCF for $grexome already exists in outDir $outDir, skipping $grexome.\n") && next;
+    (-e "$gvcf") && 
+	(warn "W $0: GVCF for $sample already exists in outDir $outDir, skipping.\n") && next;
     
     # OK build the full GATK command
     my $fullCmd = "$cmd -I $bam -O $gvcf";
     # GATK logging: one file per sample
-    my $log = "$outDir/${grexome}.log";
+    my $log = "$outDir/${sample}.log";
     $fullCmd .= " &> $log";
     # if running via singularity assume --gatk contained opening '"(' and 
     # close them here (this is ugly but I can't figure out a cleaner way
@@ -216,19 +203,19 @@ foreach (my $gNum = $firstGrex; $gNum<=$lastGrex; $gNum++) {
     ($gatk =~ /singularity/) && ($fullCmd .= ' ) " ');
 
     if (! $real) {
-        warn "I $0: dryrun, would run GATK4-HaplotypeCaller for $grexome with:\n$fullCmd\n";
+        warn "I $0: dryrun, would run GATK4-HaplotypeCaller for $sample with:\n$fullCmd\n";
     }
     else {
 	$pm->start && next;
 	my $now = strftime("%F %T", localtime);
-	warn "I: $now - $0 starting GATK4-HaplotypeCaller for $grexome\n";
+	warn "I: $now - $0 starting GATK4-HaplotypeCaller for $sample\n";
         if (system($fullCmd) != 0) {
             $now = strftime("%F %T", localtime);
-            warn "E: $now - $0 running GATK4-HaplotypeCaller for $grexome FAILED ($?)! INSPECT THE LOGFILE $log\n";
+            warn "E: $now - $0 running GATK4-HaplotypeCaller for $sample FAILED ($?)! INSPECT THE LOGFILE $log\n";
         }
 	else{
 	    $now = strftime("%F %T", localtime);
-	    warn "I: $now - $0 running GATK4-HaplotypeCaller for $grexome completed successfully\n";
+	    warn "I: $now - $0 running GATK4-HaplotypeCaller for $sample completed successfully\n";
 	}
         $pm->finish;
     }

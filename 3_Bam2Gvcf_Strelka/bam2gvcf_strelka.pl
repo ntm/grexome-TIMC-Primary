@@ -29,15 +29,14 @@ $0 = basename($0);
 #############################################
 ## options / params from the command-line
 
-
 # subdir where BAMs can be found
 my $inDir;
 
 # dir where GVCF-containing subdirs will be created
 my $outDir;
 
-# first and last grexomeNums to process, default to everything!
-my ($firstGrex, $lastGrex) = (50,9999);
+# comma-separated list of samples (FASTQs) to process (required)
+my $samples = '';
 
 # path+name of configureStrelkaGermlineWorkflow.py from strelka distrib,
 # or use a one-liner wrapper eg strelkaGermline.sh that can be in your PATH,
@@ -49,8 +48,8 @@ my $strelka = "strelkaGermline.sh";
 # you can also copy it elsewhere and customize it, then use --config
 my $config = "$RealBin/../grexomeTIMCprim_config.pm";
 
-# number of parallel jobs to run, get from command-line --jobs, default to 4
-my $jobs = 12;
+# number of parallel jobs to run, get from command-line --jobs
+my $jobs = 16;
 
 # $real: if not true don't actually process anything, just print INFO 
 # messages on what would be done. Default to false
@@ -62,10 +61,10 @@ my $help = '';
 my $USAGE = "
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir string [no default] : subdir containing the BAMs
+--samples : comma-separated list of sampleIDs to process, for each sample we expect
+	  [sample].bam and [sample].bam.bai files in indir
 --outdir string [no default] : dir where GVCF-containing subdirs will be
-    created (one subdir per grexome)
---first int [$firstGrex] : first grexomeNum to process (>= 50)
---last int [$lastGrex] : last grexomeNum to process (>= first)
+          created (one subdir per sample)
 --strelka [default \"$strelka\"] : must be either the path+name of
     configureStrelkaGermlineWorkflow.py (from strelka distrib), or a wrapper script
     (eg strelkaGermline.sh) that can be in your PATH
@@ -76,9 +75,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 
 
 GetOptions ("indir=s" => \$inDir,
+	    "samples=s" => \$samples,
 	    "outdir=s" => \$outDir,
-	    "first=i" => \$firstGrex,
-	    "last=i" => \$lastGrex,
 	    "strelka=s" => \$strelka,
 	    "config=s" => \$config,
 	    "jobs=i" => \$jobs, 
@@ -104,25 +102,27 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
 (-d $outDir) || (mkdir($outDir)) || 
     die "E: outDir $outDir doesn't exist as a dir but can't be created\n";
 
-(($firstGrex >= 50) && ($lastGrex >= $firstGrex)) ||
-    die "E: first grexomeNum must be >=50 and last must be >=first\n";
-
-# bring $lastGrex down to the largest existing grexome*.bam in inDir
-# (mostly in case we have the default 9999)
-while($lastGrex > $firstGrex) {
-    my $grexome = $lastGrex;
-    # left-pad with zeroes to 4 digits
-    ($grexome < 10) && ($grexome = "0$grexome");
-    ($grexome < 100) && ($grexome = "0$grexome");
-    ($grexome < 1000) && ($grexome = "0$grexome");
-    $grexome = "grexome$grexome";
-    (-f "$inDir/${grexome}.bam") && last;
-    $lastGrex--;
-}
-
 # make sure strelka can be found
 (`which $strelka` =~ /$strelka$/) || 
     die "E: the strelka python (or shell wrapper) $strelka can't be found\n";
+
+#############################################
+# build list of sanity-checked samples to process
+# key == sampleID, value == 1
+my %samples;
+foreach my $sample (split(/,/, $samples)) {
+    if ($samples{$sample}) {
+	print "W $0: sample $sample was specified twice, is that a typo?\n";
+	next;
+    }
+    # make sure we have bam and bai files for $sample, otherwise skip
+    # NOTE $bam string here should match the one used later
+    my $bam = "$inDir/$sample.bam";
+    ((-e $bam) && (-e "$bam.bai")) || 
+	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
+    # AOK, sample will be processed
+    $samples{$sample} = 1;
+}
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
@@ -135,21 +135,10 @@ my $chromsBed = &refGenomeChromsBed();
 my $now = strftime("%F %T", localtime);
 print "I: $now - $0 STARTING TO WORK\n";
 
-foreach my $gNum ($firstGrex..$lastGrex) {
-    my $grexome = $gNum;
-    # left-pad with zeroes to 4 digits
-    ($gNum < 10) && ($grexome = "0$grexome");
-    ($gNum < 100) && ($grexome = "0$grexome");
-    ($gNum < 1000) && ($grexome = "0$grexome");
-    $grexome = "grexome$grexome";
-
-    # make sure we have bam and bai files for $grexome, otherwise skip
-    my $bam = "$inDir/${grexome}.bam";
-    ((-e $bam) && ((-e "$bam.bai") || (-e "$inDir/${grexome}.bai"))) ||
-	((print "W: $grexome was asked for but we don't have a BAM and BAI for it in $inDir, skipping this grexome\n") && next);
-
+foreach my $sample (sort keys(%samples)) {
+    my $bam = "$inDir/$sample.bam";
     # strelka will produce a GVCF but also other files (stats etc) in $runDir
-    my $runDir = "$outDir/$grexome/";
+    my $runDir = "$outDir/$sample/";
 
     # strelka configure command
     my $com = "$strelka --bam $bam  --referenceFasta $refGenome --callRegions $chromsBed --exome --runDir $runDir";
@@ -157,11 +146,11 @@ foreach my $gNum ($firstGrex..$lastGrex) {
     # only run the strelka configuration step if runDir doesn't exist
     if (! -e $runDir) {
 	if (! $real) {
-	    print "I: dryrun, would configure strelka for $grexome with: $com\n";
+	    print "I: dryrun, would configure strelka for $sample with: $com\n";
 	}
 	else {
 	    $now = strftime("%F %T", localtime);
-	    print "I: $now - configuring strelka for $grexome with command: $com\n";
+	    print "I: $now - configuring strelka for $sample with command: $com\n";
 	    system($com);
 	}
     }
@@ -175,13 +164,13 @@ foreach my $gNum ($firstGrex..$lastGrex) {
     # to workspace/pyflow.data/logs/pyflow_log.txt anyways
     $com = "$runDir/runWorkflow.py -m local -j $jobs --quiet";
     if (! $real) {
-	print "I: dryrun, would run strelka for $grexome with: $com\n";
+	print "I: dryrun, would run strelka for $sample with: $com\n";
     }
     else {
 	(-e "$runDir/runWorkflow.py") ||
-	    ((print "I: want to run strelka for $grexome but runDir $runDir doesn't exist, configuring probably failed\n") && next);
+	    ((print "I: want to run strelka for $sample but runDir $runDir doesn't exist, configuring probably failed\n") && next);
 	$now = strftime("%F %T", localtime);
-	print "I: $now - running strelka for $grexome with command: $com\n";
+	print "I: $now - running strelka for $sample with command: $com\n";
 	system($com);
     }
 }

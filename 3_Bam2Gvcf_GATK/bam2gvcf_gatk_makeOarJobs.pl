@@ -5,10 +5,15 @@
 # NTM
 #
 # submit bam2gvcf_gatk.pl jobs on dahu with oar.
+# Not sure if this script can be useful outside our organization:
+# it would need adapting for a different batch scheduler and/or
+# cluster, paths and filename patterns are hard-coded (eg samples
+# are called grexome\d\d\d\d), etc... 
+#
 # GATK is executed via singularity (calling gatk directly results
 # in death with a cryptic error message).
 #
-# Takes 2 args: $first and $last, the first and last grexomes
+# Takes 2 args: $first and $last, the first and last grexomes (samples)
 # for this run of bam2gvcf_gatk_makeOarJobs.pl
 # NOTE: not more than 50*$grexomesPerJob at a time, or you get error:
 # Admission Rule ERROR : [ADMISSION RULE] Error: you cannot have more than 50 jobs waiting in the queue at the same time.
@@ -67,7 +72,7 @@ $gatk .= ' bash -c \" ( gatk';
 
 # oarsub command with params: run on my project ngs-timc, and...
 my $oarBase = "oarsub --project ngs-timc";
-## INITIAL BUG JOB TO PROCESS GREXOMES 50-489: ask for 1 full node, 24h walltime
+## INITIAL BIG JOB TO PROCESS GREXOMES 50-489: ask for 1 full node, 24h walltime
 ##$oarBase .= " -l /nodes=1,walltime=24 ";
 # for a single sample: 4 cores on 1 node for 12h:
 $oarBase .= " -l /nodes=1/core=4,walltime=12 ";
@@ -76,11 +81,25 @@ my $grex1 = $first;
 my $grex2 = $first + $grexomesPerJob - 1;
 while ($grex1 <= $last) {
     ($grex2 <= $last) || ($grex2 = $last);
+    # build comma-separated list of samples
+    my $samples = $grex1;
+    # left-pad with zeroes to 4 digits
+    ($samples < 10) && ($samples = "0$samples");
+    ($samples < 100) && ($samples = "0$samples");
+    ($samples < 1000) && ($samples = "0$samples");
+    $samples = "grexome$samples";
+    foreach my $s ($grex1+1..$grex2) {
+	($s < 10) && ($s = "0$s");
+	($s < 100) && ($s = "0$s");
+	($s < 1000) && ($s = "0$s");
+	$samples .= ",grexome$s";
+    }
     my $oar = $oarBase." -O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
-    $oar .= "\" perl $bam2gvcf --indir $inDir --outdir $outDir --gatk \'$gatk\' --first $grex1 --last $grex2 --config $config --jobs $jobs --real\"";
+    $oar .= "\" perl $bam2gvcf --indir $inDir --samples $samples --outdir $outDir --gatk \'$gatk\' --config $config --jobs $jobs --real\"";
 
+    #warn "$oar\n";
     system($oar);
-    
+
     $grex1 = $grex2 + 1;
     $grex2 = $grex1 + $grexomesPerJob - 1;
 }

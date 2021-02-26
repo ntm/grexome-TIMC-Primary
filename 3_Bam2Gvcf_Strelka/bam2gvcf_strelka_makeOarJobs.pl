@@ -5,6 +5,11 @@
 # NTM
 #
 # submit bam2gvcf_strelka.pl jobs on dahu with oar.
+# Not sure if this script can be useful outside our organization:
+# it would need adapting for a different batch scheduler and/or
+# cluster, paths and filename patterns are hard-coded (eg samples
+# are called grexome\d\d\d\d), etc... 
+#
 # Given timings on luxor, I should be fine processing 10 grexomes
 # in each job, with 2h time limit.
 #
@@ -56,8 +61,21 @@ my $grex1 = $first;
 my $grex2 = $first + $grexomesPerJob - 1;
 while ($grex1 <= $last) {
     ($grex2 <= $last) || ($grex2 = $last);
+    # build comma-separated list of samples
+    my $samples = $grex1;
+    # left-pad with zeroes to 4 digits
+    ($samples < 10) && ($samples = "0$samples");
+    ($samples < 100) && ($samples = "0$samples");
+    ($samples < 1000) && ($samples = "0$samples");
+    $samples = "grexome$samples";
+    foreach my $s ($grex1+1..$grex2) {
+	($s < 10) && ($s = "0$s");
+	($s < 100) && ($s = "0$s");
+	($s < 1000) && ($s = "0$s");
+	$samples .= ",grexome$s";
+    }
     my $oar = $oarBase."-O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
-    $oar .= "\"perl $bam2gvcf --in $inDir --out $outDir --strelka $strelka --first $grex1 --last $grex2 --jobs $threads --real\"";
+    $oar .= "\"perl $bam2gvcf --in $inDir --samples $samples --out $outDir --strelka $strelka --jobs $threads --real\"";
     system($oar);
     
     $grex1 = $grex2 + 1;

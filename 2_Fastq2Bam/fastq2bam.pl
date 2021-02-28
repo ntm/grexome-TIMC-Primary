@@ -26,6 +26,8 @@
 # We log to stderr and die for blatant problems in the prep stage;
 # if prep was OK and we started processing samples, we log to stdout 
 # and never die, check stdout for E: and W: messages.
+# This was done to avoid aborting the whole job (eg on a cluster) when
+# we have just a few samples failing.
 #
 # See $USAGE
 

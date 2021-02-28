@@ -61,9 +61,9 @@ my $fastqDir = "$dataDir/FASTQs_All_Grexomized/";
 ####### BAMs
 # subdir of $dataDir where BAM/BAI files and associated logfiles are produced,
 # this can vary depending on the run / date / server / whatever
-my $bamDir = "BAMs_grexome_NTM/BAMs_NTM_Luxor/";
+my $bamDir = "BAMs_grexome/";
 
-# subdir if $dataDir where all final BAMs & BAIs are symlinked
+# subdir of $dataDir where all final BAMs & BAIs are symlinked
 my $allBamsDir = "BAMs_All_Selected/";
 
 

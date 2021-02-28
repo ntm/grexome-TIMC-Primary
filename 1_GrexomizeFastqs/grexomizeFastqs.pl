@@ -3,17 +3,19 @@
 # 13/06/2019
 # NTM
 
-
+# This is a house-keeping script used to organize our FASTQ files before
+# running the grexome-TIMC-primary pipeline. It's probably not re-usable as-is.
+#
 # Sometimes we get several pairs of FASTQ files for a single sample,
 # eg when the sample was sequenced on several lanes.
 # Also, the naming conventions are always different.
 #
 # This script creates a single pair of "files" (symlinks when possible)
-# in $inPath/../$outDir/ for each grexome sample, with uniform naming scheme
-# grexomeXXXX_[12].fq.gz .
+# in $inPath/../$outDir/ for each sample, with uniform naming scheme
+# ${sample}_[12].fq.gz .
 #
 # Basically we want to symlink when there's a single pair of files,
-# and otherwise cat @infiles1 > $outDir/$grexome_1.fq.gz
+# and otherwise cat @infiles1 > $outDir/${sample}_1.fq.gz
 # and same for @infiles2 (in same order).
 # NOTE: we CAN just concatenate multiple gzip files and get a sane gzip file,
 # see gzip spec https://tools.ietf.org/html/rfc1952 (grep for "members")
@@ -46,7 +48,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
     (eg .../patient_summary.xlsx). 
 --inpath path : path to a directory containing subdirs, each containing the
     actual original fastq.gz files (eg "FASTQs_grexome/").
---outdir subdir : name of brother-dir of $inPath where grexome*.fq.gz files are 
+--outdir subdir : name of brother-dir of $inPath where $sample_*.fq.gz files are 
     symlinked/produced [default: "FASTQs_All_Grexomized"]. NOTE: outDir cannot 
     contain a slash, it will be created if needed and will be a BROTHER of the 
     final subdir of $inPath ie $inPath/../$outDir.

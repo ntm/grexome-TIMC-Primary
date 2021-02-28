@@ -12,8 +12,8 @@
 # and ${sample}_2.fq.gz .
 # The "samples" are as listed in the 'sampleID' column of the provided
 # $metadata file. If sampleID is '0' the row is ignored.
-# Specify samples to process with --samples, otherwise every sample
-# from $metadata that doesn't have a matching BAM file is processed. 
+# You can specify samples to process with --samples, otherwise every sample
+# from $metadata is processed. 
 #
 # Args: see $USAGE.
 
@@ -24,7 +24,7 @@ use POSIX qw(strftime);
 use File::Copy qw(copy move);
 use File::Basename qw(basename);
 use File::Temp qw(tempdir);
-use File::Spec qw(splitdir);
+use File::Spec;
 use FindBin qw($RealBin);
 use Spreadsheet::XLSX;
 
@@ -54,31 +54,35 @@ my $filterBin = "$RealBin/../SecondaryAnalyses/1_filterBadCalls.pl";
 ## hard-coded subtrees and stuff that shouldn't need to change much
 
 ####### FASTQs
-# subdir containing the "grexomized" FASTQs
+# dir containing the "grexomized" FASTQs
 my $fastqDir = "$dataDir/FASTQs_All_Grexomized/";
 
 
 ####### BAMs
-# subdir where BAM/BAI files and associated logfiles are produced,
+# subdir of $dataDir where BAM/BAI files and associated logfiles are produced,
 # this can vary depending on the run / date / server / whatever
 my $bamDir = "BAMs_grexome_NTM/BAMs_NTM_Luxor/";
 
-# subdir where all final BAMs & BAIs are symlinked
+# subdir if $dataDir where all final BAMs & BAIs are symlinked
 my $allBamsDir = "BAMs_All_Selected/";
 
 
 ####### GVCFs
-# subdir where GVCF subtree is populated
+# subdir if $dataDir where GVCF subtree is populated
 my $gvcfDir = "GVCFs_grexome/";
 
 # for each caller we produce raw GVCFs, then filter them, and finally
-# merge them. Subdirs for each caller, in the order Raw - Filtered - Merged:
-my @strelkaDirs = ("GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/");
-my @gatkDirs = ("GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/");
+# merge them.
+# $callerDirs{$caller} is a ref to an array of 3 dirs for $caller, in the
+# order Raw - Filtered - Merged:
+my %callerDirs = (
+    "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
+    "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"]);
 # prepend $dataDir/$gvcfDir to each
-foreach my $i (0..2)  {
-    $strelkaDirs[$i] = "$dataDir/$gvcfDir/".$strelkaDirs[$i];
-    $gatkDirs[$i] = "$dataDir/$gvcfDir/".$gatkDirs[$i];
+foreach my $k (keys %callerDirs) {
+    foreach my $i (0..2) {
+	$callerDirs{$k}->[$i] = "$dataDir/$gvcfDir/".$callerDirs{$k}->[$i];
+    }
 }
 
 
@@ -88,9 +92,10 @@ foreach my $i (0..2)  {
 # metadata file with all samples
 my $metadata;
 
-# comma-separated list of samples to process, if empty we process
-# every sample from $metadata that doesn't have a BAM
-my $samplesOfInterest;
+# comma-separated list of samples of interest, if empty we process
+# every sample from $metadata (skipping any step where the resulting
+# outfile already exists)
+my $SOIs;
 
 # outDir must not exist, it will be created and populated
 my $outDir;
@@ -104,27 +109,28 @@ my $config = "$RealBin/grexomeTIMCprim_config.pm";
 my $help = '';
 
 my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from FASTQ files and:
-produce BAM with fastq2bam.pl (trim, align, mark dupes, sort);
-produce individual GVCFs with bam2gvcf_strelka.pl and bam2gvcf_gatk.pl;
-filter low-quality variant calls with filterBadCalls.pl;
-produce a merged GVCF per variant-caller with mergeGVCFs.pl.
+- produce BAM with fastq2bam.pl (trim, align, mark dupes, sort);
+- for each specified variant-caller:
+     produce individual GVCFs with bam2gvcf_\$caller.pl;
+     filter low-quality variant calls with filterBadCalls.pl;
+     produce a merged GVCF per variant-caller with mergeGVCFs.pl.
 
 BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of this script,
 please customize them (eg \$dataDir).
 Logs and copies of the metadata are produced in the provided \$outDir (which must not exist).
 Each step of the pipeline is a stand-alone self-documented script, this is just a wrapper.
+For each sample, any step where the result file already exists is skipped.
 Every install-specific param should be in this script or in grexomeTIMCprim_config.pm.
 
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --metadata string : patient metadata xlsx file, with path
---samples string : comma-separated list of sampleIDs to process, defaults to all samples in 
-          metadata xlsx that don't have a BAM file
+--samples string : comma-separated list of sampleIDs to process, default = all samples in metadata
 --outdir string : subdir where logs and workfiles will be created, must not pre-exist
 --config string [$config] : your customized copy (with path) of the distributed *config.pm
 --help : print this USAGE";
 
 GetOptions ("metadata=s" => \$metadata,
-	    "samplesOfInterest=s" => \$samplesOfInterest,
+	    "samples=s" => \$SOIs,
 	    "outdir=s" => \$outDir,
 	    "config=s" => \$config,
 	    "help" => \$help)
@@ -166,16 +172,17 @@ grexomeTIMCprim_config->import( qw(refGenome fastTmpPath) );
 (-d "$dataDir/$gvcfDir") || (mkdir "$dataDir/$gvcfDir") ||
     die "E $0: gvcfDir $dataDir/$gvcfDir doesn't exist and can't be mkdir'd\n";
 
-foreach my $d (@strelkaDirs, @gatkDirs) {
-    (-d $d) || (mkdir $d) ||
-	die "E $0: a strelka or gatk GVCF subdir $d doesn't exist and can't be mkdir'd\n";
+foreach my $caller (keys %callerDirs) {
+    foreach my $d (@{$callerDirs{$caller}}) {
+	(-d $d) || (mkdir $d) ||
+	    die "E $0: GVCF subdir $d for caller $caller doesn't exist and can't be mkdir'd\n";
+    }
 }
 
-
 #########################################################
-# parse patient metadata file to grab sampleIDs, limit to samples of interest
+# parse patient metadata file to grab sampleIDs, limit to --samples if specified
 
-# key==existing sample of interest, value==1
+# key==existing sample to process
 my %samples = ();
 
 {
@@ -209,13 +216,13 @@ my %samples = ();
     }
 }
 
-if ($samplesOfInterest) {
+if ($SOIs) {
     # make sure every listed sample is in %samples and promote it's value to 2
-    foreach my $soi (split(/,/, $samplesOfInterest)) {
+    foreach my $soi (split(/,/, $SOIs)) {
 	($samples{$soi}) ||
 	    die "E $0: processing --samples: a specified sample $soi does not exist in the metadata file\n";
 	($samples{$soi} == 1) ||
-	    warn "W $0: processing --samples: sample $soi was specified twice, is that a typo?\n";
+	    warn "W $0: processing --samples: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
 	$samples{$soi} = 2;
     }
     # now ignore all other samples
@@ -226,23 +233,20 @@ if ($samplesOfInterest) {
     }
 }
 
-# array of sampleIDs to process, sorted (the merged GVCF will use this order)
-my @samples = ();
-
-# exclude any sample that already has a BAM, but die if called with --samples
-foreach my $s (sort keys(%samples)) {
-    my $bam = "$dataDir/$allBamsDir/$s.bam";
-    if (! -e $bam) {
-	push(@samples, $s);
-    }
-    elsif ($samples{$s} == 2) {
-	die "E $0: sample $s specified with --samples already has a BAM: $bam\n";
+# exclude any sample that doesn't have FASTQs, but die if called with --samples
+foreach my $s (sort(keys %samples)) {
+    my $f1 = "$fastqDir/${s}_1.fq.gz";
+    my $f2 = "$fastqDir/${s}_2.fq.gz";
+    if ((! -f $f1) || (! -f $f2)) {
+	if ($samples{$s} == 2) {
+	    die "E $0: sample $s from --samples doesn't have FASTQs (looking for $f1 and $f2)\n";
+	}
+	else {
+	    warn "W $0: sample $s from metadata doesn't have FASTQs, skipping it\n";
+	    delete($samples{$s});
+	}
     }
 }
-
-# comma-separated string of samples to process
-my $samples = join(',',@samples);
-    
 
 #############################################
 
@@ -265,195 +269,224 @@ $metadata = "$outDir/".basename($metadata);
 my $tmpDir = tempdir(DIR => &fastTmpPath());
 
 ################################
-# BAMS
+# MAKE BAMS
 
-# make BAMs
-my $com = "perl $RealBin/2_Fastq2Bam/fastq2bam.pl --indir $fastqDir --samples $samples --outdir $dataDir/$bamDir ";
-$com .= "--genome ".&refGenome()." --threads $jobs --real ";
-system($com) && die "E $0: fastq2bam FAILED: $!";
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - fastq2bam DONE, stepwise logfiles are available as $dataDir/$bamDir/*log\n\n";
+# samples to process: those without BAMs in $allBamsDir
+my $samples = "";
+foreach my $s (sort(keys %samples)) {
+    my $bam = "$dataDir/$allBamsDir/$s.bam";
+    (-e $bam) || ($samples .= "$s,");
+}
+if ($samples) {
+    # remove trailing ','
+    (chop($samples) eq ',') ||
+	die "E $0 chopped samples isn't ',' impossible\n";
+    # make BAMs
+    my $com = "perl $RealBin/2_Fastq2Bam/fastq2bam.pl --indir $fastqDir --samples $samples --outdir $dataDir/$bamDir ";
+    $com .= "--genome ".&refGenome()." --threads $jobs --real ";
+    system($com) && die "E $0: fastq2bam FAILED: $!";
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - fastq2bam DONE, stepwise logfiles are available as $dataDir/$bamDir/*log\n\n";
 
-# symlink just the BAMs/BAIs in $allBamsDir with relative symlinks (so rsyncing the
-# whole tree elsewhere still works)
-# building the relative path corrctly is a bit tricky
-{
-    my @bDirs = splitdir($bamDir);
-    my @abDirs = splitdir($allBamsDir);
-    # remove common leading dirs
-    while($bDirs[0] eq $abDirs[0]) {
-	shift(@bDirs);
-	shift(@abDirs);
-    }
-    # build relative path from allBamsDir to bamDir
-    my $relPath = '../' x scalar(@abDirs);
-    $relPath .= join('/',@bDirs);
-    foreach my $sample (@samples) {
-	foreach my $file ("$sample.bam", "$sample.bam.bai") {
-	    (! -f "$dataDir/$bamDir/$file") &&
-		(warn "W $0: I want to symlink $dataDir/$bamDir/$file but it doesn't exist, skipping\n") && next;
-	    (-e "$dataDir/$allBamsDir/$file") &&
-		(warn "W $0: I want to symlink $dataDir/$bamDir/$file but symlink already exists, skipping\n") && next;
-	    symlink("$relPath/$file", "$dataDir/$allBamsDir/$file") ||
-		die "E $0: cannot symlink $relPath/$file : $!";
+    # symlink just the BAMs/BAIs in $allBamsDir with relative symlinks (so rsyncing the
+    # whole tree elsewhere still works)
+    # building the relative path corrctly is a bit tricky
+    {
+	my @bDirs = File::Spec->splitdir($bamDir);
+	my @abDirs = File::Spec->splitdir($allBamsDir);
+	# remove common leading dirs
+	while($bDirs[0] eq $abDirs[0]) {
+	    shift(@bDirs);
+	    shift(@abDirs);
+	}
+	# build relative path from allBamsDir to bamDir
+	my $relPath = '../' x scalar(@abDirs);
+	$relPath .= join('/',@bDirs);
+	foreach my $s (split(/,/,$samples)) {
+	    foreach my $file ("$s.bam", "$s.bam.bai") {
+		(-e "$dataDir/$bamDir/$file") ||
+		    die "E $0: I just made BAM/BAI and want to symlink it but it doesn't exist? $dataDir/$bamDir/$file\n";
+		symlink("$relPath/$file", "$dataDir/$allBamsDir/$file") ||
+		    die "E $0: cannot symlink $relPath/$file : $!";
+	    }
 	}
     }
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - symlinking BAMs/BAIs in $allBamsDir DONE\n\n";
 }
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - symlinking BAMs/BAIs in $allBamsDir DONE\n\n";
-
+else {
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - BAMs exist for every sample, skipping step\n\n";
+}
 
 ################################
-# STRELKA
+# make INDIVIDUAL GVCFs
 
-# make INDIVIDUAL STRELKA GVCFs
-my $strelkaWorkdir =  "$outDir/StrelkaResults/";
-$com = "perl $RealBin/3_Bam2Gvcf_Strelka/bam2gvcf_strelka.pl --indir $dataDir/$allBamsDir --samples $samples --outdir $strelkaWorkdir --jobs $jobs --config $config --real";
-system($com) && die "E $0: bam2gvcf_strelka FAILED: $?";
-# check logs:
-open(LOGS, "cat $strelkaWorkdir/*/workflow.exitcode.txt |") ||
-    die "E $0: cannot open strelka logs: $!\n";
-while (my $line = <LOGS>) {
-    chomp($line);
-    ($line eq "0") ||
-	die "E $0: non-zero exit code from a strelka run, check $strelkaWorkdir/*/workflow.exitcode.txt\n";
-}
-close(LOGS);
+# mostly same code for all callers, except house-keeping
+foreach my $caller (sort(keys %callerDirs)) {
+    # samples to process: those without a raw GVCF
+    $samples = "";
+    foreach my $s (sort(keys %samples)) {
+	my $gvcf = $callerDirs{$caller}->[0]."/$s.g.vcf.gz";
+	(-e $gvcf) || ($samples .= "$s,");
+    }
+    if ($samples) {
+	# remove trailing ','
+	(chop($samples) eq ',') ||
+	    die "E $0 chopped samples isn't ',' impossible\n";
 
-# move STRELKA GVCFs and TBIs into $gvcfDir subtree
-$com = "perl $RealBin/3_Bam2Gvcf_Strelka/moveGvcfs.pl $strelkaWorkdir $strelkaDirs[0]";
-system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
+	my $workdir =  "$outDir/Results_$caller/";
 
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - variant-calling with STRELKA DONE\n\n";
+	# caller-specific path/script (for now, will get rid of the path soon)
+	my $b2gBin = "$RealBin/3_Bam2Gvcf_Strelka/bam2gvcf_$caller.pl";
+	($caller eq "gatk") && ($b2gBin = "$RealBin/3_Bam2Gvcf_GATK/bam2gvcf_$caller.pl");
+	# sanity-check: bam2gvcf*.pl NEEDS TO BE named as specified
+	(-e $b2gBin) ||
+	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
+	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $workdir --jobs $jobs --config $config --real";
+	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 
+	##################
+	# caller-specific: log-checking and house-keeping
+	if ($caller eq "strelka") {
+	    # check logs:
+	    open(LOGS, "cat $workdir/*/workflow.exitcode.txt |") ||
+		die "E $0: cannot open strelka logs: $!\n";
+	    while (my $line = <LOGS>) {
+		chomp($line);
+		($line eq "0") ||
+		    die "E $0: non-zero exit code from a strelka run, check $workdir/*/workflow.exitcode.txt\n";
+	    }
+	    close(LOGS);
 
-# filter INDIVIDUAL STRELKA GVCFs
-foreach my $sample (@samples) {
-    warn "I $0: starting filter of strelka $sample\n";
-    $com = "bgzip -cd -\@6 $strelkaDirs[0]/$sample.g.vcf.gz | ";
-    $com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobs | ";
-    $com .= "bgzip -c -\@2 > $strelkaDirs[1]/$sample.filtered.g.vcf.gz";
-    system($com) && die "E $0: filterGVCFs for strelka $sample FAILED: $?";
-}
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - filtering strelka GVCFs DONE\n\n";
-
-
-################################
-# GATK
-
-# make INDIVIDUAL GATK GVCFs
-my $gatkWorkdir = "$outDir/GatkResults/";
-$com = "perl $RealBin/3_Bam2Gvcf_GATK/bam2gvcf_gatk.pl --indir $dataDir/$allBamsDir --samples $samples --outdir $gatkWorkdir --jobs $jobs --config $config --real";
-system($com) && die "E $0: bam2gvcf_gatk FAILED: $?";
-
-# move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty workdir:
-foreach my $sample (@samples) {
-    foreach my $file ("$sample.g.vcf.gz", "$sample.g.vcf.gz.tbi", "$sample.log") {
-	move("$gatkWorkdir/$file", "$gatkDirs[0]") ||
-	    die "E $0: cannot move $gatkWorkdir/$file to $gatkDirs[0] : $!";
+	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
+	    $com = "perl $RealBin/3_Bam2Gvcf_Strelka/moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
+	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
+	}
+	elsif ($caller eq "gatk") {
+	    # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty workdir:
+	    foreach my $s (split(/,/,$samples)) {
+		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
+		    move("$workdir/$file", $callerDirs{"gatk"}->[0]) ||
+			die "E $0: cannot move $workdir/$file to ".$callerDirs{"gatk"}->[0]." : $!";
+		}
+	    }
+	    rmdir($workdir) || die "E $0: cannot rmdir gatkWorkdir $workdir: $!";
+	}
+	else {
+	    die "E $0: new caller $caller, need to implement log-checking and house-keeping after bam2gvcf\n";
+	}
+	# end of caller-specific code
+	##################
+	
+	$now = strftime("%F %T", localtime);
+	warn "I $0: $now - variant-calling with $caller DONE\n\n";
+    }
+    else {
+	$now = strftime("%F %T", localtime);
+	warn "I $0: $now - $caller raw GVCF exists for every sample, skipping step\n\n";
     }
 }
-rmdir($gatkWorkdir) || die "E $0: cannot rmdir gatkWorkdir $gatkWorkdir: $!";
+    
+################################
+# filter INDIVIDUAL GVCFs
 
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - variant-calling with GATK DONE\n\n";
-
-# filter INDIVIDUAL GATK GVCFs
-foreach my $sample (@samples) {
-    warn "I $0: starting filter of gatk $sample\n";
-    $com = "bgzip -cd -\@6 $gatkDirs[0]/$sample.g.vcf.gz | ";
-    $com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobs | ";
-    $com .= "bgzip -c -\@2 > $gatkDirs[1]/$sample.filtered.g.vcf.gz";
-    system($com) && die "E $0: filterGVCFs for gatk $sample FAILED: $?";
+# same code for all callers
+foreach my $caller (sort(keys %callerDirs)) {
+    foreach my $s (sort(keys %samples)) {
+	# samples to process: those without a filtered GVCF
+	my $gvcf = $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz";
+	(-e $gvcf) && next;
+	warn "I $0: starting filter of $caller $s\n";
+	my $com = "bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
+	$com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobs | ";
+	$com .= "bgzip -c -\@2 > $gvcf";
+	system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
+    }
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - filtering $caller GVCFs DONE\n\n";
 }
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - filtering gatk GVCFs DONE\n\n";
 
 
 ################################
-# merge new GVCFs with previous merged
+# merge new GVCFs with the most recent previous merged if one existed
 
 # YYMMDD for creating timestamped new merged
 my $date = strftime("%y%m%d", localtime);
 
+# same code for all callers
+foreach my $caller (sort(keys %callerDirs)) {
+    # samples in prevMerged, to avoid dupes
+    my %samplesPrev;
 
-# make batchfile with list of GVCFs to merge
-my $batchFile = "$outDir/batchFile_strelka.txt";
-open(BATCH, ">$batchFile") ||
-    die "E $0: cannot create strelka batchFile $batchFile: $!\n";
+    # make batchfile with list of GVCFs to merge
+    my $batchFile = "$outDir/batchFile_$caller.txt";
+    open(BATCH, ">$batchFile") ||
+	die "E $0: cannot create $caller batchFile $batchFile: $!\n";
 
-# we want to merge the new GVCFs with the most recent previous merged,
-# a bit ugly but functional
-my $prevMerged = `ls -rt1 "$strelkaDirs[2]/*.g.vcf.gz" | tail -n 1`;
-print BATCH "$prevMerged\n";
-foreach my $sample (@samples) {
-    print BATCH "$strelkaDirs[1]/$sample.filtered.g.vcf.gz\n";
+    # we want to merge the new GVCFs with the most recent previous merged,
+    # if there was one. code is a bit ugly but functional
+    my $prevMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | tail -n 1`;
+    chomp($prevMerged);
+    if ($prevMerged) {
+	open(CHR, "zgrep -m 1 ^#CHROM $prevMerged |") ||
+	    die "E $0: cannot zgrep #CHROM line in prevMerged $prevMerged\n";
+	my $header = <CHR>;
+	chomp($header);
+	my @header = split(/\t/,$header);
+	# first 9 fields are regular VCF headers CHROM->FORMAT
+	splice(@header, 0, 9);
+	foreach my $s (@header) {
+	    $samplesPrev{$s} &&
+		die "E $0: most recent merged $caller GVCF has dupe sample $s! Investigate $prevMerged\n";
+	    $samplesPrev{$s} = 1;
+	}
+	close(CHR);
+	print BATCH "$prevMerged\n";
+    }
+
+    foreach my $s (sort(keys %samples)) {
+	# only merge $s if it's not already in prevMerged
+	($samplesPrev{$s}) ||
+	    (print BATCH $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz\n");
+    }
+    close(BATCH);
+
+    my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_$date.g.vcf.gz";
+    (-e $newMerged) &&
+	die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
+
+    # -> merge:
+    my $com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
+    $com .= "2>  $outDir/merge_$caller.log ";
+    $com .= "| bgzip -c -\@12 > $newMerged";
+    warn "I $0: starting to merge $caller GVCFs\n";
+    system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - merging $caller GVCFs DONE\n\n";
+
+    # index
+    $com = "tabix $newMerged";
+    system($com) && die "E $0: tabix for merged $caller FAILED: $?";
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - indexing merged $caller GVCF DONE\n\n";
+
 }
-close(BATCH);
-
-my $newMerged = "$strelkaDirs[2]/grexomes_strelka_merged_$date.g.vcf.gz";
-(-e $newMerged) &&
-    die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
-
-# -> merge:
-$com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
-$com .= "2>  $outDir/merge_strelka.log ";
-$com .= "| bgzip -c -\@12 > $newMerged";
-warn "I $0: starting to merge strelka GVCFs\n";
-system($com) && die "E $0: mergeGvcfs for strelka FAILED: $?";
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - merging strelka GVCFs DONE\n\n";
-
-# index
-$com = "tabix $newMerged";
-system($com) && die "E $0: tabix for merged strelka FAILED: $?";
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - indexing merged strelka GVCF DONE\n\n";
 
 
-# same for GATK: merge new GVCFs with most recent previous merged
-$batchFile = "$outDir/batchFile_gatk.txt";
-open(BATCH, ">$batchFile") ||
-    die "E $0: cannot create gatk batchFile $batchFile: $!\n";
-$prevMerged = `ls -rt1 "$gatkDirs[2]/*.g.vcf.gz" | tail -n 1`;
-print BATCH "$prevMerged\n";
-foreach my $sample (@samples) {
-    print BATCH "$gatkDirs[1]/$sample.filtered.g.vcf.gz\n";
-}
-close(BATCH);
-
-$newMerged = "$gatkDirs[2]/grexomes_gatk_merged_$date.g.vcf.gz";
-(-e $newMerged) &&
-    die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
-
-# -> merge:
-$com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
-$com .= "2>  $outDir/merge_gatk.log ";
-$com .= "| bgzip -c -\@12 > $newMerged";
-warn "I $0: starting to merge gatk GVCFs\n";
-system($com) && die "E $0: mergeGvcfs for gatk FAILED: $?";
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - merging gatk GVCFs DONE\n\n";
-
-# index
-$com = "tabix $newMerged";
-system($com) && die "E $0: tabix for merged gatk FAILED: $?";
-$now = strftime("%F %T", localtime);
-warn "I $0: $now - indexing merged gatk GVCF DONE\n\n";
-
+################################
 
 warn "I $0: ALL DONE, please examine the logs and if AOK you can remove\n";
 warn "I $0: obsolete merged GVCFs and sync all results to cargo:bettik\n";
 warn "I $0: with the following commands:\n";
 
-my $oldestMergedStrelka = `ls -rt1 "$strelkaDirs[2]/*.g.vcf.gz" | head -n 1`;
-my $oldestMergedGatk = `ls -rt1 "$gatkDirs[2]/*.g.vcf.gz" | head -n 1`;
-
-$com = "cd $dataDir\n";
-$com .= "rm -i $oldestMergedStrelka $oldestMergedStrelka.tbi\n";
-$com .= "rm -i $oldestMergedGatk $oldestMergedGatk.tbi\n";
+my $com = "cd $dataDir\n";
+foreach my $caller (sort(keys %callerDirs)) {
+    my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
+    chomp($oldestMerged);
+    $com .= "rm -i $oldestMerged $oldestMerged.tbi\n";
+}
+$com .= "\n";
 $com .= "rsync -rtvn --delete $bamDir/ cargo:/bettik/thierryn/$bamDir/\n";
 $com .= "rsync -rtvln --delete $allBamsDir/ cargo:/bettik/thierryn/$allBamsDir/\n";
 $com .= "rsync -rtvn --delete $gvcfDir/ cargo:/bettik/thierryn/$gvcfDir/\n";

@@ -178,7 +178,7 @@ my $nbWarnings = 0;
 my %samples;
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	print "W $0: sample $sample was specified twice, is that a typo?\n";
+	print "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
 	$nbWarnings++;
 	next;
     }

@@ -96,6 +96,16 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 (-d $inDir) ||
     die "E $0: inDir specified is not a folder!";
 
+# save samples in %samples to detect duplicates and allow sorting
+my %samples;
+foreach my $sample (split(/,/, $samples)) {
+    if ($samples{$sample}) {
+	print "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+	next;
+    }
+    $samples{$sample} = 1;
+}
+
 ($outDir) || 
     die "E $0: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
@@ -109,22 +119,6 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 
 
 #############################################
-# build list of sanity-checked samples to process
-# key == sampleID, value == 1
-my %samples;
-foreach my $sample (split(/,/, $samples)) {
-    if ($samples{$sample}) {
-	print "W $0: sample $sample was specified twice, is that a typo?\n";
-	next;
-    }
-    # make sure we have bam and bai files for $sample, otherwise skip
-    # NOTE $bam string here should match the one used later
-    my $bam = "$inDir/$sample.bam";
-    ((-e $bam) && (-e "$bam.bai")) || 
-	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
-    # AOK, sample will be processed
-    $samples{$sample} = 1;
-}
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
@@ -184,13 +178,18 @@ my $pm = new Parallel::ForkManager($jobs);
     warn "I: $now - $0 STARTING TO WORK\n";
 }
 
+
 foreach my $sample (sort keys(%samples)) {
+    # make sure we have bam and bai files for $sample, otherwise skip
     my $bam = "$inDir/$sample.bam";
+    ((-e $bam) && (-e "$bam.bai")) || 
+	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
+
     # gvcf to produce
     my $gvcf = "$outDir/${sample}.g.vcf.gz";
     # don't squash existing outfiles
     (-e "$gvcf") && 
-	(warn "W $0: GVCF for $sample already exists in outDir $outDir, skipping.\n") && next;
+	(warn "W $0: GVCF for $sample already exists in outDir $outDir, skipping $sample\n") && next;
     
     # OK build the full GATK command
     my $fullCmd = "$cmd -I $bam -O $gvcf";

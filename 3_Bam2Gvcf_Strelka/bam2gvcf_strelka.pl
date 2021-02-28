@@ -97,6 +97,16 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
 (-d $inDir) ||
     die "E $0: inDir specified is not a folder!";
 
+# save samples in %samples to detect duplicates and allow sorting
+my %samples;
+foreach my $sample (split(/,/, $samples)) {
+    if ($samples{$sample}) {
+	print "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+	next;
+    }
+    $samples{$sample} = 1;
+}
+
 ($outDir) || 
     die "$USAGE\n\nE: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
@@ -107,22 +117,6 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
     die "E: the strelka python (or shell wrapper) $strelka can't be found\n";
 
 #############################################
-# build list of sanity-checked samples to process
-# key == sampleID, value == 1
-my %samples;
-foreach my $sample (split(/,/, $samples)) {
-    if ($samples{$sample}) {
-	print "W $0: sample $sample was specified twice, is that a typo?\n";
-	next;
-    }
-    # make sure we have bam and bai files for $sample, otherwise skip
-    # NOTE $bam string here should match the one used later
-    my $bam = "$inDir/$sample.bam";
-    ((-e $bam) && (-e "$bam.bai")) || 
-	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
-    # AOK, sample will be processed
-    $samples{$sample} = 1;
-}
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
@@ -136,7 +130,11 @@ my $now = strftime("%F %T", localtime);
 print "I: $now - $0 STARTING TO WORK\n";
 
 foreach my $sample (sort keys(%samples)) {
+    # make sure we have bam and bai files for $sample, otherwise skip
     my $bam = "$inDir/$sample.bam";
+    ((-e $bam) && (-e "$bam.bai")) || 
+	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
+
     # strelka will produce a GVCF but also other files (stats etc) in $runDir
     my $runDir = "$outDir/$sample/";
 

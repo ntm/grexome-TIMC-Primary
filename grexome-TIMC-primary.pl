@@ -271,10 +271,10 @@ my $tmpDir = tempdir(DIR => &fastTmpPath());
 ################################
 # MAKE BAMS
 
-# samples to process: those without BAMs in $allBamsDir
+# samples to process: those without BAMs in $dataDir/$bamDir
 my $samples = "";
 foreach my $s (sort(keys %samples)) {
-    my $bam = "$dataDir/$allBamsDir/$s.bam";
+    my $bam = "$dataDir/$bamDir/$s.bam";
     (-e $bam) || ($samples .= "$s,");
 }
 if ($samples) {
@@ -287,9 +287,28 @@ if ($samples) {
     system($com) && die "E $0: fastq2bam FAILED: $!";
     $now = strftime("%F %T", localtime);
     warn "I $0: $now - fastq2bam DONE, stepwise logfiles are available as $dataDir/$bamDir/*log\n\n";
+}
+else {
+    $now = strftime("%F %T", localtime);
+    warn "I $0: $now - BAMs exist for every sample, skipping step\n\n";
+}
 
-    # symlink just the BAMs/BAIs in $allBamsDir with relative symlinks (so rsyncing the
-    # whole tree elsewhere still works)
+################################
+# SYMLINK BAMS
+
+# symlink just the BAMs/BAIs in $allBamsDir with relative symlinks (so rsyncing the
+# whole tree elsewhere still works)
+# samples to process: those without BAMs in $dataDir/$allBamsDir
+$samples = "";
+foreach my $s (sort(keys %samples)) {
+    my $bam = "$dataDir/$allBamsDir/$s.bam";
+    (-e $bam) || ($samples .= "$s,");
+}
+if ($samples) {
+    # remove trailing ','
+    (chop($samples) eq ',') ||
+	die "E $0 chopped samples isn't ',' impossible\n";
+   
     # building the relative path corrctly is a bit tricky
     {
 	my @bDirs = File::Spec->splitdir($bamDir);
@@ -305,7 +324,7 @@ if ($samples) {
 	foreach my $s (split(/,/,$samples)) {
 	    foreach my $file ("$s.bam", "$s.bam.bai") {
 		(-e "$dataDir/$bamDir/$file") ||
-		    die "E $0: I just made BAM/BAI and want to symlink it but it doesn't exist? $dataDir/$bamDir/$file\n";
+		    die "E $0: BAM/BAI doesn't exist but should have been made: $dataDir/$bamDir/$file\n";
 		symlink("$relPath/$file", "$dataDir/$allBamsDir/$file") ||
 		    die "E $0: cannot symlink $relPath/$file : $!";
 	    }
@@ -316,7 +335,7 @@ if ($samples) {
 }
 else {
     $now = strftime("%F %T", localtime);
-    warn "I $0: $now - BAMs exist for every sample, skipping step\n\n";
+    warn "I $0: $now - symlinks to BAMs exist for every sample, skipping step\n\n";
 }
 
 ################################
@@ -387,7 +406,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	warn "I $0: $now - $caller raw GVCF exists for every sample, skipping step\n\n";
     }
 }
-    
+
 ################################
 # filter INDIVIDUAL GVCFs
 
@@ -406,7 +425,6 @@ foreach my $caller (sort(keys %callerDirs)) {
     $now = strftime("%F %T", localtime);
     warn "I $0: $now - filtering $caller GVCFs DONE\n\n";
 }
-
 
 ################################
 # merge new GVCFs with the most recent previous merged if one existed
@@ -472,7 +490,6 @@ foreach my $caller (sort(keys %callerDirs)) {
     warn "I $0: $now - indexing merged $caller GVCF DONE\n\n";
 
 }
-
 
 ################################
 

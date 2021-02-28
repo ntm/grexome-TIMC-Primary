@@ -100,7 +100,7 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 my %samples;
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	print "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+	warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
 	next;
     }
     $samples{$sample} = 1;

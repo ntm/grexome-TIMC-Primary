@@ -101,7 +101,7 @@ grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
 my %samples;
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	print "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+	warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
 	next;
     }
     $samples{$sample} = 1;
@@ -127,7 +127,7 @@ my $chromsBed = &refGenomeChromsBed();
 ## process each sample of interest
 
 my $now = strftime("%F %T", localtime);
-print "I: $now - $0 STARTING TO WORK\n";
+warn "I: $now - $0 STARTING TO WORK\n";
 
 foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
@@ -144,16 +144,16 @@ foreach my $sample (sort keys(%samples)) {
     # only run the strelka configuration step if runDir doesn't exist
     if (! -e $runDir) {
 	if (! $real) {
-	    print "I: dryrun, would configure strelka for $sample with: $com\n";
+	    warn "I: dryrun, would configure strelka for $sample with: $com\n";
 	}
 	else {
 	    $now = strftime("%F %T", localtime);
-	    print "I: $now - configuring strelka for $sample with command: $com\n";
+	    warn "I: $now - configuring strelka for $sample with command: $com\n";
 	    system($com);
 	}
     }
     else {
-	print "I: runDir $runDir already exists, assuming strelka is already configured\n";
+	warn "I: runDir $runDir already exists, assuming strelka is already configured\n";
     }
 
     # now run strelka (does nothing if it was already completed, but resumes 
@@ -162,16 +162,16 @@ foreach my $sample (sort keys(%samples)) {
     # to workspace/pyflow.data/logs/pyflow_log.txt anyways
     $com = "$runDir/runWorkflow.py -m local -j $jobs --quiet";
     if (! $real) {
-	print "I: dryrun, would run strelka for $sample with: $com\n";
+	warn "I: dryrun, would run strelka for $sample with: $com\n";
     }
     else {
 	(-e "$runDir/runWorkflow.py") ||
-	    ((print "I: want to run strelka for $sample but runDir $runDir doesn't exist, configuring probably failed\n") && next);
+	    ((warn "I: want to run strelka for $sample but runDir $runDir doesn't exist, configure probably failed\n") && next);
 	$now = strftime("%F %T", localtime);
-	print "I: $now - running strelka for $sample with command: $com\n";
+	warn "I: $now - running strelka for $sample with command: $com\n";
 	system($com);
     }
 }
 
 $now = strftime("%F %T", localtime);
-print "I: $now - $0 ALL DONE\n";
+warn "I: $now - $0 ALL DONE\n";

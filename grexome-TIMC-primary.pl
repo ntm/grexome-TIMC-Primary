@@ -22,6 +22,7 @@ use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
 use File::Copy qw(copy move);
+use File::Path qw(remove_tree);
 use File::Basename qw(basename);
 use File::Temp qw(tempdir);
 use File::Spec;
@@ -381,6 +382,8 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
 	    $com = "perl $RealBin/3_Bam2Gvcf_Strelka/moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
+	    # remove useless strelka left-overs
+	    remove_tree("$workdir/$s/workspace/pyflow.data/logs/tmp/");
 	}
 	elsif ($caller eq "gatk") {
 	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,

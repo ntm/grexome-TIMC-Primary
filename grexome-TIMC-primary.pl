@@ -371,21 +371,20 @@ foreach my $caller (sort(keys %callerDirs)) {
 	##################
 	# caller-specific: log-checking and house-keeping
 	if ($caller eq "strelka") {
-	    # check logs:
-	    open(LOGS, "cat $workdir/*/workflow.exitcode.txt |") ||
-		die "E $0: cannot open strelka logs: $!\n";
-	    while (my $line = <LOGS>) {
-		chomp($line);
-		($line eq "0") ||
-		    die "E $0: non-zero exit code from a strelka run, check $workdir/*/workflow.exitcode.txt\n";
+	    # check that logs are empty
+	    foreach my $s (split(/,/,$samples)) {
+		(-z "$workdir/$s/workflow.error.log.txt") ||
+		    die "E $0: non-empty strelka error log for $s, go look in $workdir/$s/\n";
+		(-z "$workdir/$s/workflow.warning.log.txt") ||
+		    warn"W $0: non-empty strelka warning log for $s, go look in $workdir/$s/\n";
 	    }
-	    close(LOGS);
-
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
 	    $com = "perl $RealBin/3_Bam2Gvcf_Strelka/moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
 	}
 	elsif ($caller eq "gatk") {
+	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,
+	    # not even trying to parse it
 	    # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty workdir:
 	    foreach my $s (split(/,/,$samples)) {
 		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {

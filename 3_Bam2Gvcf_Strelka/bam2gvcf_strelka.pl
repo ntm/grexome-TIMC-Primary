@@ -139,7 +139,7 @@ foreach my $sample (sort keys(%samples)) {
     my $runDir = "$outDir/$sample/";
 
     # strelka configure command
-    my $com = "$strelka --bam $bam  --referenceFasta $refGenome --callRegions $chromsBed --exome --runDir $runDir 2> /dev/null";
+    my $com = "$strelka --bam $bam  --referenceFasta $refGenome --callRegions $chromsBed --exome --runDir $runDir > /dev/null";
 
     # only run the strelka configuration step if runDir doesn't exist
     if (! -e $runDir) {

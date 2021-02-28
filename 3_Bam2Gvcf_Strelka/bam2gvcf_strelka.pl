@@ -82,10 +82,10 @@ GetOptions ("indir=s" => \$inDir,
 	    "jobs=i" => \$jobs, 
 	    "real" => \$real,
 	    "help" => \$help)
-    or die("E: Error in command line arguments\n$USAGE\n");
+    or die("E $0: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
-($help) && die "$USAGE\n\n";
+($help) && die "$0 $USAGE\n\n";
 
 # immediately import $config, so we die if file is broken
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
@@ -108,13 +108,13 @@ foreach my $sample (split(/,/, $samples)) {
 }
 
 ($outDir) || 
-    die "$USAGE\n\nE: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
+    die "$0 $USAGE\n\nE: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
-    die "E: outDir $outDir doesn't exist as a dir but can't be created\n";
+    die "E $0: outDir $outDir doesn't exist as a dir but can't be created\n";
 
 # make sure strelka can be found
 (`which $strelka` =~ /$strelka$/) || 
-    die "E: the strelka python (or shell wrapper) $strelka can't be found\n";
+    die "E $0: the strelka python (or shell wrapper) $strelka can't be found\n";
 
 #############################################
 
@@ -127,7 +127,7 @@ my $chromsBed = &refGenomeChromsBed();
 ## process each sample of interest
 
 my $now = strftime("%F %T", localtime);
-warn "I: $now - $0 STARTING TO WORK\n";
+warn "I $0: $now - STARTING TO WORK\n";
 
 foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
@@ -144,16 +144,16 @@ foreach my $sample (sort keys(%samples)) {
     # only run the strelka configuration step if runDir doesn't exist
     if (! -e $runDir) {
 	if (! $real) {
-	    warn "I: dryrun, would configure strelka for $sample with: $com\n";
+	    warn "I $0: dryrun, would configure strelka for $sample with: $com\n";
 	}
 	else {
 	    $now = strftime("%F %T", localtime);
-	    warn "I: $now - configuring strelka for $sample with command: $com\n";
+	    warn "I $0: $now - configuring strelka for $sample\n";
 	    system($com);
 	}
     }
     else {
-	warn "I: runDir $runDir already exists, assuming strelka is already configured\n";
+	warn "I $0: runDir $runDir already exists, assuming strelka is already configured\n";
     }
 
     # now run strelka (does nothing if it was already completed, but resumes 
@@ -162,16 +162,16 @@ foreach my $sample (sort keys(%samples)) {
     # to workspace/pyflow.data/logs/pyflow_log.txt anyways
     $com = "$runDir/runWorkflow.py -m local -j $jobs --quiet";
     if (! $real) {
-	warn "I: dryrun, would run strelka for $sample with: $com\n";
+	warn "I $0: dryrun, would run strelka for $sample with: $com\n";
     }
     else {
 	(-e "$runDir/runWorkflow.py") ||
-	    ((warn "I: want to run strelka for $sample but runDir $runDir doesn't exist, configure probably failed\n") && next);
+	    ((warn "I $0: want to run strelka for $sample but runDir $runDir doesn't exist, configure failed??\n") && next);
 	$now = strftime("%F %T", localtime);
-	warn "I: $now - running strelka for $sample with command: $com\n";
+	warn "I $0: $now - running strelka for $sample\n";
 	system($com);
     }
 }
 
 $now = strftime("%F %T", localtime);
-warn "I: $now - $0 ALL DONE\n";
+warn "I $0: $now - DONE\n";

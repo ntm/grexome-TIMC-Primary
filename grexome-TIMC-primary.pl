@@ -309,7 +309,7 @@ if ($samples) {
     (chop($samples) eq ',') ||
 	die "E $0 chopped samples isn't ',' impossible\n";
    
-    # building the relative path corrctly is a bit tricky
+    # building the relative path correctly is a bit tricky
     {
 	my @bDirs = File::Spec->splitdir($bamDir);
 	my @abDirs = File::Spec->splitdir($allBamsDir);
@@ -318,6 +318,9 @@ if ($samples) {
 	    shift(@bDirs);
 	    shift(@abDirs);
 	}
+	# remove last dir if empty  (happens if eg $bamDir was slash-terminated)
+	($bDirs[$#bDirs]) || pop(@bDirs);
+	($abDirs[$#abDirs]) || pop(@abDirs);
 	# build relative path from allBamsDir to bamDir
 	my $relPath = '../' x scalar(@abDirs);
 	$relPath .= join('/',@bDirs);

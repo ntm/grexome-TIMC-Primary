@@ -213,6 +213,10 @@ my %samples = ();
 	($sample eq "0") && next;
 	(defined $samples{$sample}) && 
 	    die "E $0: parsing xlsx: have 2 lines with sample $sample\n";
+	# check for typo: sampleIDs with spaces or slashes would be retarded and likely break the code
+	if ($sample =~ /[\s\/]/) {
+	    die "E $0: sampleID=$sample? That's gotta be a typo, you're not really trying to use a sampleID with a space or slash, right...? Please don't do that. Ever. Anywhere.\n";
+	}
 	$samples{$sample} = 1;
     }
 }
@@ -374,16 +378,20 @@ foreach my $caller (sort(keys %callerDirs)) {
 	if ($caller eq "strelka") {
 	    # check that logs are empty
 	    foreach my $s (split(/,/,$samples)) {
-		(-z "$workdir/$s/workflow.error.log.txt") ||
+		if (! -z "$workdir/$s/workflow.error.log.txt") {
 		    die "E $0: non-empty strelka error log for $s, go look in $workdir/$s/\n";
-		(-z "$workdir/$s/workflow.warning.log.txt") ||
+		}
+		elsif (! -z "$workdir/$s/workflow.warning.log.txt") {
 		    warn"W $0: non-empty strelka warning log for $s, go look in $workdir/$s/\n";
+		}
+		else {
+		    # remove useless strelka left-overs
+		    remove_tree("$workdir/$s/workspace/pyflow.data/logs/tmp/");
+		}
 	    }
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
 	    $com = "perl $RealBin/3_Bam2Gvcf_Strelka/moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
-	    # remove useless strelka left-overs
-	    remove_tree("$workdir/$s/workspace/pyflow.data/logs/tmp/");
 	}
 	elsif ($caller eq "gatk") {
 	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,

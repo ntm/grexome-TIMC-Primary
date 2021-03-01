@@ -522,23 +522,22 @@ foreach my $caller (sort(keys %callerDirs)) {
 
 ################################
 
-warn "I $0: ALL DONE, please examine the logs and if AOK you can remove\n";
-warn "I $0: obsolete merged GVCFs and sync all results to cargo:bettik\n";
-warn "I $0: with the following commands:\n";
+warn "I $0: ALL DONE, please examine the logs and if AOK you can remove obsolete merged GVCFs\n";
+warn "I $0: and sync all results to cargo:bettik with the following commands:\n";
 
 my $com = "cd $dataDir\n";
 foreach my $caller (sort(keys %callerDirs)) {
     my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
     chomp($oldestMerged);
-    $com .= "rm -i $oldestMerged $oldestMerged.tbi\n";
+    $com .= "rm -i $oldestMerged\n";
+    $com .= "rm -i $oldestMerged.tbi\n";
 }
-$com .= "\n";
-$com .= "rsync -rtvn --delete $bamDir/ cargo:/bettik/thierryn/$bamDir/\n";
-$com .= "rsync -rtvln --delete $allBamsDir/ cargo:/bettik/thierryn/$allBamsDir/\n";
-$com .= "rsync -rtvn --delete $gvcfDir/ cargo:/bettik/thierryn/$gvcfDir/\n";
+$com .= "rsync -rtvn --delete $bamDir cargo:/bettik/thierryn/$bamDir\n";
+$com .= "rsync -rtvln --delete $allBamsDir cargo:/bettik/thierryn/$allBamsDir\n";
+$com .= "rsync -rtvn --delete $gvcfDir cargo:/bettik/thierryn/$gvcfDir\n";
 $com .= "## redo without -n if AOK:\n";
-$com .= "rsync -rtv --delete $bamDir/ cargo:/bettik/thierryn/$bamDir/\n";
-$com .= "rsync -rtvl --delete $allBamsDir/ cargo:/bettik/thierryn/$allBamsDir/\n";
-$com .= "rsync -rtv --delete $gvcfDir/ cargo:/bettik/thierryn/$gvcfDir/\n";
+$com .= "rsync -rtv --delete $bamDir cargo:/bettik/thierryn/$bamDir\n";
+$com .= "rsync -rtvl --delete $allBamsDir cargo:/bettik/thierryn/$allBamsDir\n";
+$com .= "rsync -rtv --delete $gvcfDir cargo:/bettik/thierryn/$gvcfDir\n";
 
 warn "$com\n";

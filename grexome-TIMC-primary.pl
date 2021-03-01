@@ -42,10 +42,6 @@ $0 = basename($0);
 # may not need to change, but $dataDir certainly does
 my $dataDir = "/data/nthierry/PierreRay/";
 
-# we need 1_filterBadCalls.pl from the grexome-TIMC-Secondary repo,
-# install it somewhere and set $filterBin to point to it
-my $filterBin = "$RealBin/../SecondaryAnalyses/1_filterBadCalls.pl";
-
 
 #############################################
 ## hard-coded subtrees and stuff that shouldn't need to change much
@@ -170,9 +166,6 @@ grexomeTIMCprim_config->import( qw(refGenome fastTmpPath) );
 # sanity-check all hard-coded paths (only now, so --help works)
 (-d $dataDir) ||
     die "E $0: dataDir $dataDir needs to pre-exist, at least containing the FASTQs\n";
-
-(-f $filterBin) ||
-    die "E $0: cannot find filterBadCalls.pl from grexome-TIMC-Secondary, install it and set \$filterBin accordingly\n";
 
 (-d $fastqDir) ||
     die "E $0: fastqDir $fastqDir doesn't exist\n";
@@ -451,7 +444,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
 	my $jobsFilter = $jf1;
 	($jf2 > $jf1) && ($jobsFilter = $jf2);
-	$com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
+	$com .= "perl $RealBin/3_filterBadCalls.pl --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
 	$com .= "$bgzip -c -\@2 > $gvcf";
 	system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
     }
@@ -558,7 +551,9 @@ foreach my $pid (@childrenPids) {
     waitpid($pid, 0);
 }
 
-warn "I $0: ALL DONE, please examine the logs and if AOK you can remove obsolete merged GVCFs\n";
+$now = strftime("%F %T", localtime);
+warn "I $now: $0 - ALL DONE!\n";
+warn "I $0: Please examine the logs, and if AOK you can remove obsolete merged GVCFs\n";
 warn "I $0: and sync all results to cargo:bettik with the following commands:\n";
 
 my $com = "cd $dataDir\n";

@@ -64,7 +64,7 @@ foreach my $gNum ($first..$last) {
     $grexome = "grexome$grexome";
     # choose stdout and stderr filenames
     my $oar = $oarBase."-O $logDir/fastq2bam.$grexome.out -E $logDir/fastq2bam.$grexome.err ";
-    $oar .= "\"perl $binDir/fastq2bam.pl --out $outDir --in $inDir --samples $grexome --bin $binDir --bwakit $binDir --threads $threads --genome $genome -real\"";
+    $oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --samples $grexome --bin $binDir --bwakit $binDir --threads $threads --genome $genome -real\"";
 
     system($oar);
 

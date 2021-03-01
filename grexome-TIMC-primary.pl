@@ -373,17 +373,15 @@ foreach my $caller (sort(keys %callerDirs)) {
 
 	my $workdir =  "$outDir/Results_$caller/";
 
-	# caller-specific path/script (for now, will get rid of the path soon)
-	my $b2gBin = "$RealBin/3_Bam2Gvcf_Strelka/bam2gvcf_$caller.pl";
-	($caller eq "gatk") && ($b2gBin = "$RealBin/3_Bam2Gvcf_GATK/bam2gvcf_$caller.pl");
-	# sanity-check: bam2gvcf*.pl NEEDS TO BE named as specified
+	# each caller-specific wrapper script MUST BE named precisely like this:
+	my $b2gBin = "$RealBin/2_bam2gvcf_$caller.pl";
 	(-e $b2gBin) ||
 	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
 	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $workdir --jobs $jobs --config $config --real";
 	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 
 	##################
-	# caller-specific: log-checking and house-keeping
+	# caller-specific code: log-checking and house-keeping
 	if ($caller eq "strelka") {
 	    # check that logs are empty
 	    foreach my $s (split(/,/,$samples)) {
@@ -399,7 +397,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 		}
 	    }
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
-	    $com = "perl $RealBin/3_Bam2Gvcf_Strelka/moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
+	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
 	}
 	elsif ($caller eq "gatk") {

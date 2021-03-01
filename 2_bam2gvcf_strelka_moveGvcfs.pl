@@ -48,7 +48,7 @@ while (my $sample = readdir(IN)) {
 	    die "E $0: about to move GVCF$ext for $sample but it already exists in outDir $outDir, WTF!!\n";
 
 	rename("$inFile$ext",$outFile) ||
-	    die "E $0: rename failed for $inFile $outFile\n";
+	    die "E $0: rename failed for $inFile$ext $outFile\n";
     }
 }
 

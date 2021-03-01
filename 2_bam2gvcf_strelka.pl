@@ -32,11 +32,11 @@ $0 = basename($0);
 # subdir where BAMs can be found
 my $inDir;
 
-# dir where GVCF-containing subdirs will be created
-my $outDir;
-
 # comma-separated list of samples (FASTQs) to process (required)
 my $samples = '';
+
+# dir where GVCF-containing subdirs will be created
+my $outDir;
 
 # path+name of configureStrelkaGermlineWorkflow.py from strelka distrib,
 # or use a one-liner wrapper eg strelkaGermline.sh that can be in your PATH,
@@ -46,7 +46,7 @@ my $strelka = "strelkaGermline.sh";
 # path+file of the config file holding all install-specific params,
 # defaults to the distribution-povided file that you can edit but
 # you can also copy it elsewhere and customize it, then use --config
-my $config = "$RealBin/../grexomeTIMCprim_config.pm";
+my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
 # number of parallel jobs to run, get from command-line --jobs
 my $jobs = 16;
@@ -60,15 +60,14 @@ my $help = '';
 
 my $USAGE = "
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
---indir string [no default] : subdir containing the BAMs
+--indir : subdir containing the BAMs
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
---outdir string [no default] : dir where GVCF-containing subdirs will be
-          created (one subdir per sample)
---strelka [default \"$strelka\"] : must be either the path+name of
-    configureStrelkaGermlineWorkflow.py (from strelka distrib), or a wrapper script
-    (eg strelkaGermline.sh) that can be in your PATH
----jobs N [default = $jobs] : number of cores that strelka can use
+--outdir : dir where GVCF-containing subdirs will be created (one subdir per sample)
+--strelka [$strelka] : must be either the path+name of configureStrelkaGermlineWorkflow.py
+          (from strelka distrib), or a wrapper script that can be in your PATH
+--config [$config] : your customized copy (with path) of the distributed *config.pm
+--jobs [$jobs] : number of cores that strelka can use
 --real : actually do the work, otherwise this is a dry run, just print 
     info on what would be done
 --help : print this USAGE";
@@ -93,7 +92,7 @@ require($config);
 grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
 
 ($inDir) ||
-    die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n$USAGE\n";
+    die "E $0: you MUST provide --indir where BAMs can be found\n$USAGE\n";
 (-d $inDir) ||
     die "E $0: inDir specified is not a folder!";
 
@@ -108,9 +107,9 @@ foreach my $sample (split(/,/, $samples)) {
 }
 
 ($outDir) || 
-    die "$0 $USAGE\n\nE: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
+    die "E $0: you MUST specify --outdir where GVCF-containing subdirs will be created\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
-    die "E $0: outDir $outDir doesn't exist as a dir but can't be created\n";
+    die "E $0: outDir $outDir doesn't exist as a dir and can't be created\n";
 
 # make sure strelka can be found
 (`which $strelka` =~ /$strelka$/) || 

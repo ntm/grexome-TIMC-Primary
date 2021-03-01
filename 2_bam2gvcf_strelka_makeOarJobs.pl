@@ -43,15 +43,15 @@ my $threads = 16;
 
 # hard-coded dirs:
 # log to $logDir
-my $logDir = "/bettik/nthierry/ProcessBams_Strelka_1906_dahu_logs/";
+my $logDir = "/bettik/thierryn/ProcessBams_Strelka_1906_dahu_logs/";
 # path to bam2gvcf_strelka.pl
-my $bam2gvcf = "~/Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/bam2gvcf_strelka.pl";
-# path/to/lastest/configureStrelkaGermlineWorkflow.py
+my $bam2gvcf = "~/Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/2_bam2gvcf_strelka.pl";
+# path/to/latest/configureStrelkaGermlineWorkflow.py
 my $strelka = "~/Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/strelka-latest/bin/configureStrelkaGermlineWorkflow.py";
 # bams are in $inDir
-my $inDir = "/bettik/nthierry/BAMs_All_Selected/";
+my $inDir = "/bettik/thierryn/BAMs_All_Selected/";
 # produce gvcfs in $outDir
-my $outDir = "/bettik/nthierry/ProcessBams_Strelka_1906_dahu/";
+my $outDir = "/bettik/thierryn/ProcessBams_Strelka_1906_dahu/";
 
 # oarsub command with params:
 # run on my project ngs-timc, ask for 16 cores on 1 node, 2h walltime max

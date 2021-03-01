@@ -352,6 +352,9 @@ warn "I $now: $0 - symlinking any new BAMs/BAIs in $allBamsDir DONE\n";
 # set now so all callers use the same timestamp even if gatk takes a lot longer
 my $date = strftime("%y%m%d", localtime);
 
+# PIDs from tabix-index subprocesses
+my @childrenPids;
+
 # mostly same code for all callers, except house-keeping
 foreach my $caller (sort(keys %callerDirs)) {
     ################################
@@ -503,13 +506,28 @@ foreach my $caller (sort(keys %callerDirs)) {
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - merging $caller GVCFs DONE\n";
 
-	# index
+	# index:
+	# tabix takes a long time on large merged GVCFs but uses a single thread and
+	# almost no ressources (RAM or IO): it is cpu-bound but single-threaded
+	# -> fork a process for it so we can start working with the next $caller
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - indexing merged $caller GVCF\n";
 	$com = "tabix $newMerged";
-	system($com) && die "E $0: tabix for merged $caller FAILED: $?";
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
+	my $pid = fork();
+	(defined $pid) ||
+	    die "E $0: could not fork for tabix-indexing $caller merged\n";
+	if ($pid == 0) {
+	    # child: run tabix and exit
+	    system($com) && die "E $0: tabix for merged $caller FAILED: $?";
+	    # this only killed the child but at least we sent E: message to stderr
+	    $now = strftime("%F %T", localtime);
+	    warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
+	    exit(0);
+	}
+	else {
+	    # parent
+	    push(@childrenPids, $pid);
+	}
     }
     else {
 	# every sample is already in $prevMerged, nothing to do except clean up
@@ -521,6 +539,11 @@ foreach my $caller (sort(keys %callerDirs)) {
 }
 
 ################################
+
+# wait for tabix processes
+foreach my $pid (@childrenPids) {
+    waitpid($pid, 0);
+}
 
 warn "I $0: ALL DONE, please examine the logs and if AOK you can remove obsolete merged GVCFs\n";
 warn "I $0: and sync all results to cargo:bettik with the following commands:\n";

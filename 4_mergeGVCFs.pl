@@ -143,7 +143,7 @@ my $fileList;
 # path+file of the config file holding all install-specific params,
 # defaults to the distribution-povided file that you can edit but
 # you can also copy it elsewhere and customize it, then use --config
-my $config = "$RealBin/../grexomeTIMCprim_config.pm";
+my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
 # number of parallel jobs to run
 my $jobs = 16;
@@ -162,10 +162,9 @@ However it tries to be very defensive, so it should detect and report any proble
 has with the GVCFs you provide. If this happens please report the issues so we can 
 fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
---filelist string [no default] : file containing a list of GVCF filenames to merge,
-    including paths, one file per line
---config string ['.$config.'] : your customized copy (with path) of the distributed *config.pm
---jobs N ['.$jobs.'] : number of parallel jobs=threads to run
+--filelist : file containing a list of GVCF filenames to merge, including paths, one per line
+--config ['.$config.'] : your customized copy (with path) of the distributed *config.pm
+--jobs ['.$jobs.'] : number of parallel jobs=threads to run
 --cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
 --help : print this USAGE';
 
@@ -244,7 +243,7 @@ close(FILES);
 # deal with headers and fill @numSamples
 
 my $now = strftime("%F %T", localtime);
-warn("I: $now - $0 STARTING TO WORK\n");
+warn("I $now: $0 - STARTING TO WORK\n");
 
 # same indexes as @infiles, value is the number of samples in the infile
 my @numSamples;
@@ -498,7 +497,7 @@ foreach my $infile (@infiles) {
 }
 
 $now = strftime("%F %T", localtime);
-warn("I: $now - $0 ALL DONE, COMPLETED SUCCESSFULLY\n");
+warn("I $now: $0 - ALL DONE\n");
 
 
 

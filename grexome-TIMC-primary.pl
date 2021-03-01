@@ -216,7 +216,7 @@ my %samples = ();
 	    die "E $0: parsing xlsx: have 2 lines with sample $sample\n";
 	# check for typo: sampleIDs with spaces or slashes would be retarded and likely break the code
 	if ($sample =~ /[\s\/]/) {
-	    die "E $0: sampleID=$sample? That's gotta be a typo, you're not really trying to use a sampleID with a space or slash, right...? Please don't do that. Ever. Anywhere.\n";
+	    die "E $0: sampleID=$sample? That's gotta be a typo, you're not really using spaces or slashes in your unique identifiers, right...? Please don't do that. Ever.\n";
 	}
 	$samples{$sample} = 1;
     }
@@ -497,7 +497,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	# -> merge:
 	# NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
 	# if this turns into a problem we can tune it down (eg $jobsFilter)
-	my $com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
+	my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
 	# trying without separate logs
 	# $com .= "2>  $outDir/merge_$caller.log ";
 	$com .= "| bgzip -c -\@12 > $newMerged";

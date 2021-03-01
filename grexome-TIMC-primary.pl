@@ -82,6 +82,18 @@ foreach my $k (keys %callerDirs) {
     }
 }
 
+#############################################
+## programs that we use
+my $bgzip = "bgzip";
+my $tabix = "tabix";
+my $zgrep = "zgrep";
+(`which $bgzip` =~ /$bgzip$/) ||
+    die "E $0: the bgzip executable $bgzip can't be found\n";
+(`which $tabix` =~ /$tabix$/) ||
+    die "E $0: the tabix executable $tabix can't be found\n";
+(`which $zgrep` =~ /$zgrep$/) ||
+    die "E $0: the zgrep executable $zgrep can't be found\n";
+
 
 #############################################
 ## options / params from the command-line
@@ -434,13 +446,13 @@ foreach my $caller (sort(keys %callerDirs)) {
 	(-e $gvcf) && next;
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting filter of $caller $s\n";
-	my $com = "bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
+	my $com = "$bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
 	# giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-4)
 	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
 	my $jobsFilter = $jf1;
 	($jf2 > $jf1) && ($jobsFilter = $jf2);
 	$com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
-	$com .= "bgzip -c -\@2 > $gvcf";
+	$com .= "$bgzip -c -\@2 > $gvcf";
 	system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
     }
     $now = strftime("%F %T", localtime);
@@ -462,7 +474,7 @@ foreach my $caller (sort(keys %callerDirs)) {
     my $prevMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | tail -n 1`;
     chomp($prevMerged);
     if ($prevMerged) {
-	open(CHR, "zgrep -m 1 ^#CHROM $prevMerged |") ||
+	open(CHR, "$zgrep -m 1 ^#CHROM $prevMerged |") ||
 	    die "E $0: cannot zgrep #CHROM line in prevMerged $prevMerged\n";
 	my $header = <CHR>;
 	chomp($header);
@@ -500,7 +512,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
 	# trying without separate logs
 	# $com .= "2>  $outDir/merge_$caller.log ";
-	$com .= "| bgzip -c -\@12 > $newMerged";
+	$com .= "| $bgzip -c -\@12 > $newMerged";
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting to merge $caller GVCFs\n";
 	system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
@@ -513,7 +525,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	# -> fork a process for it so we can start working with the next $caller
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - indexing merged $caller GVCF\n";
-	$com = "tabix $newMerged";
+	$com = "$tabix $newMerged";
 	my $pid = fork();
 	(defined $pid) ||
 	    die "E $0: could not fork for tabix-indexing $caller merged\n";

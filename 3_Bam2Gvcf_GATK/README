@@ -1,6 +1,0 @@
-# 01/09/2020
-# NTM
-
-bam2gvcf_gatk.pl: call variants using GATK4, I am starting from 
-Omar Benchekroun's work.
-

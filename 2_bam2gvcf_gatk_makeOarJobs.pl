@@ -44,23 +44,23 @@ my $jobs = 24;
 
 # hard-coded dirs:
 # log to $logDir
-my $logDir = "/bettik/nthierry/ProcessBams_GATK_2010_dahu_logs/";
+my $logDir = "/bettik/thierryn/ProcessBams_GATK_2010_dahu_logs/";
 # path to bam2gvcf_gatk.pl
-my $bam2gvcf = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/bam2gvcf_gatk.pl";
+my $bam2gvcf = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/2_bam2gvcf_gatk.pl";
 # path/to/config.pm
 my $config = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/grexomeTIMCprim_config.pm";
 # bams are in $inDir
-my $inDir = "/bettik/nthierry/BAMs_All_Selected/";
+my $inDir = "/bettik/thierryn/BAMs_All_Selected/";
 # produce gvcfs in $outDir
-my $outDir = "/bettik/nthierry/ProcessBams_GATK_2010_dahu/";
+my $outDir = "/bettik/thierryn/ProcessBams_GATK_2010_dahu/";
 
 # path/to/latest/gatk : doesn't work, gatk dies with cryptic message
 #my $gatk = "~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest/gatk";
 # -> instead we use a singularity image
 my $gatk = 'singularity exec';
-# bind /bettik/nthierry/ (ie make it rw-accessible from within the container),
-# /home/nthierry/ is bound by default
-$gatk .= ' --bind /bettik/nthierry/';
+# bind /bettik/thierryn/ (ie make it rw-accessible from within the container),
+# /home/thierryn/ is bound by default
+$gatk .= ' --bind /bettik/thierryn/';
 # path/to/image
 ##$gatk .= ' ~/Bam2gvcf_GATK_PackagedWithBinaries_Centos7/gatk-latest.sif';
 # running from the sif doesn't work, trying a sandbox
@@ -82,18 +82,16 @@ my $grex2 = $first + $grexomesPerJob - 1;
 while ($grex1 <= $last) {
     ($grex2 <= $last) || ($grex2 = $last);
     # build comma-separated list of samples
-    my $samples = $grex1;
-    # left-pad with zeroes to 4 digits
-    ($samples < 10) && ($samples = "0$samples");
-    ($samples < 100) && ($samples = "0$samples");
-    ($samples < 1000) && ($samples = "0$samples");
-    $samples = "grexome$samples";
-    foreach my $s ($grex1+1..$grex2) {
+    my $samples = "";
+    foreach my $s ($grex1..$grex2) {
+	# left-pad with zeroes to 4 digits
 	($s < 10) && ($s = "0$s");
 	($s < 100) && ($s = "0$s");
 	($s < 1000) && ($s = "0$s");
-	$samples .= ",grexome$s";
+	$samples .= "grexome$s,";
     }
+    # chop trailing comma
+    chop($samples);
     my $oar = $oarBase." -O $logDir/bam2gvcf.$grex1-$grex2.out -E $logDir/bam2gvcf.$grex1-$grex2.err ";
     $oar .= "\" perl $bam2gvcf --indir $inDir --samples $samples --outdir $outDir --gatk \'$gatk\' --config $config --jobs $jobs --real\"";
 

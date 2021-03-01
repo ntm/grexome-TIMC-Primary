@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # 13/06/2020
-# Initial version by OB, largely inspired by bam2gvcf_strelka.pl
+# Initial version by Omar Benchekroun based on bam2gvcf_strelka.pl.
 # Further work by NTM
 
 
@@ -31,11 +31,11 @@ $0 = basename($0);
 # subdir where BAMs can be found
 my $inDir;
 
-# dir where GVCF-containing subdirs will be created
-my $outDir;
-
 # comma-separated list of samples (FASTQs) to process (required)
 my $samples = '';
+
+# dir where GVCF-containing subdirs will be created
+my $outDir;
 
 # path+name of GATK wrapper distributed with GATK4, defaults to "gatk"
 # which should be in your PATH
@@ -44,10 +44,10 @@ my $gatk = "gatk";
 # path+file of the config file holding all install-specific params,
 # defaults to the distribution-povided file that you can edit but
 # you can also copy it elsewhere and customize it, then use --config
-my $config = "$RealBin/../grexomeTIMCprim_config.pm";
+my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
 # number of parallel jobs to run.
-# NOTE: GATK4 is single-threaded and it doesn't seem possible to run it
+# NOTE: GATK4 is mostly single-threaded and it's not possible to run it
 # multi-threaded! So we run it in parallel on $jobs samples.
 # Omar benchmarked this on luxor: in his hands, 
 # $jobs==1 => ~2hours/sample, $jobs==15 => ~20min/sample.
@@ -62,13 +62,13 @@ my $help = '';
 
 my $USAGE = "
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
---indir string [no default] : subdir containing the BAMs
+--indir : subdir containing the BAMs
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
---outdir string [no default] : dir where GVCF files will be created
+--outdir : dir where GVCF files will be created
 --gatk [default to \"$gatk\" which should be in PATH] : full path to gatk executable
---config string [$config] : your customized copy (with path) of the distributed *config.pm
---jobs N [default = $jobs] : number of samples to process in parallel.
+--config [$config] : your customized copy (with path) of the distributed *config.pm
+--jobs [$jobs] : number of samples to process in parallel
 --real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
 
@@ -81,7 +81,7 @@ GetOptions ("indir=s" => \$inDir,
 	    "jobs=i" => \$jobs, 
 	    "real" => \$real,
 	    "help" => \$help)
-    or die("E $0: Error in command line arguments\n\n$USAGE\n");
+    or die("E $0: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
 ($help) && die "$USAGE\n\n";
@@ -92,7 +92,7 @@ require($config);
 grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
 
 ($inDir) ||
-    die "E $0: you MUST provide a dir where BAMs can be found, with --indir\n$USAGE\n";
+    die "E $0: you MUST provide --indir where BAMs can be found\n$USAGE\n";
 (-d $inDir) ||
     die "E $0: inDir specified is not a folder!";
 
@@ -107,16 +107,15 @@ foreach my $sample (split(/,/, $samples)) {
 }
 
 ($outDir) || 
-    die "E $0: you MUST specify the dir where GVCF-containing subdirs will be created, with --outdir\n$USAGE\n";
+    die "E $0: you MUST specify --outdir where GVCF-containing subdirs will be created\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
-    die "E $0: outDir $outDir doesn't exist as a dir but can't be created\n";
+    die "E $0: outDir $outDir doesn't exist as a dir and can't be created\n";
 
 # make sure gatk executable is found, this test is disabled if
 # we will be running GATK from a singularity container
 ($gatk =~ /singularity/) ||
     (`which $gatk` =~ /$gatk$/) ||
-    die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk, you provided:\n$gatk\n";
-
+    die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n";
 
 #############################################
 
@@ -175,9 +174,8 @@ $cmd .= " --tmp-dir $tmpDir";
 my $pm = new Parallel::ForkManager($jobs);
 {
     my $now = strftime("%F %T", localtime);
-    warn "I: $now - $0 STARTING TO WORK\n";
+    warn "I $now: $0 - STARTING TO WORK\n";
 }
-
 
 foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
@@ -207,14 +205,14 @@ foreach my $sample (sort keys(%samples)) {
     else {
 	$pm->start && next;
 	my $now = strftime("%F %T", localtime);
-	warn "I: $now - $0 starting GATK4-HaplotypeCaller for $sample\n";
+	warn "I $now: $0 - starting GATK4-HaplotypeCaller for $sample\n";
         if (system($fullCmd) != 0) {
             $now = strftime("%F %T", localtime);
-            warn "E: $now - $0 running GATK4-HaplotypeCaller for $sample FAILED ($?)! INSPECT THE LOGFILE $log\n";
+            warn "E $now: $0 - running GATK4-HaplotypeCaller for $sample FAILED ($?)! INSPECT THE LOGFILE $log\n";
         }
 	else{
 	    $now = strftime("%F %T", localtime);
-	    warn "I: $now - $0 running GATK4-HaplotypeCaller for $sample completed successfully\n";
+	    warn "I $now: $0 - running GATK4-HaplotypeCaller for $sample completed successfully\n";
 	}
         $pm->finish;
     }
@@ -223,5 +221,5 @@ $pm->wait_all_children;
 
 {
     my $now = strftime("%F %T", localtime);
-    warn "I: $now - $0 ALL DONE\n";
+    warn "I $now: $0 - ALL DONE\n";
 }

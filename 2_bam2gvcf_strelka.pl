@@ -48,7 +48,7 @@ my $strelka = "strelkaGermline.sh";
 # you can also copy it elsewhere and customize it, then use --config
 my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
-# number of parallel jobs to run, get from command-line --jobs
+# number of parallel jobs to run
 my $jobs = 16;
 
 # $real: if not true don't actually process anything, just print INFO 
@@ -68,8 +68,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
           (from strelka distrib), or a wrapper script that can be in your PATH
 --config [$config] : your customized copy (with path) of the distributed *config.pm
 --jobs [$jobs] : number of cores that strelka can use
---real : actually do the work, otherwise this is a dry run, just print 
-    info on what would be done
+--real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
 
 
@@ -121,12 +120,11 @@ foreach my $sample (split(/,/, $samples)) {
 my $refGenome = &refGenome();
 my $chromsBed = &refGenomeChromsBed();
 
-
 #############################################
 ## process each sample of interest
 
 my $now = strftime("%F %T", localtime);
-warn "I $0: $now - STARTING TO WORK\n";
+warn "I $now: $0 - STARTING TO WORK\n";
 
 foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
@@ -147,7 +145,7 @@ foreach my $sample (sort keys(%samples)) {
 	}
 	else {
 	    $now = strftime("%F %T", localtime);
-	    warn "I $0: $now - configuring strelka for $sample\n";
+	    warn "I $now: $0 - configuring strelka for $sample\n";
 	    system($com);
 	}
     }
@@ -167,10 +165,10 @@ foreach my $sample (sort keys(%samples)) {
 	(-e "$runDir/runWorkflow.py") ||
 	    ((warn "I $0: want to run strelka for $sample but runDir $runDir doesn't exist, configure failed??\n") && next);
 	$now = strftime("%F %T", localtime);
-	warn "I $0: $now - running strelka for $sample\n";
+	warn "I $now: $0 - running strelka for $sample\n";
 	system($com);
     }
 }
 
 $now = strftime("%F %T", localtime);
-warn "I $0: $now - DONE\n";
+warn "I $now: $0 - ALL DONE\n";

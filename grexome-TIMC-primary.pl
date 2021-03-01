@@ -476,36 +476,48 @@ foreach my $caller (sort(keys %callerDirs)) {
 	print BATCH "$prevMerged\n";
     }
 
+    # only merge if there's at least one new sample
+    my $doMerge = 0;
     foreach my $s (sort(keys %samples)) {
 	# only merge $s if it's not already in prevMerged
-	($samplesPrev{$s}) ||
-	    (print BATCH $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz\n");
+	if (! $samplesPrev{$s}) {
+	    print BATCH $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz\n";
+	    $doMerge = 1;
+	}
     }
     close(BATCH);
 
-    my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_$date.g.vcf.gz";
-    (-e $newMerged) &&
-	die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
+    if ($doMerge) {
+	my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_$date.g.vcf.gz";
+	(-e $newMerged) &&
+	    die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
 
-    # -> merge:
-    my $com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
-    # trying without separate logs
-    # $com .= "2>  $outDir/merge_$caller.log ";
-    $com .= "| bgzip -c -\@12 > $newMerged";
-    $now = strftime("%F %T", localtime);
-    warn "I $now: $0 - starting to merge $caller GVCFs\n";
-    system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
-    $now = strftime("%F %T", localtime);
-    warn "I $now: $0 - merging $caller GVCFs DONE\n";
+	# -> merge:
+	my $com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
+	# trying without separate logs
+	# $com .= "2>  $outDir/merge_$caller.log ";
+	$com .= "| bgzip -c -\@12 > $newMerged";
+	$now = strftime("%F %T", localtime);
+	warn "I $now: $0 - starting to merge $caller GVCFs\n";
+	system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
+	$now = strftime("%F %T", localtime);
+	warn "I $now: $0 - merging $caller GVCFs DONE\n";
 
-    # index
-    $now = strftime("%F %T", localtime);
-    warn "I $now: $0 - indexing merged $caller GVCF\n";
-    $com = "tabix $newMerged";
-    system($com) && die "E $0: tabix for merged $caller FAILED: $?";
-    $now = strftime("%F %T", localtime);
-    warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
-
+	# index
+	$now = strftime("%F %T", localtime);
+	warn "I $now: $0 - indexing merged $caller GVCF\n";
+	$com = "tabix $newMerged";
+	system($com) && die "E $0: tabix for merged $caller FAILED: $?";
+	$now = strftime("%F %T", localtime);
+	warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
+    }
+    else {
+	# every sample is already in $prevMerged, nothing to do except clean up
+	$now = strftime("%F %T", localtime);
+	warn "I $now: $0 - merging $caller GVCFs not needed, no new samples\n";
+	unlink($batchFile) ||
+	    die "E $now: $0 - failed to unlink batchFile $batchFile: $!";
+    }
 }
 
 ################################

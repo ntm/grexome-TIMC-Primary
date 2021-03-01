@@ -415,7 +415,7 @@ foreach my $caller (sort(keys %callerDirs)) {
     }
     else {
 	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - $caller raw GVCF exists for every sample, skipping step\n";
+	warn "I $now: $0 - variant-calling with $caller DONE, all samples already had raw $caller GVCFs\n";
     }
 }
 

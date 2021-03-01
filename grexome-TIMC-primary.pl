@@ -110,7 +110,7 @@ my $config = "$RealBin/grexomeTIMCprim_config.pm";
 my $help = '';
 
 my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from FASTQ files and:
-- produce BAM with fastq2bam.pl (trim, align, mark dupes, sort);
+- produce BAMs with fastq2bam.pl (trim, align, mark dupes, sort);
 - for each specified variant-caller:
      produce individual GVCFs with bam2gvcf_\$caller.pl;
      filter low-quality variant calls with filterBadCalls.pl;
@@ -140,15 +140,15 @@ GetOptions ("metadata=s" => \$metadata,
 # make sure required options were provided and sanity check them
 ($help) && die "$USAGE\n\n";
 
-($metadata) || die "E $0: you must provide a metadata file\n";
-(-f $metadata) || die "E $0: the supplied metadata file doesn't exist:\n$metadata\n";
+($metadata) || die "E $0: you must provide a metadata file. Try $0 --help\n";
+(-f $metadata) || die "E $0: the supplied metadata file doesn't exist: $metadata\n";
 
 # immediately import $config, so we die if file is broken
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
 require($config);
 grexomeTIMCprim_config->import( qw(refGenome fastTmpPath) );
 
-($outDir) || die "E $0: you must provide an outDir\n";
+($outDir) || die "E $0: you must provide an outDir. Try $0 --help\n";
 (-e $outDir) && 
     die "E $0: outDir $outDir already exists, remove it or choose another name.\n";
 
@@ -346,10 +346,16 @@ warn "I $now: $0 - symlinking any new BAMs/BAIs in $allBamsDir DONE\n";
 
 
 ################################
-# make INDIVIDUAL GVCFs
+# GVCFs
+
+# YYMMDD for creating timestamped new merged GVCFs
+# set now so all callers use the same timestamp even if gatk takes a lot longer
+my $date = strftime("%y%m%d", localtime);
 
 # mostly same code for all callers, except house-keeping
 foreach my $caller (sort(keys %callerDirs)) {
+    ################################
+    # make INDIVIDUAL GVCFs
     # samples to process: those without a raw GVCF
     $samples = "";
     foreach my $s (sort(keys %samples)) {
@@ -417,13 +423,9 @@ foreach my $caller (sort(keys %callerDirs)) {
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - variant-calling with $caller DONE, all samples already had raw $caller GVCFs\n";
     }
-}
 
-################################
-# filter INDIVIDUAL GVCFs
-
-# same code for all callers
-foreach my $caller (sort(keys %callerDirs)) {
+    ################################
+    # filter INDIVIDUAL GVCFs
     foreach my $s (sort(keys %samples)) {
 	# samples to process: those without a filtered GVCF
 	my $gvcf = $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz";
@@ -441,16 +443,10 @@ foreach my $caller (sort(keys %callerDirs)) {
     }
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - filtering $caller GVCFs DONE\n";
-}
 
-################################
-# merge new GVCFs with the most recent previous merged if one existed
+    ################################
+    # merge new GVCFs with the most recent previous merged if one existed
 
-# YYMMDD for creating timestamped new merged
-my $date = strftime("%y%m%d", localtime);
-
-# same code for all callers
-foreach my $caller (sort(keys %callerDirs)) {
     # samples in prevMerged, to avoid dupes
     my %samplesPrev;
 

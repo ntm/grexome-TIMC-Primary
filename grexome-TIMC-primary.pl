@@ -437,8 +437,8 @@ foreach my $caller (sort(keys %callerDirs)) {
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting filter of $caller $s\n";
 	my $com = "bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
-	# giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-8)
-	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-8);
+	# giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-4)
+	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
 	my $jobsFilter = $jf1;
 	($jf2 > $jf1) && ($jobsFilter = $jf2);
 	$com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
@@ -497,6 +497,8 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
 
 	# -> merge:
+	# NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
+	# if this turns into a problem we can tune it down (eg $jobsFilter)
 	my $com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
 	# trying without separate logs
 	# $com .= "2>  $outDir/merge_$caller.log ";

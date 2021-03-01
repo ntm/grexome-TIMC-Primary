@@ -42,10 +42,6 @@ $0 = basename($0);
 # may not need to change, but $dataDir certainly does
 my $dataDir = "/data/nthierry/PierreRay/";
 
-# number of threads / parallel jobs for fastq2bam (BWA),
-# bam2gvcf* (strelka and gatk), filterBadCalls, mergeGVCFs
-my $jobs = 20;
-
 # we need 1_filterBadCalls.pl from the grexome-TIMC-Secondary repo,
 # install it somewhere and set $filterBin to point to it
 my $filterBin = "$RealBin/../SecondaryAnalyses/1_filterBadCalls.pl";
@@ -101,6 +97,9 @@ my $SOIs;
 # outDir must not exist, it will be created and populated
 my $outDir;
 
+# indication of the number of threads / parallel jobs that we can run
+my $jobs = 20;
+
 # path+file of the config file holding all install-specific params,
 # defaults to the distribution-povided file that you can edit but
 # you can also copy it elsewhere and customize it, then use --config
@@ -127,12 +126,14 @@ Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --metadata string : patient metadata xlsx file, with path
 --samples string : comma-separated list of sampleIDs to process, default = all samples in metadata
 --outdir string : subdir where logs and workfiles will be created, must not pre-exist
+--jobs int [$jobs] : approximate number of threads/jobs that we should run
 --config string [$config] : your customized copy (with path) of the distributed *config.pm
 --help : print this USAGE";
 
 GetOptions ("metadata=s" => \$metadata,
 	    "samples=s" => \$SOIs,
 	    "outdir=s" => \$outDir,
+	    "jobs=i" => \$jobs,
 	    "config=s" => \$config,
 	    "help" => \$help)
     or die("E $0: Error in command line arguments\n$USAGE\n");

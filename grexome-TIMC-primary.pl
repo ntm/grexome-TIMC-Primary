@@ -256,7 +256,7 @@ foreach my $s (sort(keys %samples)) {
 #############################################
 
 my $now = strftime("%F %T", localtime);
-warn "I $0: $now - starting to run\n\n";
+warn "I $now: $0 - starting to run\n";
 
 
 # prep is AOK, we can mkdir outDir now
@@ -286,22 +286,24 @@ if ($samples) {
     # remove trailing ','
     (chop($samples) eq ',') ||
 	die "E $0 chopped samples isn't ',' impossible\n";
+    $now = strftime("%F %T", localtime);
+    warn "I $now: $0 - fastq2bam will process sample(s) $samples\n";
     # make BAMs
     my $com = "perl $RealBin/2_Fastq2Bam/fastq2bam.pl --indir $fastqDir --samples $samples --outdir $dataDir/$bamDir ";
     $com .= "--genome ".&refGenome()." --threads $jobs --real ";
     system($com) && die "E $0: fastq2bam FAILED: $!";
     $now = strftime("%F %T", localtime);
-    warn "I $0: $now - fastq2bam DONE, stepwise logfiles are available as $dataDir/$bamDir/*log\n\n";
+    warn "I $now: $0 - fastq2bam DONE, logfiles are available as $dataDir/$bamDir/*log\n";
 }
 else {
     $now = strftime("%F %T", localtime);
-    warn "I $0: $now - BAMs exist for every sample, skipping step\n\n";
+    warn "I $now: $0 - fastq2bam DONE, all samples already had BAMs\n";
 }
 
 ################################
 # SYMLINK BAMS
 
-# symlink just the BAMs/BAIs in $allBamsDir with relative symlinks (so rsyncing the
+# symlink the BAMs/BAIs in $allBamsDir with relative symlinks (so rsyncing the
 # whole tree elsewhere still works)
 # samples to process: those without BAMs in $dataDir/$allBamsDir
 $samples = "";
@@ -338,13 +340,10 @@ if ($samples) {
 	    }
 	}
     }
-    $now = strftime("%F %T", localtime);
-    warn "I $0: $now - symlinking BAMs/BAIs in $allBamsDir DONE\n\n";
 }
-else {
-    $now = strftime("%F %T", localtime);
-    warn "I $0: $now - symlinks to BAMs exist for every sample, skipping step\n\n";
-}
+$now = strftime("%F %T", localtime);
+warn "I $now: $0 - symlinking any new BAMs/BAIs in $allBamsDir DONE\n";
+
 
 ################################
 # make INDIVIDUAL GVCFs
@@ -412,11 +411,11 @@ foreach my $caller (sort(keys %callerDirs)) {
 	##################
 	
 	$now = strftime("%F %T", localtime);
-	warn "I $0: $now - variant-calling with $caller DONE\n\n";
+	warn "I $now: $0 - variant-calling with $caller DONE\n";
     }
     else {
 	$now = strftime("%F %T", localtime);
-	warn "I $0: $now - $caller raw GVCF exists for every sample, skipping step\n\n";
+	warn "I $now: $0 - $caller raw GVCF exists for every sample, skipping step\n";
     }
 }
 
@@ -429,14 +428,19 @@ foreach my $caller (sort(keys %callerDirs)) {
 	# samples to process: those without a filtered GVCF
 	my $gvcf = $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz";
 	(-e $gvcf) && next;
-	warn "I $0: starting filter of $caller $s\n";
+	$now = strftime("%F %T", localtime);
+	warn "I $now: $0 - starting filter of $caller $s\n";
 	my $com = "bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
-	$com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobs | ";
+	# giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-8)
+	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-8);
+	my $jobsFilter = $jf1;
+	($jf2 > $jf1) && ($jobsFilter = $jf2);
+	$com .= "perl $filterBin --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
 	$com .= "bgzip -c -\@2 > $gvcf";
 	system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
     }
     $now = strftime("%F %T", localtime);
-    warn "I $0: $now - filtering $caller GVCFs DONE\n\n";
+    warn "I $now: $0 - filtering $caller GVCFs DONE\n";
 }
 
 ################################
@@ -489,18 +493,22 @@ foreach my $caller (sort(keys %callerDirs)) {
 
     # -> merge:
     my $com = "perl $RealBin/4_MergeGVCFs/mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
-    $com .= "2>  $outDir/merge_$caller.log ";
+    # trying without separate logs
+    # $com .= "2>  $outDir/merge_$caller.log ";
     $com .= "| bgzip -c -\@12 > $newMerged";
-    warn "I $0: starting to merge $caller GVCFs\n";
+    $now = strftime("%F %T", localtime);
+    warn "I $now: $0 - starting to merge $caller GVCFs\n";
     system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
     $now = strftime("%F %T", localtime);
-    warn "I $0: $now - merging $caller GVCFs DONE\n\n";
+    warn "I $now: $0 - merging $caller GVCFs DONE\n";
 
     # index
+    $now = strftime("%F %T", localtime);
+    warn "I $now: $0 - indexing merged $caller GVCF\n";
     $com = "tabix $newMerged";
     system($com) && die "E $0: tabix for merged $caller FAILED: $?";
     $now = strftime("%F %T", localtime);
-    warn "I $0: $now - indexing merged $caller GVCF DONE\n\n";
+    warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
 
 }
 

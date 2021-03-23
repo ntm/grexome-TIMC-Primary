@@ -1498,7 +1498,8 @@ sub eatTmpFiles {
 	    (unlink($tmpOut,$tmpOutFlag) == 2) ||
 		die "E $0: in eatTmpFiles, done with files for batch $nextBatch but cannot unlink (both of) them: $!\n";
 
-	    if (! $nextBatch % 10) {
+	    if ($nextBatch % 10 == 0) {
+		# log progress every 10 batches
 		my $now = strftime("%F %T", localtime);
 		warn "I $now: $0 - done printing results from batch $nextBatch\n";
 	    }

@@ -42,6 +42,11 @@ $0 = basename($0);
 # may not need to change, but $dataDir certainly does
 my $dataDir = "/data/nthierry/PierreRay/";
 
+# rsync path where you maintain a mirror of the BAMs and GVCFs,
+# this only appears at the end of the logs to allow copy-pasting.
+# Use "" to NOT print these final log lines (eg if you mirror via cron)
+my $mirror = "cargo:/bettik/thierryn/";
+
 
 #############################################
 ## hard-coded subtrees and stuff that shouldn't need to change much
@@ -124,7 +129,7 @@ my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from FASTQ
      produce a merged GVCF per variant-caller with mergeGVCFs.pl.
 
 BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of this script,
-please customize them (eg \$dataDir).
+all within \$dataDir which you must customize. The hierarchy can also be modified if desired.
 Logs and copies of the metadata are produced in the provided \$outDir (which must not exist).
 Each step of the pipeline is a stand-alone self-documented script, this is just a wrapper.
 For each sample, any step where the result file already exists is skipped.
@@ -552,23 +557,27 @@ foreach my $pid (@childrenPids) {
 }
 
 $now = strftime("%F %T", localtime);
-warn "I $now: $0 - ALL DONE!\n";
-warn "I $0: Please examine the logs, and if AOK you can remove obsolete merged GVCFs\n";
-warn "I $0: and sync all results to cargo:bettik with the following commands:\n";
+my $mess = "I $now: $0 - ALL DONE!\n";
+$mess .= "I $0: Please examine the logs, and if AOK you can remove obsolete merged GVCFs\n";
+$mess .= "I $0: ";
+($mirror) && ($mess .= "and sync all results to $mirror ");
+$mess .= "with the following commands:\n";
 
-my $com = "cd $dataDir\n";
+$mess = "cd $dataDir\n";
 foreach my $caller (sort(keys %callerDirs)) {
     my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
     chomp($oldestMerged);
-    $com .= "rm -i $oldestMerged\n";
-    $com .= "rm -i $oldestMerged.tbi\n";
+    $mess .= "rm $oldestMerged\n";
+    $mess .= "rm $oldestMerged.tbi\n";
 }
-$com .= "rsync -rtvn --delete $bamDir cargo:/bettik/thierryn/$bamDir\n";
-$com .= "rsync -rtvln --delete $allBamsDir cargo:/bettik/thierryn/$allBamsDir\n";
-$com .= "rsync -rtvn --delete $gvcfDir cargo:/bettik/thierryn/$gvcfDir\n";
-$com .= "## redo without -n if AOK:\n";
-$com .= "rsync -rtv --delete $bamDir cargo:/bettik/thierryn/$bamDir\n";
-$com .= "rsync -rtvl --delete $allBamsDir cargo:/bettik/thierryn/$allBamsDir\n";
-$com .= "rsync -rtv --delete $gvcfDir cargo:/bettik/thierryn/$gvcfDir\n";
+if ($mirror) {
+    $mess .= "rsync -rtvn --delete $bamDir $mirror/$bamDir\n";
+    $mess .= "rsync -rtvln --delete $allBamsDir $mirror/$allBamsDir\n";
+    $mess .= "rsync -rtvn --delete $gvcfDir $mirror/$gvcfDir\n";
+    $mess .= "## redo without -n if AOK:\n";
+    $mess .= "rsync -rtv --delete $bamDir $mirror/$bamDir\n";
+    $mess .= "rsync -rtvl --delete $allBamsDir $mirror/$allBamsDir\n";
+    $mess .= "rsync -rtv --delete $gvcfDir $mirror/$gvcfDir\n";
+}
 
-warn "$com\n";
+warn "$mess\n";

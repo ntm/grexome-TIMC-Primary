@@ -282,7 +282,7 @@ $metadata = "$workDir/".basename($metadata);
 
 # randomly-named subdir of &fastTmpPath() (to avoid clashes),
 # $tmpDir is removed afterwards
-my $tmpDir = tempdir(DIR => &fastTmpPath());
+my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
 
 ################################
 # MAKE BAMS

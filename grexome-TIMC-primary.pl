@@ -33,40 +33,19 @@ use Spreadsheet::XLSX;
 # the program name, not the path
 $0 = basename($0);
 
-
-#############################################
-## hard-coded paths and stuff that need to be custumized
-
-# dir holding the hierarachy of subdirs and files containing all
-# the data (FASTQs, BAMs, GVCFs). The hierarchy (specified later)
-# may not need to change, but $dataDir certainly does
-my $dataDir = "/data/nthierry/PierreRay/";
-
-# rsync path where you maintain a mirror of the BAMs and GVCFs,
-# this only appears at the end of the logs to allow copy-pasting.
-# Use "" to NOT print these final log lines (eg if you mirror via cron)
-my $mirror = "cargo:/bettik/thierryn/";
-
-
 #############################################
 ## hard-coded subtrees and stuff that shouldn't need to change much
 
-####### FASTQs
-# dir containing the "grexomized" FASTQs
-my $fastqDir = "$dataDir/FASTQs_All_Grexomized/";
-
-
 ####### BAMs
-# subdir of $dataDir where BAM/BAI files and associated logfiles are produced,
-# this can vary depending on the run / date / server / whatever
+# $bamDir: subdir of $dataDir where BAM/BAI files and associated logfiles
+# are produced, this can vary depending on the run / date / server / whatever...
 my $bamDir = "BAMs_grexome/";
-
-# subdir of $dataDir where all final BAMs & BAIs are symlinked
+# ..., but in any case we always symlink all final BAMs & BAIs in $dataDir/$allBamsDir
 my $allBamsDir = "BAMs_All_Selected/";
 
 
 ####### GVCFs
-# subdir if $dataDir where GVCF subtree is populated
+# subdir of $dataDir where GVCF subtree is populated
 my $gvcfDir = "GVCFs_grexome/";
 
 # for each caller we produce raw GVCFs, then filter them, and finally
@@ -160,7 +139,7 @@ GetOptions ("metadata=s" => \$metadata,
 # immediately import $config, so we die if file is broken
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
 require($config);
-grexomeTIMCprim_config->import( qw(refGenome fastTmpPath) );
+grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome fastTmpPath) );
 
 ($workDir) || die "E $0: you must provide a workDir. Try $0 --help\n";
 (-e $workDir) && 
@@ -169,8 +148,17 @@ grexomeTIMCprim_config->import( qw(refGenome fastTmpPath) );
 
 #############################################
 # sanity-check all hard-coded paths (only now, so --help works)
-(-d $dataDir) ||
-    die "E $0: dataDir $dataDir needs to pre-exist, at least containing the FASTQs\n";
+
+# dir holding the hierarachy of subdirs and files containing all
+# the data (FASTQs, BAMs, GVCFs). The hierarchy (specified later)
+# may not need to change, but $dataDir certainly does
+my $dataDir = &dataDir();
+
+# dir containing the "grexomized" FASTQs
+my $fastqDir = &fastqDir();
+
+(-d $dataDir) || (mkdir "$dataDir") ||
+    die "E $0: dataDir $dataDir doesn't exist and can't be mkdir'd\n";
 
 (-d $fastqDir) ||
     die "E $0: fastqDir $fastqDir doesn't exist\n";
@@ -560,7 +548,10 @@ $now = strftime("%F %T", localtime);
 my $mess = "I $now: $0 - ALL DONE!\n";
 $mess .= "I $0: Please examine the logs, and if AOK you can remove obsolete merged GVCFs\n";
 $mess .= "I $0: ";
+
+my $mirror = &mirror();
 ($mirror) && ($mess .= "and sync all results to $mirror ");
+
 $mess .= "with the following commands:\n";
 
 $mess = "cd $dataDir\n";

@@ -5,11 +5,6 @@
 # are needed by grexome-TIMC-primary.pl .
 # Every hard-coded path/filename in the pipeline should be here.
 # Also define some data-specific or behavioral config, if any.
-#
-# I am starting from grexomeTIMCsec_config.pm, several exported
-# functions should be identical and in fact if you use both 
-# primary and secondary pipelines you could have a single
-# shared config.pm.
 
 
 package grexomeTIMCprim_config;
@@ -18,15 +13,43 @@ use strict;
 use warnings;
 use Exporter;
 our @ISA = ('Exporter');
-# NOTE: this file can and should be copied somewhere and customized, 
-# therefore we should never "use grexomeTIMCprim_config" but instead
-# provide the customized *config.pm as an argument, see --config in
-# grexome-TIMC-secondary.pl for an example.
-our @EXPORT_OK = qw(refGenome refGenomeChromsBed fastTmpPath);
+# NOTE: this file can be copied somewhere and customized, therefore
+# we never "use grexomeTIMCprim_config" but instead provide the
+# customized *config.pm as an argument, see --config in grexome-TIMC-primary.pl
+# for an example.
+our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeChromsBed fastTmpPath);
 
 
 #################################################################
 # files and paths needed by the pipeline 
+
+# dir holding the hierarachy of subdirs and files that will be
+# populated with all results (BAMs, GVCFs).
+# The hierarchy (hard-coded in grexome-TIMC-primary.pl) doesn't need
+# to change, but &dataDir() certainly does.
+sub dataDir {
+    my $dataDir = "/data/nthierry/PierreRay/";
+    return($dataDir);
+}
+
+# dir containing the "grexomized" FASTQs: for each sample we expect
+# a single pair of FASTQ files in $fastqDir, and these files must be
+# named ${sample}_1.fq.gz and ${sample}_2.fq.gz .
+sub fastqDir {
+    #default to a subdir of &dataDir()
+    my $fastqDir = &dataDir()."/FASTQs_All_Grexomized/";
+    return($fastqDir);
+}
+
+
+# rsync path where you maintain a mirror of the BAMs and GVCFs.
+# This string is never used, it only appears at the end of the logs to
+# allow easy copy-pasting.
+# Return "" to NOT print these final log lines (eg if you mirror via cron)
+sub mirror {
+    my $mirror = "cargo:/bettik/thierryn/";
+    return($mirror);
+}
 
 
 # Return the reference human genome fasta file, with path

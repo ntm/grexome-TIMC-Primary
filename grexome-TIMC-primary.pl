@@ -107,8 +107,8 @@ my $metadata;
 # outfile already exists)
 my $SOIs;
 
-# outDir must not exist, it will be created and populated
-my $outDir;
+# workDir must not exist, it will be created and populated
+my $workDir;
 
 # indication of the number of threads / parallel jobs that we can run
 my $jobs = 20;
@@ -130,7 +130,7 @@ my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from FASTQ
 
 BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of this script,
 all within \$dataDir which you must customize. The hierarchy can also be modified if desired.
-Logs and copies of the metadata are produced in the provided \$outDir (which must not exist).
+Logs and copies of the metadata are produced in the provided \$workDir (which must not exist).
 Each step of the pipeline is a stand-alone self-documented script, this is just a wrapper.
 For each sample, any step where the result file already exists is skipped.
 Every install-specific param should be in this script or in grexomeTIMCprim_config.pm.
@@ -138,14 +138,14 @@ Every install-specific param should be in this script or in grexomeTIMCprim_conf
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --metadata string : patient metadata xlsx file, with path
 --samples string : comma-separated list of sampleIDs to process, default = all samples in metadata
---outdir string : subdir where logs and workfiles will be created, must not pre-exist
+--workdir string : subdir where logs and workfiles will be created, must not pre-exist
 --jobs int [$jobs] : approximate number of threads/jobs that we should run
 --config string [$config] : your customized copy (with path) of the distributed *config.pm
 --help : print this USAGE";
 
 GetOptions ("metadata=s" => \$metadata,
 	    "samples=s" => \$SOIs,
-	    "outdir=s" => \$outDir,
+	    "workdir=s" => \$workDir,
 	    "jobs=i" => \$jobs,
 	    "config=s" => \$config,
 	    "help" => \$help)
@@ -162,9 +162,9 @@ GetOptions ("metadata=s" => \$metadata,
 require($config);
 grexomeTIMCprim_config->import( qw(refGenome fastTmpPath) );
 
-($outDir) || die "E $0: you must provide an outDir. Try $0 --help\n";
-(-e $outDir) && 
-    die "E $0: outDir $outDir already exists, remove it or choose another name.\n";
+($workDir) || die "E $0: you must provide a workDir. Try $0 --help\n";
+(-e $workDir) && 
+    die "E $0: workDir $workDir already exists, remove it or choose another name.\n";
 
 
 #############################################
@@ -270,14 +270,14 @@ my $now = strftime("%F %T", localtime);
 warn "I $now: $0 - starting to run\n";
 
 
-# prep is AOK, we can mkdir outDir now
-mkdir($outDir) || die "E $0: cannot mkdir outDir $outDir\n";
+# prep is AOK, we can mkdir workDir now
+mkdir($workDir) || die "E $0: cannot mkdir workDir $workDir\n";
 
-# copy the provided metadata file into $outDir
-copy($metadata, $outDir) ||
-    die "E $0: cannot copy metadata to outDir: $!\n";
+# copy the provided metadata file into $workDir
+copy($metadata, $workDir) ||
+    die "E $0: cannot copy metadata to workDir: $!\n";
 # use the copied versions in scripts (eg if original gets edited while analysis is running...)
-$metadata = "$outDir/".basename($metadata);
+$metadata = "$workDir/".basename($metadata);
 
 
 # randomly-named subdir of &fastTmpPath() (to avoid clashes),
@@ -381,13 +381,13 @@ foreach my $caller (sort(keys %callerDirs)) {
 	(chop($samples) eq ',') ||
 	    die "E $0 chopped samples isn't ',' impossible\n";
 
-	my $workdir =  "$outDir/Results_$caller/";
+	my $callerWorkDir =  "$workDir/Results_$caller/";
 
 	# each caller-specific wrapper script MUST BE named precisely like this:
 	my $b2gBin = "$RealBin/2_bam2gvcf_$caller.pl";
 	(-e $b2gBin) ||
 	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
-	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $workdir --jobs $jobs --config $config --real";
+	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $callerWorkDir --jobs $jobs --config $config --real";
 	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 
 	##################
@@ -395,32 +395,32 @@ foreach my $caller (sort(keys %callerDirs)) {
 	if ($caller eq "strelka") {
 	    # check that logs are empty
 	    foreach my $s (split(/,/,$samples)) {
-		if (! -z "$workdir/$s/workflow.error.log.txt") {
-		    die "E $0: non-empty strelka error log for $s, go look in $workdir/$s/\n";
+		if (! -z "$callerWorkDir/$s/workflow.error.log.txt") {
+		    die "E $0: non-empty strelka error log for $s, go look in $callerWorkDir/$s/\n";
 		}
-		elsif (! -z "$workdir/$s/workflow.warning.log.txt") {
-		    warn"W $0: non-empty strelka warning log for $s, go look in $workdir/$s/\n";
+		elsif (! -z "$callerWorkDir/$s/workflow.warning.log.txt") {
+		    warn"W $0: non-empty strelka warning log for $s, go look in $callerWorkDir/$s/\n";
 		}
 		else {
 		    # remove useless strelka left-overs
-		    remove_tree("$workdir/$s/workspace/pyflow.data/logs/tmp/");
+		    remove_tree("$callerWorkDir/$s/workspace/pyflow.data/logs/tmp/");
 		}
 	    }
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
-	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $workdir ".$callerDirs{"strelka"}->[0];
+	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $callerWorkDir ".$callerDirs{"strelka"}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
 	}
 	elsif ($caller eq "gatk") {
 	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,
 	    # not even trying to parse it
-	    # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty workdir:
+	    # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty callerWorkDir:
 	    foreach my $s (split(/,/,$samples)) {
 		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
-		    move("$workdir/$file", $callerDirs{"gatk"}->[0]) ||
-			die "E $0: cannot move $workdir/$file to ".$callerDirs{"gatk"}->[0]." : $!";
+		    move("$callerWorkDir/$file", $callerDirs{"gatk"}->[0]) ||
+			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{"gatk"}->[0]." : $!";
 		}
 	    }
-	    rmdir($workdir) || die "E $0: cannot rmdir gatkWorkdir $workdir: $!";
+	    rmdir($callerWorkDir) || die "E $0: cannot rmdir gatk callerWorkDir $callerWorkDir: $!";
 	}
 	else {
 	    die "E $0: new caller $caller, need to implement log-checking and house-keeping after bam2gvcf\n";
@@ -463,7 +463,7 @@ foreach my $caller (sort(keys %callerDirs)) {
     my %samplesPrev;
 
     # make batchfile with list of GVCFs to merge
-    my $batchFile = "$outDir/batchFile_$caller.txt";
+    my $batchFile = "$workDir/batchFile_$caller.txt";
     open(BATCH, ">$batchFile") ||
 	die "E $0: cannot create $caller batchFile $batchFile: $!\n";
 
@@ -508,8 +508,8 @@ foreach my $caller (sort(keys %callerDirs)) {
 	# NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
 	# if this turns into a problem we can tune it down (eg $jobsFilter)
 	my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
-	# trying without separate logs
-	# $com .= "2>  $outDir/merge_$caller.log ";
+	# uncomment below to make separate logs for merge
+	# $com .= "2>  $workDir/merge_$caller.log ";
 	$com .= "| $bgzip -c -\@12 > $newMerged";
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting to merge $caller GVCFs\n";

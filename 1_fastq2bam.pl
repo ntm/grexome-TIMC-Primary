@@ -6,7 +6,7 @@
 
 # Process a bunch of FASTQ paired-end files:
 # - trim adaptors and filter low-quality reads (with fastp)
-# - align reads (with bwa-mem)
+# - align reads (with bwa-mem2 if available, bwa otherwise)
 # - mark dupes (with samblaster)
 # - sort the BAM (with samtools)
 #
@@ -46,9 +46,11 @@ $0 = basename($0);
 
 # programs used
 my $fastp = "fastp";
-my $bwa = "bwa";
 my $samblaster = "samblaster";
 my $samtools = "samtools";
+# for BWA we'll use the first element of @bwas that exists (ie currently bwa-mem2
+# if we find it, bwa otherwise)
+my @bwas = ("bwa-mem2", "bwa");
 
 
 #############################################
@@ -91,7 +93,7 @@ my $help = '';
 
 my $USAGE = "\nProcess a bunch of FASTQ paired-end files:
 1. trim adaptors and filter low-quality reads (with fastp)
-2. align reads (with bwa-mem)
+2. align reads (with bwa-mem2 if available, bwa otherwise)
 3. mark dupes (with samblaster)
 4. sort the BAM (with samtools)
 
@@ -100,11 +102,12 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample there should be 
 	  a pair of FASTQ files in indir called [sample]_1.fq.gz and [sample]_2.fq.gz
 --outdir string : subdir where BAMs and accessory files will be created
---binpath string [default '']: path where binaries fastp etc can be found,
-    leave empty to search in PATH
+--binpath string [default '']: path where binaries $fastp, $samblaster, $samtools and 
+    ".join('/',@bwas)." can be found, leave empty to search in PATH
 --bwakit string [default '~/Software/BWA-kit/bwa.kit/'] : path where k8 and
     bwa-postalt.js (from bwa-kit) can be found
---genome string [no default] : ref genome fasta, with path, must be indexed with 'bwa index'
+--genome string [no default] : ref genome fasta, with path, must be indexed
+    with 'bwa-mem2 index' and/or 'bwa index'
 --threads N [default = 4] : number of threads for BWA, and also for fastp and
     samtools if <= 4 (but if > 4 fastp and samtools use only 4 threads)
 --real : actually do the work, otherwise this is a dry run, just print 
@@ -138,17 +141,6 @@ GetOptions ("indir=s" => \$inDir,
 # slash-terminate $binPath if it's not empty
 ($binPath) && (($binPath  =~ m~/$~)  || ($binPath .= "/"));
 
-# make sure all progs can be found
-(`which $binPath$fastp` =~ /$fastp$/) || die "E $0: the fastp executable $fastp can't be found\n";
-(`which $binPath$bwa` =~ /$bwa$/) || die "E $0: the bwa executable $bwa can't be found\n";
-(`which $binPath$samblaster` =~ /$samblaster$/) || die "E $0: the samblaster executable $samblaster can't be found\n";
-(`which $binPath$samtools` =~ /$samtools$/) || die "E $0: the samtools executable $samtools can't be found\n";
-# ok, prepend binPath
-$fastp = "$binPath$fastp";
-$bwa = "$binPath$bwa";
-$samblaster = "$binPath$samblaster";
-$samtools = "$binPath$samtools";
-
 # actual bwa-postalt command (use k8 to interpret the js)
 my $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
 (`$bwakitPostalt -v` =~ /^r\d+$/) ||
@@ -160,11 +152,50 @@ my $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
 (-f "$genome.alt") ||
     die "E $0: provided ref genome found but we also need $genome.alt for bwa-postalt, ".
     "as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
-# BWA needs the genome indexed
-((-f "$genome.bwt") && (-f "$genome.pac") && (-f "$genome.sa") && 
- (-f "$genome.ann") && (-f "$genome.amb")) ||
-    die "E $0: the reference genome $genome isn't indexed, please use 'bwa index'\n";
-    
+
+# make sure all progs can be found
+(`which $binPath$fastp` =~ /$fastp$/) || die "E $0: the fastp executable $fastp can't be found\n";
+(`which $binPath$samblaster` =~ /$samblaster$/) || die "E $0: the samblaster executable $samblaster can't be found\n";
+(`which $binPath$samtools` =~ /$samtools$/) || die "E $0: the samtools executable $samtools can't be found\n";
+
+my $bwa = "";
+foreach my $b (@bwas) {
+    if (`which $binPath$b` =~ /$b$/) {
+	# make sure genome is indexed for this flavor of BWA
+	if ($b =~ /mem/) {
+	    # bwa-mem2
+	    if ((-f "$genome.bwt.2bit.64") && (-f "$genome.0123") && (-f "$genome.pac") && 
+		(-f "$genome.ann") && (-f "$genome.amb")) {
+		$bwa = $b;
+		last;
+	    }
+	    else {
+		warn "W $0: found $b but ref genome $genome isn't indexed for it, please use '$b index'\n";
+		next;
+	    }
+	}
+	else {
+	    # classic BWA index
+	    if ((-f "$genome.bwt") && (-f "$genome.sa") && (-f "$genome.pac") && 
+		(-f "$genome.ann") && (-f "$genome.amb")) {
+		$bwa = $b;
+		last;
+	    }
+	    else {
+		warn "W $0: found $b but ref genome $genome isn't indexed for it, please use '$b index'\n";
+		next;
+	    }
+	}
+    }
+}
+($bwa) || die "E $0: cannot find any usable (indexed genome) BWA executable among (".join(',',@bwas).")\n";
+
+# ok, prepend binPath
+$fastp = "$binPath$fastp";
+$bwa = "$binPath$bwa";
+$samblaster = "$binPath$samblaster";
+$samtools = "$binPath$samtools";
+
 # number of threads for fastp and samtools: capped at 4
 my $numThreadsCapped = 4;
 ($numThreads < $numThreadsCapped) && ($numThreadsCapped = $numThreads);

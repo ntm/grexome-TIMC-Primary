@@ -51,16 +51,11 @@ my $gvcfDir = "GVCFs_grexome/";
 # for each caller we produce raw GVCFs, then filter them, and finally
 # merge them.
 # $callerDirs{$caller} is a ref to an array of 3 dirs for $caller, in the
-# order Raw - Filtered - Merged:
+# order Raw - Filtered - Merged ($dataDir/$gvcfDir will be prepended soon):
 my %callerDirs = (
     "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
     "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"]);
-# prepend $dataDir/$gvcfDir to each
-foreach my $k (keys %callerDirs) {
-    foreach my $i (0..2) {
-	$callerDirs{$k}->[$i] = "$dataDir/$gvcfDir/".$callerDirs{$k}->[$i];
-    }
-}
+
 
 #############################################
 ## programs that we use
@@ -172,10 +167,13 @@ my $fastqDir = &fastqDir();
 (-d "$dataDir/$gvcfDir") || (mkdir "$dataDir/$gvcfDir") ||
     die "E $0: gvcfDir $dataDir/$gvcfDir doesn't exist and can't be mkdir'd\n";
 
+# now that $dataDir exists, prepend $dataDir/$gvcfDir to %callerDirs and sanity-check
 foreach my $caller (keys %callerDirs) {
-    foreach my $d (@{$callerDirs{$caller}}) {
+    foreach my $i (0..2) {
+	my $d = "$dataDir/$gvcfDir/".$callerDirs{$caller}->[$i];
 	(-d $d) || (mkdir $d) ||
 	    die "E $0: GVCF subdir $d for caller $caller doesn't exist and can't be mkdir'd\n";
+	$callerDirs{$caller}->[$i] = $d;
     }
 }
 

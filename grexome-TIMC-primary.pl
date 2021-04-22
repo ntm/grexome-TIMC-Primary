@@ -552,7 +552,7 @@ my $mirror = &mirror();
 
 $mess .= "with the following commands:\n";
 
-$mess = "cd $dataDir\n";
+$mess .= "cd $dataDir\n";
 foreach my $caller (sort(keys %callerDirs)) {
     my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
     chomp($oldestMerged);

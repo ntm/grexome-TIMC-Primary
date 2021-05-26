@@ -23,11 +23,13 @@
 # For this reason the reference genome should be produced by
 # run-gen-ref from bwa-kit.
 #
-# We log to stderr and die for blatant problems in the prep stage;
-# if prep was OK and we started processing samples, we log to stdout 
-# and never die, check stdout for E: and W: messages.
-# This was done to avoid aborting the whole job (eg on a cluster) when
-# we have just a few samples failing.
+# Note on error-handling:
+# - all logging goes to stderr;
+# - we die for blatant problems in the prep stage;
+# - if prep was OK and we started processing samples, we log E: messages but
+#   never die. This avoids aborting the whole job (eg on a cluster) when
+#   we have just a few samples failing. At the end we log the number of
+#   errors and warnings that occurred.
 #
 # See $USAGE
 
@@ -209,9 +211,11 @@ my $nbWarnings = 0;
 ## build list of sanity-checked samples to process
 # key == sampleID, value == 1
 my %samples;
+# single timestamp for this prep stage, should all happen in 1s
+my $now = strftime("%F %T", localtime);
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	print "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+	warn "W $now: $0 - sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
 	$nbWarnings++;
 	next;
     }
@@ -219,13 +223,13 @@ foreach my $sample (split(/,/, $samples)) {
     my $f1 = "$inDir/${sample}_1.fq.gz";
     my $f2 = "$inDir/${sample}_2.fq.gz";
     if ((! -f $f1) || (! -f $f2)) {
-	print "W $0: sample $sample was specified but we don't have a pair of FASTQs for it in $inDir, skipping\n";
+	warn "W $now: $0 - sample $sample was specified but we don't have a pair of FASTQs for it in $inDir, skipping\n";
 	$nbWarnings++;
 	next;
     }
     my $bam = "$outDir/$sample.bam";
     if (-e $bam) {
-	print "W $0: sample $sample was specified but we already have the BAM $bam, remove it to re-process this sample, skipping\n";
+	warn "W $now: $0 - sample $sample was specified but we already have the BAM $bam, remove it to re-process this sample, skipping\n";
 	$nbWarnings++;
 	next;
     }
@@ -269,37 +273,39 @@ foreach my $sample (sort keys(%samples)) {
     # sort with samtools
     $com .= "$samtools sort -\@ $numThreadsCapped -m1G -o $outFile.bam - ";
 
+    $now = strftime("%F %T", localtime);
     if (! $real) {
-	print "I $0: dryrun, would run: $com\n";
+	warn "I $now: $0 - dryrun, would run: $com\n";
     }
     else {
-	my $now = strftime("%F %T", localtime);
-	print "I $0: $now - starting processing of $sample with command: $com\n";
+	warn "I $now: $0 - starting processing of $sample with command: $com\n";
 	if (system($com)) {
 	    # non-zero exit status
-	    print "E $0: processing of $sample exited with non-zero status. Something went wrong, investigate!\n";
+	    $now = strftime("%F %T", localtime);
+	    warn "E $now: $0 - processing of $sample exited with non-zero status. Something went wrong, investigate!\n";
 	    $nbErrors++;
 	    # don't even try to index the bam
 	    next;
 	}
 
 	$now = strftime("%F %T", localtime);
-	print "I $0: $now - done aligning $sample, indexing\n";
+	warn "I $now: $0 - done aligning $sample, indexing\n";
 	if(system("$samtools index $outFile.bam")) {
 	    # non-zero exit status
-	    print "E $0: samtools index $sample exited with non-zero status. Strange because processing didn't seem to fail, investigate!\n";
+	    $now = strftime("%F %T", localtime);
+	    warn "E $now: $0 - samtools index $sample exited with non-zero status. Strange because bam production succeeded, investigate!\n";
 	    $nbErrors++;
 	}
     }
 }
 
-my $now = strftime("%F %T", localtime);
+$now = strftime("%F %T", localtime);
 if ($nbErrors) {
-    print "E $0: $now - finished but $nbErrors ERRORS DETECTED, I was running ".join(" ", $0, @ARGV)."\n";
+    warn "E $now: $0 - finished but $nbErrors ERRORS DETECTED, I was running ".join(" ", $0, @ARGV)."\n";
 }
 elsif ($nbWarnings) {
-    print "W $0: $now - finished but $nbWarnings WARNINGS need verification, I was running ".join(" ", $0, @ARGV)."\n";
+    warn "W $now: $0 - finished but $nbWarnings WARNINGS need verification, I was running ".join(" ", $0, @ARGV)."\n";
 }
 else {
-    print "I $0: $now - finished SUCCESSFULLY, I was running ".join(" ", $0, @ARGV)."\n";
+    warn "I $now: $0 - finished SUCCESSFULLY, I was running ".join(" ", $0, @ARGV)."\n";
 }

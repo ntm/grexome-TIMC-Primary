@@ -12,8 +12,8 @@
 # and ${sample}_2.fq.gz .
 # The "samples" are as listed in the 'sampleID' column of the provided
 # $samplesFile. If sampleID is '0' the row is ignored.
-# You can specify samples to process with --samples, otherwise every sample
-# from $samplesFile is processed. 
+# You can specify samples to process with --samplesOfInterest, otherwise 
+# every sample from $samplesFile is processed. 
 #
 # Args: see $USAGE.
 
@@ -27,7 +27,9 @@ use File::Basename qw(basename);
 use File::Temp qw(tempdir);
 use File::Spec;
 use FindBin qw($RealBin);
-use Spreadsheet::XLSX;
+
+use lib "$RealBin";
+use grexome_metaParse qw(parseSamples);
 
 # we use $0 in every stderr message but we really only want
 # the program name, not the path
@@ -178,53 +180,24 @@ foreach my $caller (keys %callerDirs) {
 }
 
 #########################################################
-# parse samples metadata file to grab sampleIDs, limit to --samples if specified
+# parse samples metadata file to grab sampleIDs, limit to --samplesOfInterest if specified
 
 # key==existing sample to process
 my %samples = ();
 
-{
-    my $workbook = Spreadsheet::XLSX->new("$samplesFile");
-    (defined $workbook) ||
-	die "E $0: when parsing xlsx\n";
-    ($workbook->worksheet_count() == 1) ||
-	die "E $0: parsing xlsx: expecting a single worksheet, got ".$workbook->worksheet_count()."\n";
-    my $worksheet = $workbook->worksheet(0);
-    my ($colMin, $colMax) = $worksheet->col_range();
-    my ($rowMin, $rowMax) = $worksheet->row_range();
-    # check the column titles and grab indexes of our columns of interest
-    my ($sampleCol) = (-1);
-    foreach my $col ($colMin..$colMax) {
-	my $cell = $worksheet->get_cell($rowMin, $col);
-	# if column has no header just ignore it
-	(defined $cell) || next;
-	($cell->value() eq "sampleID") &&
-	    ($sampleCol = $col);
-    }
-    ($sampleCol >= 0) ||
-	die "E $0: parsing xlsx: no column title is sampleID\n";
-
-    foreach my $row ($rowMin+1..$rowMax) {
-	my $sample = $worksheet->get_cell($row, $sampleCol)->unformatted();
-	# skip "0" lines
-	($sample eq "0") && next;
-	(defined $samples{$sample}) && 
-	    die "E $0: parsing xlsx: have 2 lines with sample $sample\n";
-	# check for typo: sampleIDs with spaces or slashes would be retarded and likely break the code
-	if ($sample =~ /[\s\/]/) {
-	    die "E $0: sampleID=$sample? That's gotta be a typo, you're not really using spaces or slashes in your unique identifiers, right...? Please don't do that. Ever.\n";
-	}
-	$samples{$sample} = 1;
-    }
+# just use the first hashref from parseSamples, ignoring pathologyIDs
+my ($s2pathoR) = &parseSamples($samplesFile);
+foreach my $s (keys %$s2pathoR) {
+    $samples{$s} = 1;
 }
 
 if ($SOIs) {
     # make sure every listed sample is in %samples and promote it's value to 2
     foreach my $soi (split(/,/, $SOIs)) {
 	($samples{$soi}) ||
-	    die "E $0: processing --samples: a specified sample $soi does not exist in the samplesFile file\n";
+	    die "E $0: processing --samplesOfInterest: a specified sample $soi does not exist in the samples metadata file\n";
 	($samples{$soi} == 1) ||
-	    warn "W $0: processing --samples: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
+	    warn "W $0: processing --samplesOfInterest: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
 	$samples{$soi} = 2;
     }
     # now ignore all other samples
@@ -235,13 +208,13 @@ if ($SOIs) {
     }
 }
 
-# exclude any sample that doesn't have FASTQs, but die if called with --samples
+# exclude any sample that doesn't have FASTQs, but die if called with --samplesOfInterest
 foreach my $s (sort(keys %samples)) {
     my $f1 = "$fastqDir/${s}_1.fq.gz";
     my $f2 = "$fastqDir/${s}_2.fq.gz";
     if ((! -f $f1) || (! -f $f2)) {
 	if ($samples{$s} == 2) {
-	    die "E $0: sample $s from --samples doesn't have FASTQs (looking for $f1 and $f2)\n";
+	    die "E $0: sample $s from --samplesOfInterest doesn't have FASTQs (looking for $f1 and $f2)\n";
 	}
 	else {
 	    warn "W $0: sample $s from samplesFile doesn't have FASTQs, skipping it\n";

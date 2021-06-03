@@ -11,9 +11,9 @@
 # files in $fastqDir, and these files must be named ${sample}_1.fq.gz
 # and ${sample}_2.fq.gz .
 # The "samples" are as listed in the 'sampleID' column of the provided
-# $metadata file. If sampleID is '0' the row is ignored.
+# $samplesFile. If sampleID is '0' the row is ignored.
 # You can specify samples to process with --samples, otherwise every sample
-# from $metadata is processed. 
+# from $samplesFile is processed. 
 #
 # Args: see $USAGE.
 
@@ -73,11 +73,11 @@ my $zgrep = "zgrep";
 #############################################
 ## options / params from the command-line
 
-# metadata file with all samples
-my $metadata;
+# samples metada file
+my $samplesFile;
 
 # comma-separated list of samples of interest, if empty we process
-# every sample from $metadata (skipping any step where the resulting
+# every sample from $samplesFile (skipping any step where the resulting
 # outfile already exists)
 my $SOIs;
 
@@ -110,15 +110,15 @@ For each sample, any step where the result file already exists is skipped.
 Every install-specific param should be in this script or in grexomeTIMCprim_config.pm.
 
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
---metadata string : patient metadata xlsx file, with path
---samples string : comma-separated list of sampleIDs to process, default = all samples in metadata
+--samplesFile string : samples metadata xlsx file, with path
+--samplesOfInterest string : comma-separated list of sampleIDs to process, default = all samples in samplesFile
 --workdir string : subdir where logs and workfiles will be created, must not pre-exist
 --jobs int [$jobs] : approximate number of threads/jobs that we should run
 --config string [$config] : your customized copy (with path) of the distributed *config.pm
 --help : print this USAGE";
 
-GetOptions ("metadata=s" => \$metadata,
-	    "samples=s" => \$SOIs,
+GetOptions ("samplesFile=s" => \$samplesFile,
+	    "samplesOfInterest=s" => \$SOIs,
 	    "workdir=s" => \$workDir,
 	    "jobs=i" => \$jobs,
 	    "config=s" => \$config,
@@ -128,8 +128,8 @@ GetOptions ("metadata=s" => \$metadata,
 # make sure required options were provided and sanity check them
 ($help) && die "$USAGE\n\n";
 
-($metadata) || die "E $0: you must provide a metadata file. Try $0 --help\n";
-(-f $metadata) || die "E $0: the supplied metadata file doesn't exist: $metadata\n";
+($samplesFile) || die "E $0: you must provide a samples metadata file. Try $0 --help\n";
+(-f $samplesFile) || die "E $0: the supplied samples metadata file doesn't exist: $samplesFile\n";
 
 # immediately import $config, so we die if file is broken
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
@@ -178,13 +178,13 @@ foreach my $caller (keys %callerDirs) {
 }
 
 #########################################################
-# parse patient metadata file to grab sampleIDs, limit to --samples if specified
+# parse samples metadata file to grab sampleIDs, limit to --samples if specified
 
 # key==existing sample to process
 my %samples = ();
 
 {
-    my $workbook = Spreadsheet::XLSX->new("$metadata");
+    my $workbook = Spreadsheet::XLSX->new("$samplesFile");
     (defined $workbook) ||
 	die "E $0: when parsing xlsx\n";
     ($workbook->worksheet_count() == 1) ||
@@ -222,7 +222,7 @@ if ($SOIs) {
     # make sure every listed sample is in %samples and promote it's value to 2
     foreach my $soi (split(/,/, $SOIs)) {
 	($samples{$soi}) ||
-	    die "E $0: processing --samples: a specified sample $soi does not exist in the metadata file\n";
+	    die "E $0: processing --samples: a specified sample $soi does not exist in the samplesFile file\n";
 	($samples{$soi} == 1) ||
 	    warn "W $0: processing --samples: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
 	$samples{$soi} = 2;
@@ -244,7 +244,7 @@ foreach my $s (sort(keys %samples)) {
 	    die "E $0: sample $s from --samples doesn't have FASTQs (looking for $f1 and $f2)\n";
 	}
 	else {
-	    warn "W $0: sample $s from metadata doesn't have FASTQs, skipping it\n";
+	    warn "W $0: sample $s from samplesFile doesn't have FASTQs, skipping it\n";
 	    delete($samples{$s});
 	}
     }
@@ -259,11 +259,11 @@ warn "I $now: $0 - starting to run\n";
 # prep is AOK, we can mkdir workDir now
 mkdir($workDir) || die "E $0: cannot mkdir workDir $workDir\n";
 
-# copy the provided metadata file into $workDir
-copy($metadata, $workDir) ||
+# copy the provided samples metadata file into $workDir
+copy($samplesFile, $workDir) ||
     die "E $0: cannot copy metadata to workDir: $!\n";
 # use the copied versions in scripts (eg if original gets edited while analysis is running...)
-$metadata = "$workDir/".basename($metadata);
+$samplesFile = "$workDir/".basename($samplesFile);
 
 
 # randomly-named subdir of &fastTmpPath() (to avoid clashes),
@@ -435,7 +435,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
 	my $jobsFilter = $jf1;
 	($jf2 > $jf1) && ($jobsFilter = $jf2);
-	$com .= "perl $RealBin/3_filterBadCalls.pl --metadata=$metadata --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
+	$com .= "perl $RealBin/3_filterBadCalls.pl --samplesFile=$samplesFile --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
 	$com .= "$bgzip -c -\@2 > $gvcf";
 	system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
     }

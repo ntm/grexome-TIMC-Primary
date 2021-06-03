@@ -44,8 +44,7 @@ use File::Glob qw(:globally :nocase);
 my $USAGE = '
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --grexome2sample fileWithPath [required] : full path to an xlsx file
-    with "sampleID" in some col and "specimenID" in another 
-    (eg .../patient_summary.xlsx). 
+    with "sampleID" in some col and "specimenID" in another.
 --inpath path : path to a directory containing subdirs, each containing the
     actual original fastq.gz files (eg "FASTQs_grexome/").
 --outdir subdir : name of brother-dir of $inPath where $sample_*.fq.gz files are 
@@ -57,7 +56,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --help : print this USAGE';
 
 
-# filename with path to patient_summary*.xlsx file
+# filename with path to samples metadata xlsx file
 my $grex2sampleFile = '';
 
 # path containing subdirs containing the original fq.gz files
@@ -86,7 +85,7 @@ GetOptions ("grexome2sample=s" => \$grex2sampleFile,
 ($help) &&
     die "$USAGE\n\n";
 ($grex2sampleFile) || 
-    die "$USAGE\n\nE: you MUST specify the path&filename of the patient_summary*.xlsx file, with --grexome2sample\n";
+    die "$USAGE\n\nE: you MUST specify the path&filename of the samples metadata xlsx file, with --grexome2sample\n";
 (-f $grex2sampleFile) ||
     die "E: the supplied grexome2sampleFile doesn't exist\n";
 ($inPath) || 

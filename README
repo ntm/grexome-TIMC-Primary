@@ -1,16 +1,22 @@
-21/06/2019
-NTM
+Exome pipeline frmo TIMC in Grenoble - primary analyses:
+from FASTQs to a single multi-sample GVCF per variant-caller.
 
-Primary analysis pipeline: from FASTQs to a single multi-sample 
-GVCF (Strelka pipeline) or VCF (GATK4 pipeline).
+This pipeline currently performs variant-calling with Strelka2 
+or GATK4, 
+
+DEPENDENCIES:
+*************
+fastp, bwa, samblaster, samtools
+gatk4, strelka2
+
+TODO
 
 
 ##### COMMON STEPS FOR STRELKA AND GATK4 #####
 
-1_GrexomizeFastqs/ : house-keeping script:
-take original fastqs and parse patient_summary_*.xlsx , to obtain
-a consolidated uniform dataset of fastqs, see
-luxor:/data/nthierry/PierreRay/FASTQs_All_Grexomized
+0_grexomizeFastqs.pl : house-keeping script that takes 
+original fastqs and parses samples.xlsx , to obtain
+a consolidated uniform dataset of fastqs.
 
 2_Fastq2Bam/ : process fastqs: trim adaptors, align on ref genome,
 mark duplicates, sort bam, index bam.

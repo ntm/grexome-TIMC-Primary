@@ -180,7 +180,9 @@ foreach my $caller (keys %callerDirs) {
 }
 
 #########################################################
-# parse samples metadata file to grab sampleIDs, limit to --samplesOfInterest if specified
+# parse samples metadata file to grab sampleIDs, limit to --samplesOfInterest 
+# if specified
+# This also serves as an early sanity-check of $samplesFile
 
 # key==existing sample to process
 my %samples = ();

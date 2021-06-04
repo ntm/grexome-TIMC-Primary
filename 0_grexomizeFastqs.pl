@@ -222,8 +222,8 @@ my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
 # number of obsolete FASTQ files: hard-coded here, 
 my $nbObsoleteFiles = 12;
 if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
-    warn "\nI: examined ($nbInfiles) + known obsolete ($nbObsoleteFiles) FASTQ files == nbFqFiles found with ls|wc, good!\n";
+    warn "\nI: nb of examined ($nbInfiles) + skipped obsolete ($nbObsoleteFiles) FASTQ files == nbFqFiles found with ls|wc, good!\n";
 }
 else {
-    warn "\nW: examined $nbInfiles and skipped $nbObsoleteFiles obsoletes, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
+    warn "\nW: examined $nbInfiles FASTQs and skipped $nbObsoleteFiles obsoletes, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
 }

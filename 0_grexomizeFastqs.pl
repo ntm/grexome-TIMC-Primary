@@ -119,9 +119,6 @@ else {
 
 # $grex2sample[$grexNum] will hold the "specimen" value from the xlsx file,
 # corresponding to grexome number $grexNum
-# EXCEPTION for Strasbourg (grabbed from "Center col) where we prepend 'PRY-'
-# because it is present in the filenames and the specimen names
-# are so stupidly short they are ambiguous
 my @grex2sample = ();
 {
     my $workbook = Spreadsheet::XLSX->new("$samplesFile");
@@ -162,8 +159,6 @@ my @grex2sample = ();
 	(defined $grex2sample[$gNum]) && 
 	    die "E parsing xlsx: have 2 lines with grexomeNum $gNum\n";
 	my $specimen = $worksheet->get_cell($row, $specimenCol)->value;
-	my $center =  $worksheet->get_cell($row, $centerCol)->value;
-	($center eq "Strasbourg") && ($specimen = "PRY-$specimen");
 	$grex2sample[$gNum] = $specimen;
     }
 }
@@ -188,7 +183,7 @@ foreach my $gNum (50..$#grex2sample) {
     my $sample = $grex2sample[$gNum];
 
     # precise filename patterns for each dataset:
-    # strasbourg: /${sample}-R1.fastq.gz (because we prepended PRY- to $sample)
+    # strasbourg: /${sample}-R1.fastq.gz
     # integragen: /Sample_${sample}_R1_fastq.gz
     # FV: /${sample}_*_R1_001.fastq.gz
     # genoscope13: /G430_CP_${sample}_[0-9]_1_*.fastq.gz

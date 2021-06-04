@@ -31,33 +31,26 @@
 
 use strict;
 use warnings;
+use File::Basename qw(basename);
+use FindBin qw($RealBin);
 use Getopt::Long;
-use Spreadsheet::XLSX;
+
+use lib "$RealBin";
+use grexome_metaParse qw(parseSamples);
 
 # make glob case-insensitive (for eg */P17if085*)
 use File::Glob qw(:globally :nocase);
 
 
+# we use $0 in every stderr message but we really only want
+# the program name, not the path
+$0 = basename($0);
+
 #############################################
 ## options / params from the command-line
 
-my $USAGE = '
-Arguments (all can be abbreviated to shortest unambiguous prefixes):
---grexome2sample fileWithPath [required] : full path to an xlsx file
-    with "sampleID" in some col and "specimenID" in another.
---inpath path : path to a directory containing subdirs, each containing the
-    actual original fastq.gz files (eg "FASTQs_grexome/").
---outdir subdir : name of brother-dir of $inPath where $sample_*.fq.gz files are 
-    symlinked/produced [default: "FASTQs_All_Grexomized"]. NOTE: outDir cannot 
-    contain a slash, it will be created if needed and will be a BROTHER of the 
-    final subdir of $inPath ie $inPath/../$outDir.
---real : actually do the work, default without this is a dry run ie it just
-    prints info on what would be done.
---help : print this USAGE';
-
-
 # filename with path to samples metadata xlsx file
-my $grex2sampleFile = '';
+my $samplesFile;
 
 # path containing subdirs containing the original fq.gz files
 my $inPath = '';
@@ -73,23 +66,34 @@ my $real = '';
 # help: if true just print $USAGE and exit
 my $help = '';
 
-GetOptions ("grexome2sample=s" => \$grex2sampleFile,
+my $USAGE = "
+Arguments (all can be abbreviated to shortest unambiguous prefixes):
+--samplesFile string : samples metadata xlsx file, with path.
+--inpath string : path to a directory containing subdirs, each containing the
+    actual original fastq.gz files (eg FASTQs_grexome/).
+--outdir string [default: $outDir] : name of brother-dir of \$inPath where \$sampleID_*.fq.gz
+    files are symlinked/produced. NOTE: outDir cannot contain a slash, it will be created
+    if needed and will be a BROTHER of the final subdir of \$inPath ie \$inPath/../\$outDir.
+--real : actually do the work, default is a dry run ie only print info on what would be done.
+--help : print this USAGE";
+
+
+GetOptions ("samplesFile=s" => \$samplesFile,
 	    "inpath=s" => \$inPath,
 	    "outdir=s" => \$outDir,
 	    "real" => \$real,
 	    "help" => \$help)
-    or die("Error in command line arguments\n\n$USAGE\n");
+    or die("E $0: Error in command line arguments\n\n$USAGE\n");
 
 
 # make sure required options were provided and sanity check them
-($help) &&
-    die "$USAGE\n\n";
-($grex2sampleFile) || 
-    die "$USAGE\n\nE: you MUST specify the path&filename of the samples metadata xlsx file, with --grexome2sample\n";
-(-f $grex2sampleFile) ||
-    die "E: the supplied grexome2sampleFile doesn't exist\n";
+($help) && die "$USAGE\n\n";
+
+($samplesFile) || die "E $0: you must provide a samplesFile file\n";
+(-f $samplesFile) || die "E $0: the supplied samplesFile file doesn't exist\n";
+
 ($inPath) || 
-    die "$USAGE\n\nE: you MUST specify the path holding subdirs that contain the original FASTQs, with --inpath\n";
+    die "E: you MUST specify the path holding subdirs that contain the original FASTQs, with --inpath\n";
 (-d $inPath) ||
     die "E: the provided inpath $inPath doesn't exist as a dir\n";
 ($outDir =~ m~/~) &&
@@ -111,7 +115,7 @@ else {
 
 
 #############################################
-## parse $grex2sampleFile and fill @grex2sample
+## parse $samplesFile and fill @grex2sample
 
 # $grex2sample[$grexNum] will hold the "specimen" value from the xlsx file,
 # corresponding to grexome number $grexNum
@@ -120,7 +124,7 @@ else {
 # are so stupidly short they are ambiguous
 my @grex2sample = ();
 {
-    my $workbook = Spreadsheet::XLSX->new("$grex2sampleFile");
+    my $workbook = Spreadsheet::XLSX->new("$samplesFile");
     (defined $workbook) ||
 	die "E when parsing xlsx\n";
     ($workbook->worksheet_count() == 1) ||

@@ -115,122 +115,66 @@ else {
 
 
 #############################################
-## parse $samplesFile and fill @grex2sample
+## parse $samplesFile
 
-# $grex2sample[$grexNum] will hold the "specimen" value from the xlsx file,
-# corresponding to grexome number $grexNum
-my @grex2sample = ();
+# $sample2specimenR : hashref, key is sampleID, value is specimenID
+my $sample2specimenR;
+
 {
-    my $workbook = Spreadsheet::XLSX->new("$samplesFile");
-    (defined $workbook) ||
-	die "E when parsing xlsx\n";
-    ($workbook->worksheet_count() == 1) ||
-	die "E parsing xlsx: expecting a single worksheet, got ".$workbook->worksheet_count()."\n";
-    my $worksheet = $workbook->worksheet(0);
-    my ($colMin, $colMax) = $worksheet->col_range();
-    my ($rowMin, $rowMax) = $worksheet->row_range();
-    # check the column titles and grab indexes of our columns of interest
-    my ($grexCol, $specimenCol, $centerCol) = (-1,-1,-1);
-    foreach my $col ($colMin..$colMax) {
-	my $cell = $worksheet->get_cell($rowMin, $col);
-	# skip empty columns
-	($cell) || next;
-	($cell->value() eq "sampleID") &&
-	    ($grexCol = $col);
-	($cell->value() eq "specimenID") &&
-	    ($specimenCol = $col);
-	($cell->value() eq "Center") &&
-	    ($centerCol = $col);
-    }
-    ($grexCol >= 0) ||
-	die "E parsing xlsx: no column title is sampleID\n";
-    ($specimenCol >= 0) ||
-	die "E parsing xlsx: no col title is specimenID\n";
-    ($centerCol >= 0) ||
-	die "E parsing xlsx: no column title is Center\n";
-    
-    foreach my $row ($rowMin+1..$rowMax) {
-	my $grexome = $worksheet->get_cell($row, $grexCol)->unformatted();
-	# skip "0" lines
-	($grexome eq "0") && next;
-	($grexome =~ /^grexome(\d\d\d\d)$/) || 
-	    die "E parsing xlsx: found a grexome name that I can't parse: $grexome in row $row\n";
-	my $gNum = $1;
-	(defined $grex2sample[$gNum]) && 
-	    die "E parsing xlsx: have 2 lines with grexomeNum $gNum\n";
-	my $specimen = $worksheet->get_cell($row, $specimenCol)->value;
-	$grex2sample[$gNum] = $specimen;
-    }
+    my @parsed = &parseSamples($samplesFile);
+    $sample2specimenR = $parsed[1];
 }
 
 
 #############################################
-# now deal with each grexome from @grex2sample
+# now deal with each sample
 
 # make sure we don't use the same infile twice (eg if globbing isn't specific enough)
-# key == infile (as found by the glob), value == grexomenum if file was already used
+# key == infile (as found by the glob), value == $sample if file was already used
 my %infilesDone = ();
 
-foreach my $gNum (50..$#grex2sample) {
-    # silently skip grexomes that have been obsoleted (dupes)
-    if (($gNum == 312) || ($gNum == 340) || ($gNum == 428) || ($gNum == 497) || ($gNum == 525) || ($gNum == 527)) {
-	next;
-    }
-    # warn & skip if no specimen found
-    (defined $grex2sample[$gNum]) || 
-	((warn "W: no specimen found for grexome $gNum, skipping this grexome number\n") && next);
-
-    my $sample = $grex2sample[$gNum];
+foreach my $sample (keys %$sample2specimenR) {
+    my $specimen = $sample2specimenR->{$sample};
 
     # precise filename patterns for each dataset:
-    # strasbourg: /${sample}-R1.fastq.gz
-    # integragen: /Sample_${sample}_R1_fastq.gz
-    # FV: /${sample}_*_R1_001.fastq.gz
-    # genoscope13: /G430_CP_${sample}_[0-9]_1_*.fastq.gz
-    # genoscope14 and 15: /E487_CP_${sample}_[0-9]_1_*.fastq.gz
-    # novo16: /s${sample}_*_1.fq.gz
-    # novo17: /P${sample}_*_1.fq.gz
-    # novo19: /${sample}_*_1.fq.gz
-    # Biomnis19: /${sample}_*_R1_001.fastq.gz
-    # IBP_2019: /${sample}_R1_001.fastq.gz (they fucked up the names with i for 1 but I fixed it)
-    # IBP_2019 second batch (01/08/2019): /${sample}_R1.fastq.gz
-    # BGI_2021: /\w+_L\d_{$sample}-\d+_1.fq.gz (eg: V300096729_L4_B5EHUMazpEBAAIBAA-522_1.fq.gz)
+    # strasbourg: /${specimen}-R1.fastq.gz
+    # integragen: /Sample_${specimen}_R1_fastq.gz
+    # FV: /${specimen}_*_R1_001.fastq.gz
+    # genoscope13: /G430_CP_${specimen}_[0-9]_1_*.fastq.gz
+    # genoscope14 and 15: /E487_CP_${specimen}_[0-9]_1_*.fastq.gz
+    # novo16: /s${specimen}_*_1.fq.gz
+    # novo17: /P${specimen}_*_1.fq.gz
+    # novo19: /${specimen}_*_1.fq.gz
+    # Biomnis19: /${specimen}_*_R1_001.fastq.gz
+    # IBP_2019: /${specimen}_R1_001.fastq.gz (they fucked up the names with i for 1 but I fixed it)
+    # IBP_2019 second batch (01/08/2019): /${specimen}_R1.fastq.gz
+    # BGI_2021: /\w+_L\d_{$specimen}-\d+_1.fq.gz (eg: V300096729_L4_B5EHUMazpEBAAIBAA-522_1.fq.gz)
     # these are unified into the following globs, update if needed when
     # new datasets arrive (we error out if something is fishy)
-    my @files1 = glob("${inPath}/*/${sample}[-_]R1.fastq.gz ${inPath}/*/*${sample}_*R1_*.gz ${inPath}/*/*${sample}_*_1*.gz ${inPath}/*/*_${sample}-*_1.fq.gz " );
-    my @files2 = glob("${inPath}/*/${sample}[-_]R2.fastq.gz ${inPath}/*/*${sample}_*R2_*.gz ${inPath}/*/*${sample}_*_2*.gz ${inPath}/*/*_${sample}-*_2.fq.gz " );
+    my @files1 = glob("${inPath}/*/${specimen}[-_]R1.fastq.gz ${inPath}/*/*${specimen}_*R1_*.gz ${inPath}/*/*${specimen}_*_1*.gz ${inPath}/*/*_${specimen}-*_1.fq.gz " );
+    my @files2 = glob("${inPath}/*/${specimen}[-_]R2.fastq.gz ${inPath}/*/*${specimen}_*R2_*.gz ${inPath}/*/*${specimen}_*_2*.gz ${inPath}/*/*_${specimen}-*_2.fq.gz " );
 
     (@files1) || 
-	((warn "W: no files found for sample $sample == grexome $gNum, fix the globs, skipping this sample for now\n") && next);
+	((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);
     (@files1 == @files2) || 
-	die "E: different numbers of files for the 2 paired-ends of sample $sample == grexome $gNum:\n@files1\n@files2\n";
+	die "E: different numbers of files for the 2 paired-ends of $sample == specimen $specimen:\n@files1\n@files2\n";
 
     # make sure these files haven't been seen before
     foreach my $f (@files1, @files2) {
 	(defined $infilesDone{$f}) &&
-	    die "E: infile $f found for sample $sample == grexome $gNum but it was previously used, for grexome $infilesDone{$f}! check the logs for it! Then fix the globs\n";
-	$infilesDone{$f} = $gNum;
+	    die "E: infile $f found for $sample == specimen $specimen, but it was previously used for $infilesDone{$f}! check the logs for it! Then fix the globs\n";
+	$infilesDone{$f} = $sample;
     }
 
-    # prepare grexome name
-    my $grexome = $gNum;
-    # left-pad with zeroes to 4 digits
-    ($gNum < 10) && ($grexome = "0$grexome");
-    ($gNum < 100) && ($grexome = "0$grexome");
-    ($gNum < 1000) && ($grexome = "0$grexome");
-    $grexome = "grexome$grexome";
-
-    if ((-e "$parentDir$outDir/${grexome}_1.fq.gz") && (-e "$parentDir$outDir/${grexome}_2.fq.gz")) {
+    if ((-e "$parentDir$outDir/${sample}_1.fq.gz") && (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
 	# 09/09/2019: don't INFO when skipping, it's too much noise
-	# warn "I: skipping sample $sample == grexome $grexome because targets $parentDir$outDir/${grexome}_[12].fq.gz already exist\n";
+	# warn "I: skipping $sample == specimen $specimen because grexomized fastqs already exist\n";
 	next;
     }
-    elsif ((-e "$parentDir$outDir/${grexome}_1.fq.gz") || (-e "$parentDir$outDir/${grexome}_2.fq.gz")) {
-	die "E: for sample $sample == grexome $grexome , only one of the two targets $parentDir$outDir/${grexome}_[12].fq.gz already exists!\n";
+    elsif ((-e "$parentDir$outDir/${sample}_1.fq.gz") || (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
+	die "E: $sample already has one grexomized FASTQ but not the other! Something is wrong, investigate!\n";
     }
     # else keep going, need to make the symlinks/files
-
-
 
     if (@files1 == 1) {
 	# prepare symlink target names
@@ -238,34 +182,34 @@ foreach my $gNum (50..$#grex2sample) {
 	my $f2 = $files2[0];
 	# replace $inPath with ../$lastDir/
 	($f1 =~ s~^$inPath~../$lastDir/~) || 
-	    die "E: cannot replace inPath $inPath from file1 $f1 for sample $sample == grexome $gNum\n";
+	    die "E: cannot replace inPath $inPath from file1 $f1 for specimen $specimen == $sample\n";
 	($f2 =~ s~^$inPath~../$lastDir/~) || 
-	    die "E: cannot replace inPath $inPath from file2 $f2 for sample $sample == grexome $gNum\n";
+	    die "E: cannot replace inPath $inPath from file2 $f2 for specimen $specimen == $sample\n";
 
-	my $com = "cd $parentDir$outDir/; ln -s $f1  ${grexome}_1.fq.gz ; ln -s $f2 ${grexome}_2.fq.gz" ;
+	my $com = "cd $parentDir$outDir/; ln -s $f1 ${sample}_1.fq.gz ; ln -s $f2 ${sample}_2.fq.gz" ;
 
 	if (! $real) {
 	    warn "I: dryrun, would run: $com\n";
 	}
 	else {
-	    warn "I: single pair of files for $grexome, symlinking with: $com\n";
+	    warn "I: single pair of files for $sample, symlinking with: $com\n";
 	    system($com);
 	}
     }
 
     else {
 	# several pairs of files, need to cat them
-	my $com1 = "cat @files1 > $parentDir$outDir/${grexome}_1.fq.gz";
-	my $com2 = "cat @files2 > $parentDir$outDir/${grexome}_2.fq.gz";
+	my $com1 = "cat @files1 > $parentDir$outDir/${sample}_1.fq.gz";
+	my $com2 = "cat @files2 > $parentDir$outDir/${sample}_2.fq.gz";
 
 	if (! $real) {
 	    warn "I: dryrun, would run: $com1\n";
 	    warn "I: dryrun, would then run: $com2\n";
 	}
 	else {
-	    warn "I: starting cat of $grexome with command: $com1\n";
+	    warn "I: starting cat of $sample with command: $com1\n";
 	    system($com1);
-	    warn "I: finishing cat of $grexome with command: $com2\n";
+	    warn "I: finishing cat of $sample with command: $com2\n";
 	    system($com2);
 	}
     }
@@ -274,12 +218,12 @@ foreach my $gNum (50..$#grex2sample) {
 my $nbInfiles = scalar(keys(%infilesDone));
 my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
 # some grexomes have been obsoleted because they were dupes,
-# the corresponding FASTQs are still there, there are $nbObsoleteFiles,
-# don't warn about them
+# the corresponding FASTQs are still there, don't warn about them.
+# number of obsolete FASTQ files: hard-coded here, 
 my $nbObsoleteFiles = 12;
 if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
-    warn "\nI: examined $nbInfiles source FASTQ files and skipped $nbObsoleteFiles obsoletes in total, this is the expected number.\n";
+    warn "\nI: examined ($nbInfiles) + known obsolete ($nbObsoleteFiles) FASTQ files == nbFqFiles found with ls|wc, good!\n";
 }
 else {
-    warn "\nW: examined $nbInfiles source FASTQ files and skipped $nbObsoleteFiles obsoletes in total, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
+    warn "\nW: examined $nbInfiles and skipped $nbObsoleteFiles obsoletes, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
 }

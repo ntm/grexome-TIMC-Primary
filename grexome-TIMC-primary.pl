@@ -7,15 +7,7 @@
 
 # This is a wrapper script for the grexome-TIMC primary analysis
 # pipeline, starting from "grexomized" FASTQs...
-# This means that for each sample we expect a single pair of FASTQ
-# files in $fastqDir, and these files must be named ${sample}_1.fq.gz
-# and ${sample}_2.fq.gz .
-# The "samples" are as listed in the 'sampleID' column of the provided
-# $samplesFile. If sampleID is '0' the row is ignored.
-# You can specify samples to process with --samplesOfInterest, otherwise 
-# every sample from $samplesFile is processed. 
-#
-# Args: see $USAGE.
+# See $USAGE.
 
 use strict;
 use warnings;
@@ -97,30 +89,43 @@ my $config = "$RealBin/grexomeTIMCprim_config.pm";
 # help: if true just print $USAGE and exit
 my $help = '';
 
-my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from FASTQ files and:
+my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from \"grexomized\" FASTQs and:
 - produce BAMs with fastq2bam.pl (trim, align, mark dupes, sort);
 - for each specified variant-caller:
      produce individual GVCFs with bam2gvcf_\$caller.pl;
      filter low-quality variant calls with filterBadCalls.pl;
      produce a merged GVCF per variant-caller with mergeGVCFs.pl.
 
-BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of this script,
-all within \$dataDir which you must customize. The hierarchy can also be modified if desired.
-Logs and copies of the metadata are produced in the provided \$workDir (which must not exist).
 Each step of the pipeline is a stand-alone self-documented script, this is just a wrapper.
 For each sample, any step where the result file already exists is skipped.
-Every install-specific param should be in this script or in grexomeTIMCprim_config.pm.
+
+The \"samples\" must appear in the 'sampleID' column of the samples metadata XLSX file
+(provided with --samplesFile).
+Default behavior is to process every non-'0' sampleID from this file;
+processing can be restricted to specific samples of interest with --SOIs.
+
+The FASTQs must be \"grexomized\", ie for each \$sample we expect a single pair of 
+FASTQ files in \$fastqDir (defined in *config.pm), and these files must be named 
+\$sample_1.fq.gz and \$sample_2.fq.gz .
+
+BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of this script,
+all within \$dataDir (defined in *config.pm) which you should customize. The hierarchy 
+can also be modified if desired.
+Logs and copies of the metadata are produced in the provided \$workDir .
+
+Every parameter that you could want to customize should be in this script or 
+in grexomeTIMCprim_config.pm.
 
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
---samplesFile string : samples metadata xlsx file, with path
---samplesOfInterest string : comma-separated list of sampleIDs to process, default = all samples in samplesFile
---workdir string : subdir where logs and workfiles will be created, must not pre-exist
---jobs int [$jobs] : approximate number of threads/jobs that we should run
---config string [$config] : your customized copy (with path) of the distributed *config.pm
+--samplesFile : samples metadata xlsx file, with path
+--SOIs : optional, comma-separated list of \"samples of interest\" to process
+--workdir : subdir where logs and workfiles will be created, must not pre-exist
+--jobs [$jobs] : approximate number of threads/jobs that we should run
+--config [defaults to grexomeTIMCprim_config.pm alongside this script] : your customized copy of *config.pm
 --help : print this USAGE";
 
 GetOptions ("samplesFile=s" => \$samplesFile,
-	    "samplesOfInterest=s" => \$SOIs,
+	    "SOIs=s" => \$SOIs,
 	    "workdir=s" => \$workDir,
 	    "jobs=i" => \$jobs,
 	    "config=s" => \$config,
@@ -180,8 +185,7 @@ foreach my $caller (keys %callerDirs) {
 }
 
 #########################################################
-# parse samples metadata file to grab sampleIDs, limit to --samplesOfInterest 
-# if specified
+# parse samples metadata file to grab sampleIDs, limit to --SOIs if specified
 # This also serves as an early sanity-check of $samplesFile
 
 # key==existing sample to process
@@ -197,9 +201,9 @@ if ($SOIs) {
     # make sure every listed sample is in %samples and promote it's value to 2
     foreach my $soi (split(/,/, $SOIs)) {
 	($samples{$soi}) ||
-	    die "E $0: processing --samplesOfInterest: a specified sample $soi does not exist in the samples metadata file\n";
+	    die "E $0: processing --SOIs: a specified sample $soi does not exist in the samples metadata file\n";
 	($samples{$soi} == 1) ||
-	    warn "W $0: processing --samplesOfInterest: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
+	    warn "W $0: processing --SOIs: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
 	$samples{$soi} = 2;
     }
     # now ignore all other samples
@@ -210,13 +214,13 @@ if ($SOIs) {
     }
 }
 
-# exclude any sample that doesn't have FASTQs, but die if called with --samplesOfInterest
+# exclude any sample that doesn't have FASTQs, but die if called with --SOIs
 foreach my $s (sort(keys %samples)) {
     my $f1 = "$fastqDir/${s}_1.fq.gz";
     my $f2 = "$fastqDir/${s}_2.fq.gz";
     if ((! -f $f1) || (! -f $f2)) {
 	if ($samples{$s} == 2) {
-	    die "E $0: sample $s from --samplesOfInterest doesn't have FASTQs (looking for $f1 and $f2)\n";
+	    die "E $0: sample $s from --SOIs doesn't have FASTQs (looking for $f1 and $f2)\n";
 	}
 	else {
 	    warn "W $0: sample $s from samplesFile doesn't have FASTQs, skipping it\n";

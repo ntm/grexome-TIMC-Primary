@@ -86,7 +86,7 @@ sub refGenomeChromsBed {
 ### sudo mkdir /mnt/RamDisk
 ### sudo mount -t tmpfs -o size=96g myramdisk /mnt/RamDisk/
 # You can make the mount automatic on boot by adding to /etc/fstab:
-### tmpfs /mnt/RamDisk tmpfs size=192g 0 0
+### tmpfs /mnt/RamDisk tmpfs size=96g 0 0
 sub fastTmpPath {
     foreach my $ramdisk ("/mnt/RamDisk/", "/var/tmp") {
 	(-d $ramdisk) && return($ramdisk);

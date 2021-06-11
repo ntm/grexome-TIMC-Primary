@@ -17,21 +17,39 @@
 # - phased genotypes x|y are replaced by unphased x/y;
 # - hemizygous calls x (strelka) or x/* or */x (gatk) are replaced by HV x/x;
 # - the new and useless GATK "weAreInAHomoDel" calls */* are replaced by ./.;
-# - the variant calls in data columns are replaced by ./. if a call-condition
+# - the variant calls in data columns are replaced by ./. if a QC call-condition
 #   is not met (see "heuristics"), or if previous call was '.' (the Strelka NOCALL);
 # - without --keepHR, lines where every sample is now ./. or 0/0 are skipped;
 # - with --keepHR, lines where every sample is now ./. are skipped;
+# - the bogus read counts for the new '*' ALT used by GATK4 are substracted from DP and AD;
+# - DP is added to FORMAT right before AD if it wasn't there (eg some strelka indels),
+#   and set to sumOfADs if DP didn't exist or was smaller than sumOfADs (ignoring the
+#   new GATK4 AD for the '*' ALT, as indicated above);
 # - AF is moved (if it pre-exists) or added (otherwise) to FORMAT right after GT, 
-#   and every 0/x or x/x call gets for AF the fraction of variant reads (rounded
-#   to 2 decimals), HR and x/y calls get '.';
-# - fix blatantly wrong genotype calls, see "heuristics" below.
+#   and every 0/x or x/x call gets for AF the fraction of reads supporting the x ALT
+#   (rounded to 2 decimals), HR and x/y calls get '.';
+# - fix blatantly wrong genotype calls, see "heuristics" below;
 # - ALTs that are not called in any sample (after fixing errors) are removed, and
 #   DATA values are adjusted accordingly: GT is fixed (new ALT indexes), AD/ADF/ADR and
-#   PL values for removed ALTs are discarded
+#   PL values for removed ALTs are discarded (but the corresponding reads are still
+#   counted in DP, see sumOfADs above);
+# - REF + remaining ALTs are normalized (but not left-aligned): 
+#   * remove bases present at the end of REF and all ALTs;
+#   * remove bases present at the start of REF and all ALTs, and increase POS accordingly
 # - work around strelka "feature": indel positions can be preceded by an HR call
 #   that includes the first base of the indel (HR call at $pos or non-variant block
-#   with END=$pos followed by indel call at the same $pos).
-
+#   with END=$pos followed by indel call at the same $pos), this bogus HR call is removed.
+#
+###########
+# NOTES on normalization of variants:
+# - this script does NOT left-align variants
+# - it also doesn't try to merge lines with overlapping REFs or identical POS values,
+#   even if this results from our renormalization (where POS can increase): if this
+#   occurs it means the clash was already present, even if it wasn't explicit.
+# - similarly, it is possible to obtain out-of-order POS lines (again, only if the
+#   input GVCF is broken IMO, but this does happen).
+# Downstream tools need to be aware of this. 4_mergeGVCFs.pl is, and tries to do
+# the right thing.
 
 use strict;
 use warnings;
@@ -62,7 +80,8 @@ my $batchSize = 500000;
 
 
 # heuristics for fixing low-quality or blatantly wrong genotype calls 
-# [$dp below represents max(DP,sumOfADs), except for non-variant blocks where it is MIN_DP]:
+# [$dp below represents the fixed DP ie max(DP,sumOfADs), except for non-variant
+#      blocks where it is MIN_DP]:
 # if $dp < $minDP , any call becomes NOCALL
 # if max(GQ,GQX) < $minGQ , any call becomes NOCALL
 # if AF < $minAF and call was REF/VAR or VAR/VAR, call becomes NOCALL
@@ -109,18 +128,18 @@ my $verbose = 0;
 my $help = '';
 
 my $USAGE = "Parse a Strelka or GATK4 GVCF on stdin, print to stdout a similar GVCF or VCF where:
-- calls that fail basic quality filters are changed to NOCALL,
+- calls that fail basic QC tests are changed to NOCALL,
 - calls that are blatantly wrong are fixed,
 - ALTs that are never called are removed,
-- lines are only printed if at least one sample still has some genotype call (including HomoRefs with --keepHR, excluding HomoRefs without).
+- lines are only printed if at least one sample still has some genotype call (including HomoRefs with --keepHR).
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
---samplesFile string [no default] : samples metadata xlsx file, with path
---samplesOfInterest string [default = all samples in xlsx] : comma-separated list of sampleIDs of interest (other samples are ignored)
+--samplesFile [no default] : samples metadata xlsx file, with path
+--samplesOfInterest [default = all samples in xlsx] : comma-separated list of sampleIDs of interest (other samples are ignored)
 --keepHR : keep lines even if the only genotype call is homoref
---tmpdir string [default = $tmpDir] : subdir where tmp files will be created (on a RAMDISK if possible), it must not pre-exist (but it's 
-	 parent must exist) and it will be removed after execution
+--tmpdir [default = $tmpDir] : subdir where tmp files will be created (on a RAMDISK if possible), it must not pre-exist  
+	 (but it's parent must exist) and it will be removed after execution
 --jobs N [default = $numJobs] : number of parallel jobs=threads to run
---verbose N [default 0] : if > 0 increase verbosity on stderr
+--verbose N [default $verbose] : if > 0 increase verbosity on stderr
 --help : print this USAGE";
 
 # construct string with full command-line for adding to headers, must be
@@ -347,37 +366,40 @@ sub processBatch {
     (@_ == 6) || die "E $0: processBatch needs 6 args\n";
     my ($linesR,$outFH,$filterParamsR,$skippedColsR,$keepHR,$verbose) = @_;
 
-    # counters for number of blatant errors fixed to HV or HET
+    # counters for number of blatant errors fixed to HV or HET, and for fixed DPs
     my $fixedToHV = 0;
     my $fixedToHET = 0;
+    my $fixedDP = 0;
 
     # delay printing lines so we can decrement END= if needed
     # (to work-around strelka bug: indels can be preceded by HR calls
     # at the same POS or by non-variant blocks whose END= goes one too far)
-    my $prevToPrint = '';
+    # => our solution: delete the HR call at the same POS as a subsequent indel
+    my @prevToPrint = ();
     
     foreach my $line (@$linesR) {
 	# $keepLine: boolean, true if at least one non-'*' ALT is called for at 
-	# least one sample after filtering
+	# least one sample after cleaning and filtering
 	my $keepLine = 0;
 	my @data = split(/\t/, $line);
 	(@data >= 10) || die "E $0: no sample data in line?\n$line\n";
 
-	# BEFORE ANYTHING ELSE: deal with $prevToPrint
-	if ($prevToPrint) {
-	    if ($prevToPrint =~ /^$data[0]\t$data[1]\t[^\t]+\t\w\t\.\t/) {
-		# prevToPrint was HR call at same POS as $line, don't print prev -> NOOP
+	# BEFORE ANYTHING ELSE: deal with @prevToPrint
+	if (@prevToPrint) {
+	    if (($prevToPrint[0] eq $data[0]) && ($prevToPrint[1] == $data[1]) && 
+		(($prevToPrint[4] eq '.') || ($prevToPrint[4] eq '<NON_REF>'))) {
+		# prevToPrint was HR line at same POS as $line, don't print prev -> NOOP
 	    }
 	    else {
 		# if prev was a non-var block on same chrom ending at current POS, decrement END=
 		my $thisPos = $data[1];
 		my $prevEnd = $thisPos - 1;
-		$prevToPrint =~ s/^($data[0]\t.+)END=$thisPos;/$1END=$prevEnd;/;
+		$prevToPrint[7] =~ s/END=$thisPos;/END=$prevEnd;/;
 		# whether we substituted or not, print prev
-		print $outFH $prevToPrint;
+		print $outFH join("\t", @prevToPrint)."\n";
 	    }
 	    # in all cases clear prev
-	    $prevToPrint = '';
+	    @prevToPrint = ();
 	}
 	
 	# if not --keepHR and there is no ALT in line, skip immediately
@@ -385,32 +407,33 @@ sub processBatch {
 	# GATK4 produces useless lines where there are NO sequencing reads
 	# (where FORMAT is eg GT or GT:GQ:PL), skip them immediately:
 	# any line with supporting reads must have a DP or AD field
-	($data[8] =~ /:DP:/) || ($data[8] =~ /:AD:/) || next;
+	($data[8] =~ /:DP:/) || ($data[8] =~ /:AD:/) ||
+	    ($data[8] =~ /:DP$/) || ($data[8] =~ /:AD$/) || next;
+
+	# after parsing the line, $altsCalled[$i] will be true iff $alts[$i] is part of
+	# a called geno for at least one sample
+	my @alts = split(/,/,$data[4]);
+	my @altsCalled;
 	# grab alleleNum of ALT '*' if it's present
 	my $starNum = -1;
-	my @alts = split(/,/,$data[4]);
 	foreach my $alti (0..$#alts) {
 	    ($alts[$alti] eq '*') && ($starNum = $alti + 1) && last;
 	}
-	# first 9 fields are copied except: QUAL is cleared, INFO is cleared except 
+	# first 9 fields are copied as-is except: QUAL is cleared, INFO is cleared except 
 	# if it contains END=, and AF is moved or added to FORMAT after GT
-	my $lineToPrint = join("\t",@data[0..4]);
+	# NOTE: ALT may be modified later (remove uncalled ALTs and normalize remaining ALTs)
+	my @lineToPrint = @data[0..4];
 	# clear QUAL, copy FILTER
-	$lineToPrint .= "\t.\t$data[6]";
+	push(@lineToPrint, '.', $data[6]);
 	# copy INFO if it contains END=, clear otherwise
 	if ($data[7] =~ /^END=/) {
-	    $lineToPrint .= "\t$data[7]";
+	    push(@lineToPrint, $data[7]);
 	}
 	else {
-	    $lineToPrint .= "\t.";
+	    push(@lineToPrint, '.');
 	}
+
 	my $format = $data[8];
-	my $newFormat = $format;
-	# if AF already there we remove it (then add it back right after GT)
-	($newFormat =~ s/:AF:/:/);
-	($newFormat =~ s/^GT:/GT:AF:/)  || 
-	    die "E $0: cannot add AF after GT in format: $format\n";
-	$lineToPrint .= "\t$newFormat";
 	# %format: key is a FORMAT key (eg DP), value is the index of that key in $format
 	my %format;
 	{
@@ -424,18 +447,35 @@ sub processBatch {
 	(defined $format{"GQ"}) || (defined $format{"GQX"}) ||die "E $0: no GQ or GQX key in FORMAT string for line:\n$line\n";
 	(defined $format{"AD"}) || (defined $format{"DP"}) || die "E $0: no AD or DP key in FORMAT string for line:\n$line\n";
 
+	my $newFormat = $format;
+	# if AF isn't already right after GT we move it / create it there
+	if ($newFormat !~ /^GT:AF:/) {
+	    # remove it if it existed
+	    $newFormat =~ s/:AF:/:/;
+	    # in any case add it after GT
+	    ($newFormat =~ s/^GT:/GT:AF:/)  || 
+		die "E $0: cannot add AF after GT in format: $format\n";
+	}
+	# if DP doesn't exist we add it right before AD (which we know exists, sanity-checked above)
+	if (! defined $format{"DP"}) {
+	    ($newFormat =~ s/:AD:/:DP:AD:/)  || 
+		die "E $0: cannot add DP before AD in format: $format\n";
+	}
+	
+	push(@lineToPrint, $newFormat);
+
 	# now deal with actual data fields
 	foreach my $i (9..$#data) {
 	    ($skippedColsR->[$i]) && next;
 	    my $thisData = $data[$i];
 	    # if genotype is already '.' or './.' == NOCALL, just use ./.
 	    if (($thisData =~ m~^\.$~) || ($thisData =~ m~^\.:~) || ($thisData =~ m~^\./\.~)) {
-		$lineToPrint .= "\t./." ;
+		push(@lineToPrint, './.') ;
 		next;
 	    }
 	    # also if call is */* or *|* , just replace with ./.
 	    if ($thisData =~ m~^$starNum[/|]$starNum:~) {
-		$lineToPrint .= "\t./." ;
+		push(@lineToPrint, './.') ;
 		next;
 	    }
 
@@ -454,44 +494,15 @@ sub processBatch {
 	    }
 	    if ($gq < $filterParamsR->{"minGQ"}) {
 		# GQ and GQX (if it exists) are both undef or too low, change to NOCALL
-		$lineToPrint .= "\t./.";
+		push(@lineToPrint, './.') ;
 		next;
 	    }
 
-	    # clean up GTs:
-	    # Strelka and GATK make some phased calls sometimes, homogenize as unphased
-	    $thisData[$format{"GT"}] =~ s~\|~/~ ;
-	    # Strelka makes some hemizygous calls as 'x' (eg when the position
-	    # is in a HET deletion), makes sense but still, homogenize as HOMO
-	    $thisData[$format{"GT"}] =~ s~^(\d+)$~$1/$1~;
-	    # grab geno
-	    my ($geno1,$geno2) = split(/\//, $thisData[$format{"GT"}]);
-	    ((defined $geno1) && (defined $geno2)) ||
-		die "E $0: a sample's genotype cannot be split: ".$thisData[$format{"GT"}]."in:\n$line\n";
-	    # GATK hemizygous calls (eg under a HET DEL) appear as x/* or */x, fix to x/x
-	    if ($starNum != -1) {
-		if ($geno2 == $starNum) {
-		    # */* shouldn't exist (replaced by ./. and next'd earlier)
-		    ($geno1 == $starNum) &&
-			die "E $0: WTF genotype */* shouln't exist anymore!\n$line\n$lineToPrint\n"; 
-		    $geno2 = $geno1;
-		}
-		elsif ($geno1 == $starNum) {
-		    $geno1 = $geno2;
-		}
-	    }
-	    # make sure alleles are in sorted order
-	    if ($geno2 < $geno1) {
-		my $genot = $geno1;
-		$geno1 = $geno2;
-		$geno2 = $genot;
-	    }
-	    # OK save clean GT
-	    $thisData[$format{"GT"}] = "$geno1/$geno2";
+	    # clean up GTs -> normalize to unphased, biallelic, sorted genotype
+	    $thisData[$format{"GT"}] = &cleanGT($thisData[$format{"GT"}], $starNum);
 
-	    # if '*' is in ALTs we want to ignore any reads attributed to it in DP and AD,
-	    # so our DP and AF are correct (and to avoid incorrectly "fixing" calls)
-	    # NOTE: we don't touch GQ, PL or SB
+	    # if '*' is in ALTs we want to ignore any (bogus) reads attributed to it in DP and AD
+	    # NOTE: we don't touch anything else (eg GQ, PL, SB, and GATK can't output ADF/ADR currently)
 	    if (($starNum != -1) && (defined $format{"AD"}) && (defined $thisData[$format{"AD"}]) &&
 		($thisData[$format{"AD"}]  =~ /^[\d,]+$/)) {
 		# '*' is in ALTs and AD is defined and has data
@@ -508,7 +519,10 @@ sub processBatch {
 		$thisData[$format{"AD"}] = join(',', @ADs);
 	    }
 
-	    # grab the depth (DP or sumOfADs, whichever is defined and higher, except use MIN_DP if in a non-var block)
+	    # find the "real" read depth at current position: max(DP, sumOfADs), or MIN_DP if in a non-var block
+	    # Along the way, fix DP to sumOfADs if it's smaller (variant caller bugs)
+	    # we will also populate DP with sumOfADs right before AD if DP didn't exist,
+	    # but we must do this later so we don't mess up the %format mappings
 	    my $thisDP = -1;
 	    if ((defined $format{"DP"}) && (defined $thisData[$format{"DP"}]) && ($thisData[$format{"DP"}] ne '.')) {
 		$thisDP = $thisData[$format{"DP"}];
@@ -518,22 +532,33 @@ sub processBatch {
 		foreach my $ad (split(/,/,$thisData[$format{"AD"}])) {
 		    $sumOfADs += $ad;
 		}
-		($thisDP < $sumOfADs) && ($thisDP = $sumOfADs);
+		if ($thisDP < $sumOfADs) {
+		    if ($thisDP > -1) {
+			# DP exists, there's no sensible reason for it to be smaller than sumOfADs
+			# (but we have seen it happen with GATK), fix it
+			$thisData[$format{"DP"}] = $sumOfADs;
+			$fixedDP++;
+			if ($verbose >= 2) {
+			    warn "I $0: fix DP in: $data[0]:$data[1] $data[3] > $data[4] sample ".($i-9)." DP=$thisDP sumOfADs=$sumOfADs\n";
+			}
+		    }
+		    # else we will create DP later, but in any case update $thisDP
+		    $thisDP = $sumOfADs;
+		}
 	    }
+	    # in a non-variant block we want to use MIN_DP rather than DP
 	    if ((defined $format{"MIN_DP"}) && (defined $thisData[$format{"MIN_DP"}]) && ($thisData[$format{"MIN_DP"}] ne '.')) {
 		$thisDP = $thisData[$format{"MIN_DP"}];
 	    }
-	    # if depth too low or undefined for this sample, change to NOCALL
+	    # OK we have the real depth, now filter to NOCALL if too low or undefined
 	    if ($thisDP < $filterParamsR->{"minDP"}) {
-		$lineToPrint .= "\t./.";
+		push(@lineToPrint, './.') ;
 		next;
 	    }
-	    # with GATK I had some issues with DP=0 calls, causing illegal divisions
-	    # by zero when calculating AF, but that is now skipped above
 
-
-	    # calculate AF, for fracVarReads filter:
+	    # calculate AF, for fracVarReads filter
 	    my $af;
+	    my ($geno1,$geno2) = split(/\//, $thisData[$format{"GT"}]);
 	    if ((defined $format{"AF"}) && (defined $thisData[$format{"AF"}])) {
 		# AF was already there, just reuse
 		$af = $thisData[$format{"AF"}];
@@ -544,7 +569,7 @@ sub processBatch {
 		    die "E $0: GT is HET or HV but we don't have AD or AD data is blank in:\n$line\n";
 		}
 		my @ads = split(/,/, $thisData[$format{"AD"}]);
-		# $geno2 is always the index of the VAR (thanks to sorting above)
+		# $geno2 is always the index of the VAR (thanks to sorting in cleanGT)
 		my $fracVarReads = $ads[$geno2] / $thisDP ;
 		# round AF to nearest float with 2 decimals
 		$af = sprintf("%.2f",$fracVarReads);
@@ -556,7 +581,7 @@ sub processBatch {
 
 	    if (($af ne '.') && ($af < $filterParamsR->{"minAF"})) {
 		# AF too low, change to NOCALL
-		$lineToPrint .= "\t./.";
+		push(@lineToPrint, './.') ;
 		next;
 	    }
 
@@ -582,31 +607,327 @@ sub processBatch {
 		}
 	    }
 
-	    # other filters (eg strandDisc) would go here
+	    # other filters (eg strandDisc) could go here
 
-	    # OK data passed all filters, AF needs to be moved or added
-	    if ((defined $format{"AF"}) && (defined $thisData[$format{"AF"}])) {
-		# remove from previous position, wherever it was
-		splice(@thisData, $format{"AF"}, 1);
+	    # OK data passed all filters, add/move fields (DP, AF) if needed
+	    if ((defined $format{"AD"}) && (defined $format{"AF"})) {
+		# sanity: we MUST introduce values new fields starting at the end!
+		# AF must be before AD if both are there, oterwise the successive splices below are buggy
+		($format{"AF"} < $format{"AD"}) ||
+		    die "E $0: AF comes after AD, code will break in this case, fix the code! Line is:\n$line\n";
 	    }
-	    # add back in second position
-	    splice(@thisData, 1, 0, $af);
+	    if ((! defined $format{"DP"}) && (defined $thisData[$format{"AD"}])) {
+		# DP didn't exist but AD has some values, insert $thisDP right before AD
+		splice(@thisData, $format{"AD"}, 0, $thisDP);
+	    }
+	    # AF may need to be moved or added
+	    if ((defined $format{"AF"}) && (defined $thisData[$format{"AF"}])) {
+		if ($format{"AF"} != 1) {
+		    # remove from previous position, and add back in second position
+		    splice(@thisData, $format{"AF"}, 1);
+		    splice(@thisData, 1, 0, $af);
+		}
+		# else AF was already in second position, noop
+	    }
+	    else {
+		# AF wasn't present, add it in second position
+		splice(@thisData, 1, 0, $af);
+	    }
 
-	    $lineToPrint .= "\t".join(':',@thisData);
+	    push(@lineToPrint, join(':',@thisData));
 
 	    if ($keepHR || ($thisData[$format{"GT"}] ne '0/0')) {
 		$keepLine = 1;
 	    }
+
+	    # remember any called ALT allele
+	    ($geno1 > 0) && ($altsCalled[$geno1 - 1] = 1);
+	    ($geno2 > 0) && ($altsCalled[$geno2 - 1] = 1);
 	}
-	# done with $line, save for printing if $keepLine
-	($keepLine) && ($prevToPrint = "$lineToPrint\n");
+	
+	# done parsing $line
+	if ($keepLine) {
+	    # remove any uncalled ALTs and fix DATA accordingly
+	    &removeUncalledALTs(\@lineToPrint, \@altsCalled);
+	    # normalize REF + remaining ALTs
+	    &normalizeVariants(\@lineToPrint);
+	    # save for printing
+	    @prevToPrint = @lineToPrint;
+	}
+	# else this line is discarded -> NOOP
     }
     # print last line if needed
-    ($prevToPrint) && (print $outFH $prevToPrint);
-    # INFO with number of fixed calls in this batch, we don't care that this
-    # comes out of order to stderr
-    ($verbose) && (warn "I $0: fixed $fixedToHV calls from HET to HV\n");
-    ($verbose) && (warn "I $0: fixed $fixedToHET calls from HV to HET\n");
+    (@prevToPrint) && (print $outFH join("\t", @prevToPrint)."\n");
+    # INFO with number of fixed calls in this batch, we don't care that this comes
+    # out of order to stderr but don't log if we already printed each fixed call
+    if ($verbose == 1) {
+	($fixedToHV) && (warn "I $0: fixed $fixedToHV calls from HET to HV\n");
+	($fixedToHET) && (warn "I $0: fixed $fixedToHET calls from HV to HET\n");
+ 	($fixedDP) && (warn "I $0: fixed $fixedDP DP values to sumOfADs (was larger)\n");
+   }
+}
+
+###############
+# clean up GTs:
+# args: a GT string, the alleleNum of the '*' allele (or -1 if it's not present)
+# returns a "cleaned up" version of the GT: unphased, biallelic, sorted
+sub cleanGT {
+    (@_ == 2) ||die "E $0: cleanGT needs 2 args.\n";
+    my ($gt, $starNum) = @_;
+    
+    # Strelka and GATK make some phased calls sometimes, homogenize as unphased
+    $gt =~ s~\|~/~ ;
+    # Strelka makes some hemizygous calls as 'x' (eg when the position
+    # is in a HET deletion), makes sense but still, homogenize as HOMO
+    $gt =~ s~^(\d+)$~$1/$1~;
+    # grab geno
+    my ($geno1,$geno2) = split(/\//, $gt);
+    ((defined $geno1) && (defined $geno2)) ||
+	die "E $0: a sample's genotype cannot be split: $gt\n";
+    # GATK hemizygous calls (eg under a HET DEL) appear as x/* or */x, fix to x/x
+    if ($geno2 == $starNum) {
+	# */* shouldn't exist (replaced by ./. and skipped before calling &cleanGT)
+	($geno1 == $starNum) &&
+	    die "E $0: don't call this sub with genotype */* , just skip these useless calls\n"; 
+	$geno2 = $geno1;
+    }
+    elsif ($geno1 == $starNum) {
+	$geno1 = $geno2;
+    }
+    # make sure alleles are in sorted order
+    if ($geno2 < $geno1) {
+	my $genot = $geno1;
+	$geno1 = $geno2;
+	$geno2 = $genot;
+    }
+    # OK, return clean GT
+    return("$geno1/$geno2");
+}
+
+
+###############
+# removeUncalledALTs, args:
+# - arrayref, tab-splitted VCF line
+# - arrayref of ALT indexes that were called in at least one sample
+#
+# -> discard any uncalled ALTs from the ALT column (except <NON_REF>, which we
+#    always keep if it's present), set to '.' if there are no more ALTs
+# -> adjust every GT (new ALT indexes)
+# -> discard AD/ADF/ADR and PL values for removed ALTs
+#
+# Modifies the VCF line in-place and doesn't return anything.
+sub removeUncalledALTs {
+    (@_ == 2) ||die "E $0: removeUncalledALTs needs 2 args.\n";
+    my ($lineR, $altsCalledR) = @_;
+
+    my @alts = split(/,/,$lineR->[4]);
+    my $newAlts = "";
+    # $old2new[$i] is the new alleleNum of allele $i (for adjusting GT)
+    # REF==0 stays 0
+    my @old2new = (0);
+    my $nextAllNum = 1;
+    foreach my $i (0..$#$altsCalledR) {
+	($altsCalledR->[$i]) || next;
+	$newAlts .= "$alts[$i],";
+	$old2new[$i+1] = $nextAllNum++;
+    }
+    if ($alts[$#alts] eq '<NON_REF>') {
+	($old2new[$#alts+1]) &&
+	    die "E $0 in removeUncalledALTs: it seems NON_REF was called? impossible!\n".join("\t",@$lineR)."\n";
+	$newAlts .= '<NON_REF>';
+	$old2new[$#alts+1] = $nextAllNum++;
+    }
+    elsif ($newAlts) {
+	# remove trailing comma
+	chop($newAlts);
+    }
+    else {
+	$newAlts = '.';
+    }
+
+    # if ALTs didn't change, return immediately
+    ($lineR->[4] eq $newAlts) && return();
+    # otherwise, start working
+    $lineR->[4] = $newAlts;
+
+    # %format: key is a FORMAT key (eg DP), value is the index of that key in FORMAT
+    my %format;
+    {
+	my @format = split(/:/, $lineR->[8]);
+	foreach my $i (0..$#format) {
+	    $format{$format[$i]} = $i ;
+	}
+    }
+
+    # data
+    foreach my $i (9..$#$lineR) {
+	my @thisData = split(/:/, $lineR->[$i]) ;
+	# GT
+	$thisData[0] =~ s~^(\d+)/(\d+)$~$old2new[$1]/$old2new[$2]~;
+	# AD, ADF, ADR
+	foreach my $fkey ("AD", "ADF", "ADR") {
+	    if (($format{$fkey}) && ($thisData[$format{$fkey}])) {
+		my @ad = split(/,/, $thisData[$format{$fkey}]);
+		my $adNew = $ad[0]; # always keep AD* for REF
+		foreach my $alNum (1..$#old2new) {
+		    (defined $old2new[$alNum]) && ($adNew .= ",$ad[$alNum]");
+		}
+		$thisData[$format{$fkey}] = $adNew;
+	    }
+	}
+	# PL
+	if (($format{"PL"}) && ($thisData[$format{"PL"}])) {
+	    # The VCF spec says the PL for x/y genotype is at index x + y*(y+1)/2
+	    my @PLs = split(/,/, $thisData[$format{"PL"}]);
+	    my @newPLs;
+	    # $badPLs for Strelka bug where sometimes PL doesn't have correct number of values
+	    my $badPLs = 0;
+	    foreach my $x (0..$#old2new) {
+		(defined $old2new[$x]) || next;
+		foreach my $y ($x..$#old2new) {
+		    (defined $old2new[$y]) || next;
+		    # alleles $x and $y still exist, grab PL value and save it where it belongs
+		    my $plSource = $x + $y * ($y+1) / 2;
+		    my $plDest = $old2new[$x] + $old2new[$y] * ($old2new[$y]+1) / 2;
+		    # $PLs[$plSource] should always exist according to spec, but Strelka has
+		    # a bug where sometimes values are missing, and we can't know which 
+		    # genotype the existing PLs were for...
+		    # IOW in these cases the PL string really can't be interpreted!
+		    # so we flag it here and then replace the whole PL value with comma-separated '.'
+		    if (defined $PLs[$plSource]) {
+			$newPLs[$plDest] = $PLs[$plSource];
+		    }
+		    else {
+			$newPLs[$plDest] = '.';
+			$badPLs = 1;
+		    }
+		}
+	    }
+	    if ($badPLs) {
+		# wrong number of PL values in Strelka file, replace all values with '.'
+		$thisData[$format{"PL"}] = '.';
+		$thisData[$format{"PL"}] .= ",." x $#newPLs ; # we put one '.' already, need $# more
+	    }
+	    else {
+		$thisData[$format{"PL"}] = join(',', @newPLs);
+	    }
+	}
+	# save updated data
+	$lineR->[$i] = join(':', @thisData);
+    }
+
+    # ALL DONE, @$lineR has been updated
+}
+
+
+###############
+# normalizeVariants, arg:
+# - arrayref, tab-splitted VCF line
+#
+# Perform basic normalization (without left-alignment) of REF+ALTs:
+#  * remove bases present at the end of REF and all ALTs;
+#  * remove bases present at the start of REF and all ALTs, and increase POS accordingly
+#
+# Modifies the VCF line in-place and doesn't return anything.
+sub normalizeVariants {
+    (@_ == 1) ||die "E $0: normalizeVariants needs 1 arg.\n";
+    my ($lineR) = @_;
+
+    my $ref = $lineR->[3];
+    # most REFs are a single base => cannot be normalized -> test first
+    (length($ref) >= 2) || return();
+
+    my @alts = split(/,/,$lineR->[4]);
+    # never normalize <NON_REF> or * : if they are here, store their indexes
+    # in @alts and splice them out (trick: start from the end)
+    my ($nonrefi,$stari) = (-1,-1);
+    foreach my $i (reverse(0..$#alts)) {
+	if ($alts[$i] eq '<NON_REF>') {
+	    $nonrefi = $i;
+	    splice(@alts,$i,1);
+	}
+	elsif ($alts[$i] eq '*') {
+	    $stari = $i;
+	    splice(@alts,$i,1);
+	}
+    }
+
+    # 1. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+    #    common ending bases, remove them (keeping at least 1 base everywhere).
+    while ($ref =~ /\w(\w)$/) {
+	# ref has at least 2 chars
+	my $lastRef = $1;
+	my $removeLast = 1;
+	foreach my $alt (@alts) {
+	    if ($alt !~ /\w$lastRef$/) {
+		# this alt is length one or doesn't end with $lastRef
+		$removeLast = 0;
+		last;
+	    }
+	}
+	if ($removeLast) {
+	    # OK remove last base from REF and all @alts
+	    ($ref =~ s/$lastRef$//) || 
+		die "E $0: WTF can't remove $lastRef from end of $ref\n";
+	    foreach my $i (0..$#alts) {
+		($alts[$i] =~ s/$lastRef$//) || 
+		    die "E $0: WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
+	    }
+	}
+	else {
+	    # can't remove $lastRef, get out of while loop
+	    last;
+	}
+    }
+
+    # 2. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+    #    common starting bases, remove them (keeping at least 1 base everywhere)
+    #    and adjust POS.
+    while ($ref =~ /^(\w)\w/) {
+	my $firstRef = $1;
+	my $removeFirst = 1;
+	foreach my $alt (@alts) {
+	    if ($alt !~ /^$firstRef\w/) {
+		$removeFirst = 0;
+		last;
+	    }
+	}
+	if ($removeFirst) {
+	    ($ref =~ s/^$firstRef//) || 
+		die "E $0: WTF can't remove $firstRef from start of $ref\n";
+	    foreach my $i (0..$#alts) {
+		($alts[$i] =~ s/^$firstRef//) || 
+		    die "E $0: WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
+	    }
+	    $lineR->[1]++;
+	}
+	else {
+	    last;
+	}
+    }
+
+    # place <NON_REF> and/or * back where they belong: need to splice
+    # in correct order, smallest index first
+    if ($stari != -1) {
+	if ($nonrefi == -1) {
+	    splice(@alts, $stari, 0, '*');
+	}
+	elsif ($nonrefi > $stari) {
+	    splice(@alts, $stari, 0, '*');
+	    splice(@alts, $nonrefi, 0, '<NON_REF>');
+	}
+	else {
+	    # nonref needs to be spliced back in first, then *
+	    splice(@alts, $nonrefi, 0, '<NON_REF>');
+	    splice(@alts, $stari, 0, '*');
+	}
+    }
+    elsif ($nonrefi != -1) {
+	splice(@alts, $nonrefi, 0, '<NON_REF>');
+    }
+
+    $lineR->[3] = $ref;
+    $lineR->[4] = join(',',@alts);
 }
 
 

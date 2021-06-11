@@ -7,9 +7,10 @@
 
 # Take as arg a filename containing a list of GVCF filenames (with full path, 
 # possible gzipped, one file per line) with one or more data columns (ie samples).
-# These GVCFs should be produced by Strelka, by GATK4 or by this program.
+# These GVCFs should be produced by Strelka or by GATK4, preferably cleaned up
+# by filterBadCalls.pl, and/or by this program.
 # If you feed random GVCF files you will probably need to adapt the code (although
-# I try to be defensive).
+# I try to be defensive): many aspects of the VCF spec are subject to interpretation...
 # Produce to stdout a GVCF file, where:
 # - header is copied from first file, except: 
 #   all INFO descriptions except END and BLOCKAVG_min30p3a are stripped;
@@ -66,8 +67,7 @@
 # GT:AD:DP:GQ:PL:SB
 # GT:DP:GQ:MIN_DP:PL
 #
-# AF is also accepted as a key (so input can be produced by 
-# our 1_filterBadCalls.pl from grexome-TIMC-Secondary repo).
+# AF is also accepted as a key (so input can be produced by filterBadCalls.pl).
 #
 # In the output files we can change the order of fields and
 # create different combinations. But this script can read 
@@ -93,7 +93,13 @@
 #   the REFs overlap. I'm afraid doing this would result in large
 #   REFs and huge lists of complex ALTs (most of which just describe
 #   a SNV...).
-
+# - if the input GVCFs went through filterBadCalls.pl the variants will
+#   already be normalized, using the same code... However I don't want to
+#   remove the normalization code from here, because I want mergeGVCFs.pl
+#   to remain functional with vanilla GVCFs. Nevertheless, mergeGVCFs will
+#   produce more useful results if the input GVCFs went through filterBadCalls
+#   beforehand, since filterBadCalls does a lot of clean-up and compensates
+#   for many variant-caller bugs^Hfeatures.
 
 
 use strict;

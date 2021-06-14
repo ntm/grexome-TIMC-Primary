@@ -434,7 +434,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 
     # we want to merge the new GVCFs with the most recent previous merged,
     # if there was one. code is a bit ugly but functional
-    my $prevMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | tail -n 1`;
+    my $prevMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz 2> /dev/null | tail -n 1`;
     chomp($prevMerged);
     if ($prevMerged) {
 	open(CHR, "$zgrep -m 1 ^#CHROM $prevMerged |") ||

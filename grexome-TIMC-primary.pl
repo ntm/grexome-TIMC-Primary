@@ -526,7 +526,9 @@ foreach my $pid (@childrenPids) {
 
 $now = strftime("%F %T", localtime);
 my $mess = "I $now: $0 - ALL DONE!\n";
-$mess .= "I $0: Please examine the logs, and if AOK you can remove obsolete merged GVCFs\n";
+$mess .= "I $0: Please examine the logs.\n";
+
+$mess .= "I $0: If AOK you can remove obsolete merged GVCFs if any (keeping 2 for each caller)\n";
 $mess .= "I $0: ";
 
 my $mirror = &mirror();
@@ -536,10 +538,13 @@ $mess .= "with the following commands:\n";
 
 $mess .= "cd $dataDir\n";
 foreach my $caller (sort(keys %callerDirs)) {
-    my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
-    chomp($oldestMerged);
-    $mess .= "rm $oldestMerged\n";
-    $mess .= "rm $oldestMerged.tbi\n";
+    my $nbMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | wc -l`;
+    if ($nbMerged > 2) {
+	my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
+	chomp($oldestMerged);
+	$mess .= "rm $oldestMerged\n";
+	$mess .= "rm $oldestMerged.tbi\n";
+    }
 }
 if ($mirror) {
     $mess .= "rsync -rtvn --delete $bamDir $mirror/$bamDir\n";

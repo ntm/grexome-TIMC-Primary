@@ -118,19 +118,6 @@ $0 = basename($0);
 #############################################
 ## hard-coded stuff that shouldn't change much
 
-# max number of lines to read in a single batch (from the first infile,
-# number of lines from other infiles should be similar). Each batch is then 
-# processed by a worker thread.
-# Increasing $batchSize increases the RAM consumption linearly, but should
-# improve performance due to better read performance (because better OS buffering),
-# less overhead from sub calls, process creations, tmpFiles creations, etc...
-# With 54 files each containing 10 samples (previously merged), each thread
-# uses 1-10 GB RAM with batchSize==10k in my hands;
-# while with 10 single-sample files we're down to 32MB RAM per thread (still
-# batchSize==10k).
-my $batchSize = 100000;
-
-
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied
 # will be skipped.
 # For performance reasons we do NOT check the FT fields for these keys, we assume
@@ -138,6 +125,13 @@ my $batchSize = 100000;
 # with the same %filtersApplied.
 # [see NOTES on FILTERS above for how I chose these]
 my %filtersApplied = ('LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>1);
+
+
+# adaptive strategy parameters for $batchSize: without --batchSize, $batchSize will
+# be adjusted in order to process ($jobs-1) batches in [$batchTimeLow,$batchTimeHigh] seconds
+my $batchSizeAdaptive = 1;
+# aim for between 5m and 30m for ($jobs-1) batches
+my ($batchTimeLow, $batchTimeHigh) = (300,1800);
 
 
 #############################################
@@ -154,6 +148,20 @@ my $config = "$RealBin/grexomeTIMCprim_config.pm";
 # number of parallel jobs to run
 my $jobs = 16;
 
+# $batchSize: max number of lines to read in a single batch from the first infile
+# (number of lines from other infiles should be similar if the files have the same
+# numbers of samples).
+# Each batch is then processed by a worker thread.
+# Increasing $batchSize increases the RAM consumption linearly, but should
+# improve performance due to better read performance (because better OS buffering),
+# less overhead from sub calls, process creations, tmpFiles creations, etc...
+# We have used as low as 5k (merging 550 individual filtered exome-derived GVCFs),
+# and as high as 100k (merging one multi-sample GVCF containing 540 samples with
+# 10 individual GVCFs, all exome-derived).
+# Providing it with --batchSize hard-sets $batchSize, could be useful if you lack RAM.
+# Without --batchSize we start with a low value and use an adaptive strategy
+my $batchSize;
+
 # if $cleanHeaders, don't print ##contig headers except for regular 
 # chroms (1-22, X, Y, M)
 my $cleanHeaders = '';
@@ -169,8 +177,11 @@ has with the GVCFs you provide. If this happens please report the issues so we c
 fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --filelist : file containing a list of GVCF filenames to merge, including paths, one per line
---config ['.$config.'] : your customized copy (with path) of the distributed *config.pm
+--config [defaults to *_config.pm alongside this script] : your customized copy (with path) of the distributed *config.pm
 --jobs ['.$jobs.'] : number of parallel jobs=threads to run
+--batchSize [adaptive] : size of each batch, lower decreases RAM requirements and performance,
+ 	    defaults to an optimized adaptive strategy, you shouldn\'t need to specify this except
+	    if you are running out of RAM (suggested reasonable values: between 5000 and 100000)
 --cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
 --help : print this USAGE';
 
@@ -187,6 +198,7 @@ $addToHeader = "##mergeGVCFs=<commandLine=\"$addToHeader\">\n";
 GetOptions ("filelist=s" => \$fileList,
 	    "config=s" => \$config,
 	    "jobs=i" => \$jobs,
+	    "batchSize=i" => \$batchSize,
 	    "cleanheaders" => \$cleanHeaders,
 	    "help" => \$help)
     or die("E: Error in command line arguments\n\n$USAGE\n");
@@ -208,6 +220,15 @@ if ($jobs <= 2) {
     #  need one thread for eatTmpFiles and at least one worker thread
     warn "W $0: you set jobs=$jobs but we need at least 2 jobs, setting jobs=2 and proceeding\n";
     $jobs = 2;
+}
+
+if ($batchSize) {
+    # disable adaptive strategy
+    $batchSizeAdaptive = 0;
+}
+else {
+    # default inital value
+    $batchSize = 5000;
 }
 
 # Create subdir in &fastTmpPath so we can CLEANUP when we
@@ -364,9 +385,31 @@ my $firstFile = 0;
 # it to happen...
 my %chromsDone;
 
+# timestamp for batchSizeAdaptive strategy
+my $timestampAdaptive = time();
+
 while ($firstFile <= $#infiles) {
     # precondition: we must have a line for file $firstFile in @startNextBatch
     $batchNum++;
+    if (($batchSizeAdaptive) && ($batchNum % ($jobs-1) == 0)) {
+	# jobs-1 because we want #workerThreads, excluding the eatTmpFiles job
+	my $newTime = time();
+	my $elapsed = $newTime - $timestampAdaptive;
+	if ($elapsed < $batchTimeLow) {
+	    # increase batchSize by factor (1.2 * $btLow / $elapsed)
+	    $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
+	    $now = strftime("%F %T", localtime);
+	    warn "I $now: $0 - adjusting batchSize up to $batchSize\n";
+	}
+	elsif ($elapsed > $batchTimeHigh) {
+	    # decrease batchSize by factor $btHigh / (1.2 * $elapsed) 
+	    $batchSize = int($batchSize * $batchTimeHigh / $elapsed / 1.2);
+	    $now = strftime("%F %T", localtime);
+	    warn "I $now: $0 - adjusting batchSize down to $batchSize\n";
+	}
+	$timestampAdaptive = $newTime;
+    }
+
     # chrom to deal with in the current batch, grab it from first file
     my $thisChr = $startNextBatch[$firstFile]->[0] ;
     ($chromsDone{$thisChr}) &&

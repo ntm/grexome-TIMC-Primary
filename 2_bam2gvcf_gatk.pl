@@ -34,7 +34,7 @@ my $inDir;
 # comma-separated list of samples (FASTQs) to process (required)
 my $samples = '';
 
-# dir where GVCF-containing subdirs will be created
+# dir where GVCFs and GATK logfiles will be created
 my $outDir;
 
 # path+name of GATK wrapper distributed with GATK4, defaults to "gatk"
@@ -107,7 +107,7 @@ foreach my $sample (split(/,/, $samples)) {
 }
 
 ($outDir) || 
-    die "E $0: you MUST specify --outdir where GVCF-containing subdirs will be created\n$USAGE\n";
+    die "E $0: you MUST specify --outdir where GVCFs will be created\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
     die "E $0: outDir $outDir doesn't exist as a dir and can't be created\n";
 

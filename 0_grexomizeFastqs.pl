@@ -133,7 +133,7 @@ my $sample2specimenR;
 # key == infile (as found by the glob), value == $sample if file was already used
 my %infilesDone = ();
 
-foreach my $sample (keys %$sample2specimenR) {
+foreach my $sample (sort keys(%$sample2specimenR)) {
     my $specimen = $sample2specimenR->{$sample};
 
     # precise filename patterns for each dataset:

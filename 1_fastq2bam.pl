@@ -110,8 +110,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
     bwa-postalt.js (from bwa-kit) can be found
 --genome string [no default] : ref genome fasta, with path, must be indexed
     with 'bwa-mem2 index' and/or 'bwa index'
---threads N [default = 4] : number of threads for BWA, and also for fastp and
-    samtools if <= 4 (but if > 4 fastp and samtools use only 4 threads)
+--threads N [default = 4] : number of threads for BWA, and also for samtools if <= 4 
+    (but if > 4 samtools uses only 4 threads)
 --real : actually do the work, otherwise this is a dry run, just print 
     info on what would be done
 --help : print this USAGE";
@@ -198,7 +198,7 @@ $bwa = "$binPath$bwa";
 $samblaster = "$binPath$samblaster";
 $samtools = "$binPath$samtools";
 
-# number of threads for fastp and samtools: capped at 4
+# number of threads for samtools: capped at 4
 my $numThreadsCapped = 4;
 ($numThreads < $numThreadsCapped) && ($numThreadsCapped = $numThreads);
 
@@ -251,11 +251,13 @@ foreach my $sample (sort keys(%samples)) {
     my $outFile = "$outDir/$sample";
 
     # fastp: enable autodetection of adaptors (in addition to overlap analysis),
-    # discard json output, keep HTML output (detailed) and log stderr
+    # discard json output, keep HTML output (detailed), use a single thread
+    # (otherwise different runs produce reads in different orders, and this results
+    # in BWA producing different BAMs), and log stderr
     # other stuff is left at default, ie: no quality trimming, quality 
     # filtering filters reads with >5 N's or >40% low-qual (Q<15) bases,
     # length filtering filters reads shorter than 15 bp
-    my $com = "$fastp --stdout --in1 $f1 --in2 $f2 --detect_adapter_for_pe --json /dev/null --html ${outFile}_fastp.html --thread $numThreadsCapped 2> ${outFile}_fastp.log | ";
+    my $com = "$fastp --stdout --in1 $f1 --in2 $f2 --detect_adapter_for_pe --json /dev/null --html ${outFile}_fastp.html --thread 1 2> ${outFile}_fastp.log | ";
     
     # BWA: -p (interleaved fastq), -R to add read group info,
     # -K 100000000 to make bwa reproducible (otherwise you can get different 

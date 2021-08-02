@@ -48,7 +48,8 @@ my $gvcfDir = "GVCFs_grexome/";
 # order Raw - Filtered - Merged ($dataDir/$gvcfDir will be prepended soon):
 my %callerDirs = (
     "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
-    "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"]);
+    "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"],
+    "elprep" => ["GVCFs_ElPrep_Raw/","GVCFs_ElPrep_Filtered/","GVCFs_ElPrep_Filtered_Merged/"]);
 
 
 #############################################
@@ -356,6 +357,9 @@ foreach my $caller (sort(keys %callerDirs)) {
 	(-e $b2gBin) ||
 	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
 	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $callerWorkDir --jobs $jobs --config $config --real";
+	#elPrep-specific args
+	($caller eq "elprep") && ($com .= " --mode filter --logdir $callerWorkDir");
+
 	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 
 	##################
@@ -389,6 +393,17 @@ foreach my $caller (sort(keys %callerDirs)) {
 		}
 	    }
 	    rmdir($callerWorkDir) || die "E $0: cannot rmdir gatk callerWorkDir $callerWorkDir: $!";
+	}
+	elsif ($caller eq "elprep") {
+	    # don't yet know what to expect in elprep logs when something goes wrong,
+	    # for now just hope that it returns non-zero if there's a problem, we are
+	    # keeping the logs so we can investigate if something is fishy...
+	    # move elPrep GVCFs into $gvcfDir subtree
+	    foreach my $s (split(/,/,$samples)) {
+		my $file = "$s.g.vcf.gz";
+		move("$callerWorkDir/$file", $callerDirs{"elprep"}->[0]) ||
+		    die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{"elprep"}->[0]." : $!";
+	    }
 	}
 	else {
 	    die "E $0: new caller $caller, need to implement log-checking and house-keeping after bam2gvcf\n";

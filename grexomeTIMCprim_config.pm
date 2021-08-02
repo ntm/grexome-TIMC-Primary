@@ -17,7 +17,7 @@ our @ISA = ('Exporter');
 # we never "use grexomeTIMCprim_config" but instead provide the
 # customized *config.pm as an argument, see --config in grexome-TIMC-primary.pl
 # for an example.
-our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeChromsBed fastTmpPath);
+our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed fastTmpPath);
 
 
 #################################################################
@@ -63,6 +63,21 @@ sub refGenome {
     }
     # if we get here no file was found...
     die "E: no refGenome found, you need to edit *config.pm";
+}
+
+# Return the reference human genome in the elPrep5 elfasta format, with path
+# This can be produced with eg:
+# elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path .
+sub refGenomeElPrep {
+    # return the first file that exists, so this works on
+    # both luxor and fauve
+    foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.elfasta",
+			"/data/HumanGenome/hs38DH.elfasta",
+			"/bettik/nthierry/HumanGenome/hs38DH.elfasta") {
+	(-f $genome) && return($genome);
+    }
+    # if we get here no file was found...
+    die "E: no refGenome.elfasta found, you need to edit *config.pm";
 }
 
 # Full path to gzipped hs38_chrom-only BED file, with the full

@@ -564,11 +564,11 @@ foreach my $caller (sort(keys %callerDirs)) {
 if ($mirror) {
     $mess .= "rsync -rtvn --delete $bamDir $mirror/$bamDir\n";
     $mess .= "rsync -rtvln --delete $allBamsDir $mirror/$allBamsDir\n";
-    $mess .= "rsync -rtvn --delete $gvcfDir $mirror/$gvcfDir\n";
+    $mess .= "rsync -rtvln --delete $gvcfDir $mirror/$gvcfDir\n";
     $mess .= "## redo without -n if AOK:\n";
     $mess .= "rsync -rtv --delete $bamDir $mirror/$bamDir\n";
     $mess .= "rsync -rtvl --delete $allBamsDir $mirror/$allBamsDir\n";
-    $mess .= "rsync -rtv --delete $gvcfDir $mirror/$gvcfDir\n";
+    $mess .= "rsync -rtvl --delete $gvcfDir $mirror/$gvcfDir\n";
 }
 
 warn "$mess\n";

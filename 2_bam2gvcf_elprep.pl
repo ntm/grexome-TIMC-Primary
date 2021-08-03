@@ -16,6 +16,7 @@ use POSIX qw(strftime);
 use File::Basename qw(basename);
 use File::Temp qw(tempdir);
 use FindBin qw($RealBin);
+use Parallel::ForkManager;
 
 
 # we use $0 in every stderr message but we really only want
@@ -26,9 +27,11 @@ $0 = basename($0);
 ## options / params from the command-line
 
 # elprep offers 2 possible modes:
-# - filter needs a lot of RAM but should run faster
+# - filter needs a LOT of RAM but should run faster
 # - sfm == split-filter-merge splits by chromosome, less RAM, more temp HDD, slower
-my $mode = "filter";
+# In filter mode we process samples sequentially (to avoid the OOM-killer),
+# while in sfm mode we run up to min($jobs, $#samples) elprep jobs in parallel.
+my $mode = "sfm";
 
 # subdir where BAMs can be found
 my $inDir;
@@ -51,8 +54,11 @@ my $elprep = "elprep";
 # you can also copy it elsewhere and customize it, then use --config
 my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
-# number of threads, if unspecified elprep defaults to the number of cpu threads
-my $jobs;
+# number of available cores:
+# - in sfm mode we process up to $jobs samples in parallel and each process
+#   gets as many threads as possible to aim for ~ $jobs threads in total;
+# - in filter mode we run elprep jobs sequentially, each with $jobs threads.
+my $jobs = 16;
 
 # $real: if not true don't actually process anything, just print INFO 
 # messages on what would be done. Default to false
@@ -71,7 +77,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --logdir [$logDir] : dir where elprep logs will be created
 --elprep [default to \"$elprep\" which should be in PATH] : full path to elprep executable
 --config [$config] : your customized copy (with path) of the distributed *config.pm
---jobs : number of threads that elprep can use, defaults to the number of CPU threads
+--jobs [$jobs] : number of cores/threads/jobs that we can use
 --real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
 
@@ -106,12 +112,14 @@ grexomeTIMCprim_config->import( qw(refGenomeElPrep refGenomeChromsBed fastTmpPat
 
 # save samples in %samples to detect duplicates and allow sorting
 my %samples;
+my $nbSamples = 0;
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
 	warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
 	next;
     }
     $samples{$sample} = 1;
+    $nbSamples++;
 }
 
 ($outDir) || 
@@ -123,8 +131,6 @@ foreach my $sample (split(/,/, $samples)) {
 (`which $elprep` =~ /$elprep$/) ||
     die "E $0: cannot find elprep binary, you must provide it with --elprep\n";
 
-my $now = strftime("%F %T", localtime);
-warn "I $now: $0 - STARTING TO WORK\n";
 
 #############################################
 
@@ -133,13 +139,22 @@ my $refGenome = &refGenomeElPrep();
 # BED with chromosomes 1-22, X, Y, M
 my $chromsBed = &refGenomeChromsBed();
 
+# elprep threads for each sample, and number of samples to process in parallel
+my ($threadsPerSample, $samplesInPara) = ($jobs,1);
+if ($mode eq 'sfm') {
+    $threadsPerSample = int (0.5 + $jobs / $nbSamples);
+    # at least one thread, even if tons of samples
+    ($threadsPerSample) || ($threadsPerSample=1);
+    $samplesInPara = $jobs;
+    ($nbSamples < $jobs) && ($samplesInPara = $nbSamples);
+}
+
 #############################################
 ## build generic elPrep command-line:
 # -> $cmdStart $bamIn $bamOut --haplotypecaller $gvcf $cmdEnd
 
 my $cmdStart = "$elprep $mode ";
-my $cmdEnd = " ";
-($jobs) && ($cmdEnd .= "--nr-of-threads $jobs ");
+my $cmdEnd = " --nr-of-threads $threadsPerSample ";
 $cmdEnd .= "--reference $refGenome ";
 $cmdEnd .= "--log-path $logDir ";
 # limit to regular chromosomes (no decoy, unmapped, HLA etc)
@@ -169,6 +184,12 @@ if ($mode eq 'sfm') {
 #############################################
 ## call variants
 
+my $pm = new Parallel::ForkManager($samplesInPara);
+{
+    my $now = strftime("%F %T", localtime);
+    warn "I $now: $0 - STARTING TO WORK, mode $mode processing $samplesInPara samples in parallel each with $threadsPerSample threads\n";
+}
+
 foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
     my $bam = "$inDir/$sample.bam";
@@ -189,6 +210,7 @@ foreach my $sample (sort keys(%samples)) {
         warn "I $0: dryrun, would run elPrep5-HaplotypeCaller for $sample with:\n$fullCmd\n";
     }
     else {
+	$pm->start && next;
 	my $now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting elPrep5-HaplotypeCaller for $sample\n";
         if (system($fullCmd) != 0) {
@@ -199,9 +221,13 @@ foreach my $sample (sort keys(%samples)) {
 	    $now = strftime("%F %T", localtime);
 	    warn "I $now: $0 - running elPrep5-HaplotypeCaller for $sample completed successfully\n";
 	}
+        $pm->finish;
     }
 }
+$pm->wait_all_children;
 
-$now = strftime("%F %T", localtime);
-warn "I $now: $0 - ALL DONE\n";
+{
+    my $now = strftime("%F %T", localtime);
+    warn "I $now: $0 - ALL DONE\n";
+}
 

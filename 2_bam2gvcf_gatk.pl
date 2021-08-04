@@ -46,12 +46,13 @@ my $gatk = "gatk";
 # you can also copy it elsewhere and customize it, then use --config
 my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
-# number of parallel jobs to run.
+# number of available cores.
 # NOTE: GATK4 is mostly single-threaded and it's not possible to run it
-# multi-threaded! So we run it in parallel on $jobs samples.
-# Omar benchmarked this on luxor: in his hands, 
-# $jobs==1 => ~2hours/sample, $jobs==15 => ~20min/sample.
-my $jobs = 15;
+# multi-threaded! So we run it in parallel on up to $samplesInPara = $jobs/2
+# samples in parallel, assuming each run uses ~2 threads on average.
+# Omar benchmarked this on luxor (which has 20 cores = 40 threads with HT):
+# in his hands, $samplesInPara==1 => ~2hours/sample, $samplesInPara==15 => ~20min/sample.
+my $jobs = 20;
 
 # $real: if not true don't actually process anything, just print INFO 
 # messages on what would be done. Default to false
@@ -68,7 +69,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --outdir : dir where GVCF files will be created
 --gatk [default to \"$gatk\" which should be in PATH] : full path to gatk executable
 --config [$config] : your customized copy (with path) of the distributed *config.pm
---jobs [$jobs] : number of samples to process in parallel
+--jobs [$jobs] : number of cores/threads/jobs that we can use
 --real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
 
@@ -126,6 +127,9 @@ my $chromsBed = &refGenomeChromsBed();
 # tmp dir
 my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
 
+# number of samples to process in parallel
+my $samplesInPara = int(($jobs+1) / 2);
+
 #############################################
 ## build the generic GATK command-line common for all samples
 
@@ -171,7 +175,7 @@ $cmd .= " --tmp-dir $tmpDir";
 #############################################
 ## call variants
 
-my $pm = new Parallel::ForkManager($jobs);
+my $pm = new Parallel::ForkManager($samplesInPara);
 {
     my $now = strftime("%F %T", localtime);
     warn "I $now: $0 - STARTING TO WORK\n";

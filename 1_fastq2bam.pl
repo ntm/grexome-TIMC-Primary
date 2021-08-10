@@ -71,6 +71,9 @@ my $outDir = '';
 # path to programs used (fastp etc...), empty string seaches in $PATH,
 # otherwise it must be a slash-terminated path (but we add trailing 
 # slash if needed)
+# If your binaries are in various dirs all over the place, you should
+# create a subdir somewhere and symlink all the required binaries there,
+# then use that subdir as binPath
 my $binPath = '';
 
 # also need path to bwa-kit subdir (with k8 and bwa-postalt.js),

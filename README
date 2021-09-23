@@ -1,7 +1,7 @@
 Exome pipeline from TIMC in Grenoble - primary analyses:
 from FASTQs to a single multi-sample GVCF per variant-caller.
 
-The pipeline currently performs variant-calling independently with Strelka2 and GATK4.
+The pipeline currently performs variant-calling independently with Strelka2, GATK4 and elPrep5.
 
 
 EXAMPLE USAGE:
@@ -10,7 +10,7 @@ perl grexome-TIMC-Primary/grexome-TIMC-primary.pl --samplesFile=Grexome_Metadata
 
 This will "process" every sampleID in samples.xlsx, ie:
 - produce analysis-ready BAMs (trim, align, mark dupes, sort);
-- produce individual GVCFs with GATK4 and STRELKA2;
+- produce individual GVCFs with STRELKA2, GATK4 and ELPREP5;
 - fix variant-caller quirks and bugs, filter low-quality variant calls;
 - produce a single multi-sample merged GVCF per variant-caller.
 
@@ -50,8 +50,9 @@ Other modules: Parallel::ForkManager, Spreadsheet::XLSX.
 In addition, we use the following programs. They must be installed and should be in your PATH, but you can easily customize their names and paths if needed (check the scripts).
 grexome-TIMC-primary.pl: bgzip, tabix, zgrep;
 1_fastq2bam.pl: fastp, bwa OR bwa-mem2, samblaster, samtools, bwa-postalt.js and k8 from Heng Li's BWA-kit package;
+2_bam2gvcf_strelka.pl: configureStrelkaGermlineWorkflow.py (from STRELKA2);
 2_bam2gvcf_gatk.pl: gatk (from GATK4);
-2_bam2gvcf_strelka.pl: configureStrelkaGermlineWorkflow.py (from STRELKA2)
+2_bam2gvcf_elprep.pl: elprep (from ELPREP5)
 
 
 OTHER REPO CONTENT:

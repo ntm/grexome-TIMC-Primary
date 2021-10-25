@@ -45,7 +45,9 @@ my $gvcfDir = "GVCFs_grexome/";
 # for each caller we produce raw GVCFs, then filter them, and finally
 # merge them.
 # $callerDirs{$caller} is a ref to an array of 3 dirs for $caller, in the
-# order Raw - Filtered - Merged ($dataDir/$gvcfDir will be prepended soon):
+# order Raw - Filtered - Merged ($dataDir/$gvcfDir will be prepended soon).
+# Here %callerDirs is a template for every variant-caller this pipeline knows,
+# --callers will specify the variant-callers to actually use
 my %callerDirs = (
     "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
     "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"],
@@ -76,6 +78,10 @@ my $samplesFile;
 # outfile already exists)
 my $SOIs;
 
+# comma-separated list of variant-callers to use, default to none ie
+# only produce BAMs
+my $callers = "";
+
 # workDir must not exist, it will be created and populated
 my $workDir;
 
@@ -92,7 +98,7 @@ my $help = '';
 
 my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from \"grexomized\" FASTQs and:
 - produce BAMs with fastq2bam.pl (trim, align, mark dupes, sort);
-- for each specified variant-caller:
+- for each specified variant-caller (if any):
      produce individual GVCFs with bam2gvcf_\$caller.pl;
      filter low-quality variant calls with filterBadCalls.pl;
      produce a merged GVCF per variant-caller with mergeGVCFs.pl.
@@ -110,7 +116,7 @@ FASTQ files in \$fastqDir (defined in *config.pm), and these files must be named
 \$sample_1.fq.gz and \$sample_2.fq.gz .
 
 BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of this script,
-all within \$dataDir (defined in *config.pm) which you should customize. The hierarchy 
+all within \$dataDir that you should customize (defined in *config.pm). The hierarchy 
 can also be modified if desired.
 Logs and copies of the metadata are produced in the provided \$workDir .
 
@@ -120,6 +126,7 @@ in grexomeTIMCprim_config.pm.
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --samplesFile : samples metadata xlsx file, with path
 --SOIs : optional, comma-separated list of \"samples of interest\" to process
+--callers [default: none, ie only produce BAMs]: comma-separated list of variant-callers to use among ".join(',',keys(%callerDirs))."
 --workdir : subdir where logs and workfiles will be created, must not pre-exist
 --jobs [$jobs] : approximate number of threads/jobs that we should run
 --config [defaults to grexomeTIMCprim_config.pm alongside this script] : your customized copy of *config.pm
@@ -127,6 +134,7 @@ Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 
 GetOptions ("samplesFile=s" => \$samplesFile,
 	    "SOIs=s" => \$SOIs,
+	    "callers=s" => \$callers,
 	    "workdir=s" => \$workDir,
 	    "jobs=i" => \$jobs,
 	    "config=s" => \$config,
@@ -138,6 +146,24 @@ GetOptions ("samplesFile=s" => \$samplesFile,
 
 ($samplesFile) || die "E $0: you must provide a samples metadata file. Try $0 --help\n";
 (-f $samplesFile) || die "E $0: the supplied samples metadata file doesn't exist: $samplesFile\n";
+
+{
+    # make sure every requested caller is known
+    my %requestedCallers;
+    foreach my $c (split(/,/,$callers)) {
+	# silently allow uppercase or mixed-case
+	my $cLow = lc($c);
+	defined($callerDirs{$cLow}) ||
+	    die "E $0: the provided variant-caller $c is unknown, this pipeline only knows ".
+	    join(',',keys(%callerDirs))."\n";
+	# OK remember this caller was requested
+	$requestedCallers{$cLow} = 1;
+    }
+    # now delete %callerDirs entries for non-requested callers
+    foreach my $c (keys(%callerDirs)) {
+	($requestedCallers{$c}) || (delete $callerDirs{$c});
+    }
+}
 
 # immediately import $config, so we die if file is broken
 # if $config doesn't have a path component, prepend ./ to avoid loading the dist version

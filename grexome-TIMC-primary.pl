@@ -464,7 +464,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	}
 	if (! -e "$gvcf.tbi") {
 	    # index filtered GVCF
-	    $com = "$tabix -p vcf $gvcf";
+	    my $com = "$tabix -p vcf $gvcf";
 	    system($com) && die "E $0: tabix-index for individual GVCF $gvcf FAILED: $?";
 	}
     }

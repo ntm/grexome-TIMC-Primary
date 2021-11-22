@@ -53,6 +53,11 @@ my %callerDirs = (
     "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"],
     "elprep" => ["GVCFs_ElPrep_Raw/","GVCFs_ElPrep_Filtered/","GVCFs_ElPrep_Filtered_Merged/"]);
 
+# merging occurs in batches of up to $mergeBatchSize, and in a second step
+# the per-batch merged GVCFs are merged together.
+# This is a performance tuning param that doesn't change the final results
+my $mergeBatchSize = 25;
+
 
 #############################################
 ## programs that we use
@@ -477,11 +482,9 @@ foreach my $caller (sort(keys %callerDirs)) {
     # samples in prevMerged, to avoid dupes
     my %samplesPrev;
 
-    # make batchfile with list of GVCFs to merge
-    my $batchFile = "$workDir/batchFile_$caller.txt";
-    open(BATCH, ">$batchFile") ||
-	die "E $0: cannot create $caller batchFile $batchFile: $!\n";
-
+    # array of filenames (with path) of the new filtered GVCFs
+    my @newToMerge = ();
+    
     # we want to merge the new GVCFs with the most recent previous merged,
     # if there was one. code is a bit ugly but functional
     my $prevMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz 2> /dev/null | tail -n 1`;
@@ -500,24 +503,75 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    $samplesPrev{$s} = 1;
 	}
 	close(CHR);
-	print BATCH "$prevMerged\n";
     }
-
-    # only merge if there's at least one new sample
-    my $doMerge = 0;
+    
     foreach my $s (sort(keys %samples)) {
 	# only merge $s if it's not already in prevMerged
 	if (! $samplesPrev{$s}) {
-	    print BATCH $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz\n";
-	    $doMerge = 1;
+	    push(@newToMerge, $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz");
 	}
     }
-    close(BATCH);
 
-    if ($doMerge) {
+    # if we have more than $mergeBatchSize new GVCFs, merge them in batches
+    if (@newToMerge >= $mergeBatchSize) {
+	my $batchNum = 0;
+	my @batchFiles;
+	my $batchFH;
+	foreach my $i (0..$#newToMerge) {
+	    if ($i % $mergeBatchSize == 0) {
+		$batchNum++;
+		($batchFH) && close($batchFH);
+		my $batchFile = "$workDir/batchFile_${caller}_BATCH$batchNum.txt";
+		push(@batchFiles, $batchFile);
+		open($batchFH, ">$batchFile") ||
+		    die "E $0: cannot create $caller batchFile $batchFile: $!\n";
+	    }
+	    print $batchFH $newToMerge[$i]."\n";
+	}
+	# close last batchFile
+	close($batchFH);
+
+	# merge each batch
+	my @batchGVCFs;
+	foreach my $b (1..$batchNum) {
+	    my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_${date}_BATCH$b.g.vcf.gz";
+	    (-e $newMerged) &&
+		die "E $0: want to batchwise-merge GVCFs but newMerged already exists: $newMerged\n";
+	    push(@batchGVCFs, $newMerged);
+	    my $batchFile = $batchFiles[$b-1];
+	    # -> merge:
+	    my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --config $config --cleanheaders --jobs $jobs ";
+	    # uncomment below to make separate logs for merge
+	    # $com .= " 2> $workDir/merge_${caller}_BATCH${batch}.log ";
+	    # NOTE we are piping to bgzip -@8 , so we exceed $jobs quite a bit.
+	    # if this turns into a problem we can tune it down (eg $jobsFilter)
+	    $com .= "| $bgzip -c -\@8 > $newMerged";
+	    $now = strftime("%F %T", localtime);
+	    warn "I $now: $0 - starting to batchwise-merge $caller GVCFs batch $b\n";
+	    system($com) && die "E $0: batchwise-mergeGvcfs for $caller batch $b FAILED: $?";
+	    $now = strftime("%F %T", localtime);
+	    warn "I $now: $0 - batchwise-merging $caller GVCFs batch $b DONE\n";
+ 	}
+
+	# now replace individual files in @newToMerge by the new batchwise GVCFs,
+	# so the final merge works the same whether we did batchwise merging or not
+	@newToMerge = @batchGVCFs;
+    }
+
+    # only merge if there's at least one new sample
+    if (@newToMerge) {
 	my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_$date.g.vcf.gz";
 	(-e $newMerged) &&
 	    die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
+	# make batchfile with list of GVCFs to merge
+	my $batchFile = "$workDir/batchFile_$caller.txt";
+	open(my $bf, ">$batchFile") ||
+	    die "E $0: cannot create $caller batchFile $batchFile: $!\n";
+	($prevMerged) && (print $bf "$prevMerged\n");
+	foreach my $new (@newToMerge) {
+	    print $bf "$new\n";
+	}
+	close($bf);
 
 	# -> merge:
 	# NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
@@ -556,11 +610,9 @@ foreach my $caller (sort(keys %callerDirs)) {
 	}
     }
     else {
-	# every sample is already in $prevMerged, nothing to do except clean up
+	# every sample is already in $prevMerged, nothing to do
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - merging $caller GVCFs not needed, no new samples\n";
-	unlink($batchFile) ||
-	    die "E $now: $0 - failed to unlink batchFile $batchFile: $!";
     }
 }
 
@@ -585,13 +637,18 @@ $mess .= "with the following commands:\n";
 
 $mess .= "cd $dataDir\n";
 foreach my $caller (sort(keys %callerDirs)) {
-    my $nbMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | wc -l`;
-    if ($nbMerged > 2) {
-	my $oldestMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | head -n 1`;
-	chomp($oldestMerged);
-	$mess .= "rm $oldestMerged\n";
-	$mess .= "rm $oldestMerged.tbi\n";
+    my @GvcfsToRm = split("\n",`ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | grep -v _BATCH`);
+    # keep two most recent
+    pop(@GvcfsToRm);
+    pop(@GvcfsToRm);
+    my @TBIsToRm;
+    foreach my $gvcf (@GvcfsToRm) {
+	(-e "$gvcf.tbi") && push(@TBIsToRm,"$gvcf.tbi");
     }
+    # batchwise merged GVCFs were temp, remove them all
+    push(@GvcfsToRm, split("\n",`ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | grep _BATCH`));
+    (@GvcfsToRm) && ($mess .= "rm ".join(" ", @GvcfsToRm)."\n");
+    (@TBIsToRm) && ($mess .= "rm ".join(" ", @TBIsToRm)."\n");
 }
 if ($mirror) {
     $mess .= "rsync -rtvn --delete $bamDir $mirror/$bamDir\n";

@@ -448,19 +448,25 @@ foreach my $caller (sort(keys %callerDirs)) {
     ################################
     # filter INDIVIDUAL GVCFs
     foreach my $s (sort(keys %samples)) {
-	# samples to process: those without a filtered GVCF
+	# samples to filter: those without a filtered GVCF
 	my $gvcf = $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz";
-	(-e $gvcf) && next;
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - starting filter of $caller $s\n";
-	my $com = "$bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
-	# giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-4)
-	my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
-	my $jobsFilter = $jf1;
-	($jf2 > $jf1) && ($jobsFilter = $jf2);
-	$com .= "perl $RealBin/3_filterBadCalls.pl --samplesFile=$samplesFile --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
-	$com .= "$bgzip -c -\@2 > $gvcf";
-	system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
+	if (! -e $gvcf) {
+	    $now = strftime("%F %T", localtime);
+	    warn "I $now: $0 - starting filter of $caller $s\n";
+	    my $com = "$bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
+	    # giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-4)
+	    my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
+	    my $jobsFilter = $jf1;
+	    ($jf2 > $jf1) && ($jobsFilter = $jf2);
+	    $com .= "perl $RealBin/3_filterBadCalls.pl --samplesFile=$samplesFile --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
+	    $com .= "$bgzip -c -\@2 > $gvcf";
+	    system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
+	}
+	if (! -e "$gvcf.tbi") {
+	    # index filtered GVCF
+	    $com = "$tabix -p vcf $gvcf";
+	    system($com) && die "E $0: tabix-index for individual GVCF $gvcf FAILED: $?";
+	}
     }
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - filtering $caller GVCFs DONE\n";
@@ -532,7 +538,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	# -> fork a process for it so we can start working with the next $caller
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - indexing merged $caller GVCF\n";
-	$com = "$tabix $newMerged";
+	$com = "$tabix -p vcf $newMerged";
 	my $pid = fork();
 	(defined $pid) ||
 	    die "E $0: could not fork for tabix-indexing $caller merged\n";

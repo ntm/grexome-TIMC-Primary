@@ -14,7 +14,6 @@ use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
 use File::Basename qw(basename);
-use File::Temp qw(tempdir);
 use FindBin qw($RealBin);
 use Parallel::ForkManager;
 
@@ -41,6 +40,10 @@ my $samples = '';
 
 # dir where GVCFs will be created
 my $outDir;
+
+# tmpDir, must not pre-exist and will be rm'd, faster is better 
+# (ramdisk or at least SSD)
+my $tmpDir;
 
 # dir for logs
 my $logDir = "logs_elPrep/";
@@ -74,6 +77,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
 --outdir : dir where GVCF files will be created
+--tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --logdir [$logDir] : dir where elprep logs will be created
 --elprep [default to \"$elprep\" which should be in PATH] : full path to elprep executable
 --config [$config] : your customized copy (with path) of the distributed *config.pm
@@ -86,6 +90,7 @@ GetOptions ("mode=s" => \$mode,
 	    "indir=s" => \$inDir,
 	    "samples=s" => \$samples,
 	    "outdir=s" => \$outDir,
+	    "tmpdir=s" => \$tmpDir,
 	    "logdir=s" => \$logDir,
 	    "elprep=s" => \$elprep,
 	    "config=s" => \$config,
@@ -100,7 +105,7 @@ GetOptions ("mode=s" => \$mode,
 # immediately import $config, so we die if file is broken
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
 require($config);
-grexomeTIMCprim_config->import( qw(refGenomeElPrep refGenomeChromsBed fastTmpPath) );
+grexomeTIMCprim_config->import( qw(refGenomeElPrep refGenomeChromsBed) );
 
 ($mode eq 'filter') || ($mode eq 'sfm') ||
     die "E $0: illegal --mode, you must use filter or sfm\n$USAGE\n";
@@ -131,6 +136,10 @@ foreach my $sample (split(/,/, $samples)) {
 (`which $elprep` =~ /$elprep$/) ||
     die "E $0: cannot find elprep binary, you must provide it with --elprep\n";
 
+($tmpDir) || die "E $0: you must provide a tmpDir\n";
+(-e $tmpDir) && 
+    die "E $0: found argument $tmpDir but it already exists, remove it or choose another name.\n";
+mkdir($tmpDir) || die "E $0: cannot mkdir tmpDir $tmpDir\n";
 
 #############################################
 
@@ -164,7 +173,6 @@ $cmdEnd .= "--target-regions $chromsBed ";
 
 # tmpDir: only in sfm mode, elprep dies if we use --tmp-path in filter mode
 if ($mode eq 'sfm') {
-    my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
     $cmdEnd .= "--tmp-path $tmpDir ";
 }
 
@@ -228,6 +236,8 @@ $pm->wait_all_children;
 
 {
     my $now = strftime("%F %T", localtime);
+    rmdir($tmpDir) || 
+	die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
     warn "I $now: $0 - ALL DONE\n";
 }
 

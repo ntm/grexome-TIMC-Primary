@@ -387,9 +387,11 @@ foreach my $caller (sort(keys %callerDirs)) {
 	my $b2gBin = "$RealBin/2_bam2gvcf_$caller.pl";
 	(-e $b2gBin) ||
 	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
-	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $callerWorkDir --jobs $jobs --config $config --real";
-	#elPrep-specific args
-	($caller eq "elprep") && ($com .= " --mode sfm --logdir $callerWorkDir");
+	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $callerWorkDir --jobs $jobs --real";
+	#caller-specific args
+	($caller eq "gatk") && ($com .= " --tmpdir=$tmpDir/gatk");
+	($caller eq "elprep") && ($com .= " --tmpdir=$tmpDir/elprep --mode sfm --logdir $callerWorkDir");
+
 
 	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 

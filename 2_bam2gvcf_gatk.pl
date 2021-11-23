@@ -15,7 +15,6 @@ use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
 use File::Basename qw(basename);
-use File::Temp qw(tempdir);
 use FindBin qw($RealBin);
 use Parallel::ForkManager;
 
@@ -36,6 +35,10 @@ my $samples = '';
 
 # dir where GVCFs and GATK logfiles will be created
 my $outDir;
+
+# tmpDir, must not pre-exist and will be rm'd, faster is better 
+# (ramdisk or at least SSD)
+my $tmpDir;
 
 # path+name of GATK wrapper distributed with GATK4, defaults to "gatk"
 # which should be in your PATH
@@ -67,6 +70,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
 --outdir : dir where GVCF files will be created
+--tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --gatk [default to \"$gatk\" which should be in PATH] : full path to gatk executable
 --config [$config] : your customized copy (with path) of the distributed *config.pm
 --jobs [$jobs] : number of cores/threads/jobs that we can use
@@ -77,6 +81,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 GetOptions ("indir=s" => \$inDir,
 	    "samples=s" => \$samples,
 	    "outdir=s" => \$outDir,
+	    "tmpdir=s" => \$tmpDir,
 	    "gatk=s" => \$gatk,
 	    "config=s" => \$config,
 	    "jobs=i" => \$jobs, 
@@ -90,7 +95,7 @@ GetOptions ("indir=s" => \$inDir,
 # immediately import $config, so we die if file is broken
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
 require($config);
-grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed fastTmpPath) );
+grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
 
 ($inDir) ||
     die "E $0: you MUST provide --indir where BAMs can be found\n$USAGE\n";
@@ -118,14 +123,17 @@ foreach my $sample (split(/,/, $samples)) {
     (`which $gatk` =~ /$gatk$/) ||
     die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n";
 
+($tmpDir) || die "E $0: you must provide a tmpDir\n";
+(-e $tmpDir) && 
+    die "E $0: found argument $tmpDir but it already exists, remove it or choose another name.\n";
+mkdir($tmpDir) || die "E $0: cannot mkdir tmpDir $tmpDir\n";
+
 #############################################
 
 # ref genome and BED with chromosomes 1-22, X, Y, M
 my $refGenome = &refGenome();
 my $chromsBed = &refGenomeChromsBed();
 
-# tmp dir
-my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
 
 # number of samples to process in parallel
 my $samplesInPara = int(($jobs+1) / 2);
@@ -225,5 +233,7 @@ $pm->wait_all_children;
 
 {
     my $now = strftime("%F %T", localtime);
+    rmdir($tmpDir) || 
+	die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
     warn "I $now: $0 - ALL DONE\n";
 }

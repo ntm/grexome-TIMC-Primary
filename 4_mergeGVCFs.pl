@@ -108,8 +108,7 @@ use Getopt::Long;
 use Parallel::ForkManager;
 use POSIX qw(strftime);
 use File::Basename qw(basename);
-use FindBin qw($RealBin);
-use File::Temp qw(tempdir);
+
 
 # we use $0 in every stderr message but we really only want
 # the program name, not the path
@@ -140,10 +139,8 @@ my ($batchTimeLow, $batchTimeHigh) = (300,1800);
 # file containing list of GVCFs, no default
 my $fileList;
 
-# path+file of the config file holding all install-specific params,
-# defaults to the distribution-povided file that you can edit but
-# you can also copy it elsewhere and customize it, then use --config
-my $config = "$RealBin/grexomeTIMCprim_config.pm";
+# tmpDir, must not pre-exist and will be rm'd
+my $tmpDir;
 
 # number of parallel jobs to run
 my $jobs = 16;
@@ -177,7 +174,7 @@ has with the GVCFs you provide. If this happens please report the issues so we c
 fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --filelist : file containing a list of GVCF filenames to merge, including paths, one per line
---config [defaults to *_config.pm alongside this script] : your customized copy (with path) of the distributed *config.pm
+--tmpdir : subdir where tmp files will be created (on a RAMDISK if possible), must not pre-exist and will be removed after execution
 --jobs ['.$jobs.'] : number of parallel jobs=threads to run
 --batchSize [adaptive] : size of each batch, lower decreases RAM requirements and performance,
  	    defaults to an optimized adaptive strategy, you shouldn\'t need to specify this except
@@ -196,7 +193,7 @@ chomp($addToHeader);
 $addToHeader = "##mergeGVCFs=<commandLine=\"$addToHeader\">\n";
 
 GetOptions ("filelist=s" => \$fileList,
-	    "config=s" => \$config,
+	    "tmpdir=s" => \$tmpDir,
 	    "jobs=i" => \$jobs,
 	    "batchSize=i" => \$batchSize,
 	    "cleanheaders" => \$cleanHeaders,
@@ -206,15 +203,15 @@ GetOptions ("filelist=s" => \$fileList,
 # make sure required options were provided and sanity check them
 ($help) && die "$USAGE\n\n";
 
-# immediately import $config, so we die if file is broken
-(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
-require($config);
-grexomeTIMCprim_config->import( qw(fastTmpPath) );
-
 ($fileList) ||
     die "E $0: you MUST provide a list of GVCFs to merge in a file, with --filelist.\n$USAGE\n";
 (-f $fileList) ||
     die "E $0: provided --filelist $fileList doesn't exist or can't be read\n";
+
+($tmpDir) || die "E $0: you must provide a tmpDir\n";
+(-e $tmpDir) && 
+    die "E $0: found argument $tmpDir but it already exists, remove it or choose another name.\n";
+mkdir($tmpDir) || die "E $0: cannot mkdir tmpDir $tmpDir\n";
 
 if ($jobs <= 2) {
     #  need one thread for eatTmpFiles and at least one worker thread
@@ -230,10 +227,6 @@ else {
     # default inital value
     $batchSize = 5000;
 }
-
-# Create subdir in &fastTmpPath so we can CLEANUP when we
-# are done
-my $tmpDir = tempdir(DIR => &fastTmpPath(), CLEANUP => 1);
 
 
 #############################################
@@ -270,7 +263,7 @@ close(FILES);
 # deal with headers and fill @numSamples
 
 my $now = strftime("%F %T", localtime);
-warn("I $now: $0 - STARTING TO WORK\n");
+warn "I $now: $0 - STARTING TO WORK\n";
 
 # same indexes as @infiles, value is the number of samples in the infile
 my @numSamples;
@@ -547,7 +540,9 @@ foreach my $infile (@infiles) {
 }
 
 $now = strftime("%F %T", localtime);
-warn("I $now: $0 - ALL DONE\n");
+rmdir($tmpDir) || 
+    die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
+warn "I $now: $0 - ALL DONE\n";
 
 
 

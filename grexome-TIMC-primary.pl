@@ -176,7 +176,7 @@ GetOptions ("samplesFile=s" => \$samplesFile,
 ($config =~ m~/~) || ($config = "./$config");
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
 require($config);
-grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome fastTmpPath) );
+grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed fastTmpPath) );
 
 ($workDir) || die "E $0: you must provide a workDir. Try $0 --help\n";
 (-e $workDir) && 
@@ -387,12 +387,23 @@ foreach my $caller (sort(keys %callerDirs)) {
 	my $b2gBin = "$RealBin/2_bam2gvcf_$caller.pl";
 	(-e $b2gBin) ||
 	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
-	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples --outdir $callerWorkDir --jobs $jobs --real";
+	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples";
+	$com .= " --chroms ".&refGenomeChromsBed();
+	$com .= " --outdir $callerWorkDir --jobs $jobs --real";
 	#caller-specific args
-	($caller eq "gatk") && ($com .= " --tmpdir=$tmpDir/gatk");
-	($caller eq "elprep") && ($com .= " --tmpdir=$tmpDir/elprep --mode sfm --logdir $callerWorkDir");
-
-
+	if ($caller eq "strelka") {
+	    $com .= " --genome ".&refGenome();
+	}
+	elsif ($caller eq "gatk") {
+	    $com .= " --tmpdir $tmpDir/gatk --genome ".&refGenome();
+	}
+	elsif ($caller eq "elprep") {
+	    $com .= " --tmpdir $tmpDir/elprep --mode sfm --logdir $callerWorkDir --genome ".&refGenomeElPrep();
+	}
+	else {
+	    die "E $0: unknown variant-caller $caller, need to implement caller-specific args";
+	}
+	
 	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 
 	##################

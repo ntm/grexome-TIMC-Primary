@@ -18,13 +18,11 @@ use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
 use File::Basename qw(basename);
-use FindBin qw($RealBin);
 
 
 # we use $0 in every stderr message but we really only want
 # the program name, not the path
 $0 = basename($0);
-
 
 #############################################
 ## options / params from the command-line
@@ -35,6 +33,14 @@ my $inDir;
 # comma-separated list of samples (FASTQs) to process (required)
 my $samples = '';
 
+# path+filename of ref genome, currently we recommend the full GRCh38 with
+# decoy+alts+unmapped, as produced by Heng Li's run-gen-ref (from bwa-kit)
+my $refGenome;
+
+# bgzipped and tabix-indexed BED with chromosomes 1-22, X, Y, M 
+# (see eg &refGenomeChromsBed in grexomeTIMCprim_config.pm)
+my $chromsBed;
+
 # dir where GVCF-containing subdirs will be created
 my $outDir;
 
@@ -42,11 +48,6 @@ my $outDir;
 # or use a one-liner wrapper eg strelkaGermline.sh that can be in your PATH,
 # this is the default (works on fauve, luxor...)
 my $strelka = "strelkaGermline.sh";
-
-# path+file of the config file holding all install-specific params,
-# defaults to the distribution-povided file that you can edit but
-# you can also copy it elsewhere and customize it, then use --config
-my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
 # number of parallel jobs to run
 my $jobs = 16;
@@ -63,10 +64,11 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir : subdir containing the BAMs
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
+--genome : ref genome fasta, with path
+--chroms : bgzipped and tabix-indexed BED file with chromosomes 1-22, X, Y, M
 --outdir : dir where GVCF-containing subdirs will be created (one subdir per sample)
 --strelka [$strelka] : must be either the path+name of configureStrelkaGermlineWorkflow.py
           (from strelka distrib), or a wrapper script that can be in your PATH
---config [$config] : your customized copy (with path) of the distributed *config.pm
 --jobs [$jobs] : number of cores that strelka can use
 --real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
@@ -74,9 +76,10 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 
 GetOptions ("indir=s" => \$inDir,
 	    "samples=s" => \$samples,
+	    "genome=s" => \$refGenome,
+	    "chroms=s" => \$chromsBed,
 	    "outdir=s" => \$outDir,
 	    "strelka=s" => \$strelka,
-	    "config=s" => \$config,
 	    "jobs=i" => \$jobs, 
 	    "real" => \$real,
 	    "help" => \$help)
@@ -84,11 +87,6 @@ GetOptions ("indir=s" => \$inDir,
 
 # make sure required options were provided and sanity check them
 ($help) && die "$0 $USAGE\n\n";
-
-# immediately import $config, so we die if file is broken
-(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
-require($config);
-grexomeTIMCprim_config->import( qw(refGenome refGenomeChromsBed) );
 
 ($inDir) ||
     die "E $0: you MUST provide --indir where BAMs can be found\n$USAGE\n";
@@ -105,6 +103,12 @@ foreach my $sample (split(/,/, $samples)) {
     $samples{$sample} = 1;
 }
 
+($refGenome) || die "E $0: you must provide a ref genome fasta file\n";
+(-f $refGenome) || die "E $0: provided genome fasta file doesn't exist\n";
+
+($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
+(-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
+
 ($outDir) || 
     die "E $0: you MUST specify --outdir where GVCF-containing subdirs will be created\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
@@ -114,11 +118,6 @@ foreach my $sample (split(/,/, $samples)) {
 (`which $strelka` =~ /$strelka$/) || 
     die "E $0: the strelka python (or shell wrapper) $strelka can't be found\n";
 
-#############################################
-
-# ref genome and BED with chromosomes 1-22, X, Y, M
-my $refGenome = &refGenome();
-my $chromsBed = &refGenomeChromsBed();
 
 #############################################
 ## process each sample of interest

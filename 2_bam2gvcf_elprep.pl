@@ -14,7 +14,6 @@ use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
 use File::Basename qw(basename);
-use FindBin qw($RealBin);
 use Parallel::ForkManager;
 
 
@@ -38,6 +37,15 @@ my $inDir;
 # comma-separated list of samples (FASTQs) to process (required)
 my $samples = '';
 
+# path+filename of ref genome in elPrep5 elfasta format, currently 
+# we recommend the full GRCh38 with decoy+alts+unmapped, as produced
+# by Heng Li's run-gen-ref (from bwa-kit)
+my $refGenome;
+
+# bgzipped and tabix-indexed BED with chromosomes 1-22, X, Y, M 
+# (see eg &refGenomeChromsBed in grexomeTIMCprim_config.pm)
+my $chromsBed;
+
 # dir where GVCFs will be created
 my $outDir;
 
@@ -51,11 +59,6 @@ my $logDir = "logs_elPrep/";
 # path+name of elPrep5 binary, defaults to "elprep" which should be
 # in your PATH
 my $elprep = "elprep";
-
-# path+file of the config file holding all install-specific params,
-# defaults to the distribution-povided file that you can edit but
-# you can also copy it elsewhere and customize it, then use --config
-my $config = "$RealBin/grexomeTIMCprim_config.pm";
 
 # number of available cores:
 # - in sfm mode we process up to $jobs samples in parallel and each process
@@ -76,11 +79,12 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir : subdir containing the BAMs
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
+--genome : ref genome in elPrep5 elfasta format, with path
+--chroms : bgzipped and tabix-indexed BED file with chromosomes 1-22, X, Y, M
 --outdir : dir where GVCF files will be created
 --tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --logdir [$logDir] : dir where elprep logs will be created
 --elprep [default to \"$elprep\" which should be in PATH] : full path to elprep executable
---config [$config] : your customized copy (with path) of the distributed *config.pm
 --jobs [$jobs] : number of cores/threads/jobs that we can use
 --real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
@@ -89,11 +93,12 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 GetOptions ("mode=s" => \$mode,
 	    "indir=s" => \$inDir,
 	    "samples=s" => \$samples,
+	    "genome=s" => \$refGenome,
+	    "chroms=s" => \$chromsBed,
 	    "outdir=s" => \$outDir,
 	    "tmpdir=s" => \$tmpDir,
 	    "logdir=s" => \$logDir,
 	    "elprep=s" => \$elprep,
-	    "config=s" => \$config,
 	    "jobs=i" => \$jobs, 
 	    "real" => \$real,
 	    "help" => \$help)
@@ -101,11 +106,6 @@ GetOptions ("mode=s" => \$mode,
 
 # make sure required options were provided and sanity check them
 ($help) && die "$USAGE\n\n";
-
-# immediately import $config, so we die if file is broken
-(-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n$USAGE\n";
-require($config);
-grexomeTIMCprim_config->import( qw(refGenomeElPrep refGenomeChromsBed) );
 
 ($mode eq 'filter') || ($mode eq 'sfm') ||
     die "E $0: illegal --mode, you must use filter or sfm\n$USAGE\n";
@@ -127,6 +127,12 @@ foreach my $sample (split(/,/, $samples)) {
     $nbSamples++;
 }
 
+($refGenome) || die "E $0: you must provide a ref genome elfasta file\n";
+(-f $refGenome) || die "E $0: provided genome elfasta file doesn't exist\n";
+
+($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
+(-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
+
 ($outDir) || 
     die "E $0: you MUST specify --outdir where GVCFs will be created\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
@@ -142,11 +148,6 @@ foreach my $sample (split(/,/, $samples)) {
 mkdir($tmpDir) || die "E $0: cannot mkdir tmpDir $tmpDir\n";
 
 #############################################
-
-# ref genome
-my $refGenome = &refGenomeElPrep();
-# BED with chromosomes 1-22, X, Y, M
-my $chromsBed = &refGenomeChromsBed();
 
 # elprep threads for each sample, and number of samples to process in parallel
 my ($threadsPerSample, $samplesInPara) = ($jobs,1);

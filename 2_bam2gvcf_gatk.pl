@@ -232,7 +232,8 @@ $pm->wait_all_children;
 
 {
     my $now = strftime("%F %T", localtime);
-    rmdir($tmpDir) || 
-	die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
+    # need to rmtree or something similar, GATK leaves some shit behind in its temp dir
+    #rmdir($tmpDir) || 
+    #    die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
     warn "I $now: $0 - ALL DONE\n";
 }

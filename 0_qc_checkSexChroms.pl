@@ -96,7 +96,7 @@ opendir(INDIR, $inDir) ||
 
 
 my $now = strftime("%F %T", localtime);
-warn "I $now: $0 - starting to run\n";
+warn "I $now: $0 - starting to run on $inDir\n";
 
 #########################################################
 # We will save relevant metadata and summary stats in %results, 

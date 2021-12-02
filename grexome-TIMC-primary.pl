@@ -225,11 +225,16 @@ foreach my $caller (keys %callerDirs) {
 
 # key==existing sample to process
 my %samples = ();
+#  also test whether we have a "Sex" column in $sampleFile
+my $haveSex = 0;
 
-# just use the first hashref from parseSamples, ignoring pathologyIDs
-my ($s2pathoR) = &parseSamples($samplesFile);
-foreach my $s (keys %$s2pathoR) {
-    $samples{$s} = 1;
+{
+    my @parsed = &parseSamples($samplesFile);
+    (@parsed == 5) && ($haveSex=1);
+    my $s2pathoR = $parsed[0];
+    foreach my $s (keys %$s2pathoR) {
+	$samples{$s} = 1;
+    }
 }
 
 if ($SOIs) {
@@ -488,6 +493,34 @@ foreach my $caller (sort(keys %callerDirs)) {
     }
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - filtering $caller GVCFs DONE\n";
+
+    ################################
+    # create/update QC file that counts HET/HV calls on sex chromosomes,
+    # this requires knowing if samples are M or F
+    if ($haveSex) {
+	# name of file to create/update
+	my $qcFile = $callerDirs{$caller}->[1]."/qc_sexChroms_$caller.csv";
+
+	my $com = "perl $RealBin/0_qc_checkSexChroms.pl  --samplesFile=$samplesFile";
+	$com .= " --indir=".$callerDirs{$caller}->[1];
+	$com .= " --tabix=$tabix";
+	# backup and use previous version (if any)
+	if (-e $qcFile) {
+	    my $qcPrev = $qcFile;
+	    ($qcPrev =~ s/\.csv$/_prev.csv/) ||
+		die "E $0: cannot subst csv in qcFile $qcFile, WTF?!\n";
+	    move($qcFile,$qcPrev) ||
+		die "E $0: qc file $qcFile exists but can't be moved to $qcPrev: $!";
+	    # we have a backup => can --force
+	    $com .= " --prevQC=$qcPrev --force";
+	}
+	$com .= " > $qcFile";
+	system($com) && die "E $0: qc_checkSexChroms for $caller FAILED: $?";
+    }
+    else {
+	$now = strftime("%F %T", localtime);
+	warn "W $now: $0 - no Sex column in metadata, skipping qc_checkSexChroms step\n";
+    }
 
     ################################
     # merge new GVCFs with the most recent previous merged if one existed

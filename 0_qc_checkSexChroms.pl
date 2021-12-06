@@ -3,7 +3,8 @@
 # 26/10/2021
 # NTM
 
-# QC script: examine variant calls on the X and Y chromosomes in
+# QC script: examine variant calls on the X and Y chromosomes,
+# and also chr16 as a control (similar number of genes as X) in
 # single-sample FILTERED GVCFs; taking into account the sex of
 # each sample, print to stdout some summary statistics of the
 # calls and identify putative annotation errors, ie outliers in
@@ -57,7 +58,7 @@ my $help = '';
 
 
 my $USAGE = "\nGrab the sex of each patient in the metadata XLSX, and count the variants 
-called on the sex chromosomes in each patient's FILTERED GVCF in indir.
+called on the sex chromosomes (+ chr16 as control) in each patient's FILTERED GVCF in indir.
 Print summary statistics to stdout in TSV format, including info on putative errors (outliers).
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --samplesFile : samples metadata xlsx file, with path
@@ -101,7 +102,7 @@ warn "I $now: $0 - starting to run on $inDir\n";
 #########################################################
 # We will save relevant metadata and summary stats in %results, 
 # key is $sample, value is an arrayref storing: 
-# [patho sample sex nbHetX nbHomoX nbHetY nbHomoY]
+# [patho sample sex nbHetX nbHomoX nbHetY nbHomoY nbHet16 nbHomo16]
 my %results;
 
 # same structure, populated from prevQC
@@ -141,15 +142,15 @@ if ($prevQC) {
 
 	# -1 to grab "outlier" column even if it's empty
 	my @fields = split(/\t/, $line, -1);
-	(@fields == 8) ||
+	(@fields == 10) ||
 	    die "E $0: line from prevQC doesn't have correct number of fields: $line\n";
 	# last field "Outlier" is always rebuilt, discard previous value
 	pop(@fields);
 
-	my $sample = $fields[1];
+	my $sample = $fields[0];
 	# check that metadata matches $samplesFile
 	my $thisOK = 1;
-	if ($fields[0] ne $sample2cohortR->{$sample}) {
+	if ($fields[1] ne $sample2cohortR->{$sample}) {
 	    warn "W $0: pathologyID for $sample in prevQC differs from samplesFile $samplesFile\n";
 	    $thisOK = 0;
 	}
@@ -220,10 +221,10 @@ foreach my $inFile (sort(readdir(INDIR))) {
 	next;
     }
     else {
-	# otherwise parse $inFile to count HET/HV calls on X/Y
+	# otherwise parse $inFile to count HET/HV calls on X/Y/16
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting to parse $inDir/$inFile\n";
-	my @res = ($patho,$sample,$sex, &countCalls("$inDir/$inFile",$tabix));
+	my @res = ($sample,$patho,$sex, &countCalls("$inDir/$inFile",$tabix));
 	$results{$sample} = \@res;
     }
 }
@@ -257,6 +258,9 @@ my ($hetYMeanM, $hetYSdM) = (0,0);
 my ($hetYMeanF, $hetYSdF) = (0,0);
 my ($homYMeanM, $homYSdM) = (0,0);
 my ($homYMeanF, $homYSdF) = (0,0);
+# for chr16 we don't differentiate M/F
+my ($het16Mean, $het16Sd) = (0,0);
+my ($hom16Mean, $hom16Sd) = (0,0);
 
 # numbers of individuals of each sex
 my ($nbM,$nbF) = (0,0);
@@ -280,6 +284,8 @@ foreach my $res (values(%results)) {
     else {
 	die "E $0: sex of ".$res->[1]." is neither M or F, it's ".$res->[2]."\n";
     }
+    $het16Mean += $res->[7];
+    $hom16Mean += $res->[8];
 }
 if ($nbM > 0) {
     $hetXMeanM /= $nbM;
@@ -292,6 +298,10 @@ if ($nbF > 0) {
     $homXMeanF /= $nbF;
     $hetYMeanF /= $nbF;
     $homYMeanF /= $nbF;
+}
+if (($nbF+$nbM) > 0) {
+    $het16Mean /= ($nbF+$nbM);
+    $hom16Mean /= ($nbF+$nbM);
 }
 
 # std devs
@@ -308,6 +318,8 @@ foreach my $res (values(%results)) {
 	$hetYSdF += ($res->[5] - $hetYMeanF)**2;
 	$homYSdF += ($res->[6] - $homYMeanF)**2;
     }
+    $het16Sd += ($res->[7] - $het16Mean)**2;
+    $hom16Sd += ($res->[8] - $hom16Mean)**2;
 }
 if ($nbM > 0) {
     $hetXSdM = sqrt($hetXSdM / $nbM);
@@ -321,12 +333,17 @@ if ($nbF > 0) {
     $hetYSdF = sqrt($hetYSdF / $nbF);
     $homYSdF = sqrt($homYSdF / $nbF);
 }
+if (($nbF+$nbM) > 0) {
+    $het16Sd /= ($nbF+$nbM);
+    $hom16Sd /= ($nbF+$nbM);
+}
 
 
 # print results as TSV, identifying outliers on-the-fly
 # outliers here are defined by abs(X-MEAN) > 3*SD
-print "pathologyID\tsampleID\tSex\tnbHetX\tnbHomoX\tnbHetY\tnbHomoY\tOutlier\n";
-foreach my $res (values(%results)) {
+print "sampleID\tpathologyID\tSex\tnbHetX\tnbHomoX\tnbHetY\tnbHomoY\tnbHet16\tnbHomo16\tOutlier\n";
+foreach my $sample (sort(keys %results)) {
+    my $res = $results{$sample};
     my $outlier = "";
     if ($res->[2] eq "M") {
 	if (abs($res->[3] - $hetXMeanM) > 3 * $hetXSdM) {
@@ -356,6 +373,12 @@ foreach my $res (values(%results)) {
 	    $outlier .= "HomYF:";
 	}
     }
+    if (abs($res->[7] - $het16Mean) > 3 * $het16Sd) {
+	$outlier .= "Het16:";
+    }
+    if (abs($res->[8] - $hom16Mean) > 3 * $hom16Sd) {
+	$outlier .= "Hom16:";
+    }
     # remove trailing ':'
     ($outlier) && (chop($outlier));
 
@@ -365,15 +388,17 @@ foreach my $res (values(%results)) {
 # print summary stats at the end after blank line
 print "\n\n";
 print "SUMMARY STATS\n";
-print "TYPE MEAN SD\n";
-printf("HetXM %.2f %.2f\n", $hetXMeanM, $hetXSdM);
-printf("HomXM %.2f %.2f\n", $homXMeanM, $homXSdM);
-printf("HetYM %.2f %.2f\n", $hetYMeanM, $hetYSdM);
-printf("HomYM %.2f %.2f\n", $homYMeanM, $homYSdM);
-printf("HetXF %.2f %.2f\n", $hetXMeanF, $hetXSdF);
-printf("HomXF %.2f %.2f\n", $homXMeanF, $homXSdF);
-printf("HetYF %.2f %.2f\n", $hetYMeanF, $hetYSdF);
-printf("HomYF %.2f %.2f\n", $homYMeanF, $homYSdF);
+print "TYPE\tMEAN\tSD\n";
+printf("HetXM\t%.2f\t%.2f\n", $hetXMeanM, $hetXSdM);
+printf("HomXM\t%.2f\t%.2f\n", $homXMeanM, $homXSdM);
+printf("HetYM\t%.2f\t%.2f\n", $hetYMeanM, $hetYSdM);
+printf("HomYM\t%.2f\t%.2f\n", $homYMeanM, $homYSdM);
+printf("HetXF\t%.2f\t%.2f\n", $hetXMeanF, $hetXSdF);
+printf("HomXF\t%.2f\t%.2f\n", $homXMeanF, $homXSdF);
+printf("HetYF\t%.2f\t%.2f\n", $hetYMeanF, $hetYSdF);
+printf("HomYF\t%.2f\t%.2f\n", $homYMeanF, $homYSdF);
+printf("Het16\t%.2f\t%.2f\n", $het16Mean, $het16Sd);
+printf("Hom16\t%.2f\t%.2f\n", $hom16Mean, $hom16Sd);
 
 
 
@@ -386,10 +411,10 @@ warn "I $now: $0 - ALL DONE, completed successfully!\n";
 # subs
 
 # Process one single-sample filtered (by filterBadCalls.pl), bgzipped and
-# tabix-indexed (G)VCF, containing at least all non-HR calls on chrX and chrY
-# (any HR calls and non X|Y chroms are skipped).
-# Return the number of HET or HV variant calls on the X and Y chromosomes,
-# as a list: ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY)
+# tabix-indexed (G)VCF, containing at least all non-HR calls on chrX, chrY
+# and chr16 (any HR calls and non X|Y|16 chroms are ignored).
+# Return the number of HET or HV variant calls on the X, Y and 16 chromosomes,
+# as a list: ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16)
 # Die on errors.
 # Pre-conditions: $tabix exists, and $gvcf is single-sample and tabix-indexed
 sub countCalls {
@@ -401,16 +426,16 @@ sub countCalls {
     (`which $tabix` =~ /$tabix/) ||
 	die "E $0: countCalls called with bad tabix binary: $tabix\n";
 
-    # number of HET or HV calls on the X or Y chromosomes
-    my ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY) = (0,0,0,0);
+    # number of HET or HV calls on the X/Y/16 chromosomes
+    my ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16) = (0,0,0,0,0,0);
 
-    open(my $GVCF, "$tabix $gvcf chrX chrY |") ||
+    open(my $GVCF, "$tabix $gvcf chrX chrY chr16 |") ||
 	die "E $0: countCalls cannot tabix-open GVCF $gvcf\n";
 
     while (my $line = <$GVCF>) {
 	chomp($line);
 	# grab chrom
-	($line =~ /^chr([XY])\t/) ||
+	($line =~ /^chr([\dXY]\d?)\t/) ||
 	    die "E $0: countCalls cannot grab chrom from $gvcf in line:\n$line\n";
 	my $chr = $1;
 	# grab geno: single-sample => last column
@@ -421,16 +446,18 @@ sub countCalls {
 	    # HV, non-HR
 	    if ($chr eq "X") { $nbHomoX++; }
 	    elsif ($chr eq "Y") { $nbHomoY++; }
+	    elsif ($chr eq "16") { $nbHomo16++; }
 	}
 	elsif ($gt1 != $gt2) {
 	    # HET
 	    if ($chr eq "X") { $nbHetX++; }
 	    elsif ($chr eq "Y") { $nbHetY++; }
+	    elsif ($chr eq "16") { $nbHet16++; }
 	}
 	# else: HR => NOOP
     }
 
     close($GVCF);
-    return($nbHetX,$nbHomoX,$nbHetY,$nbHomoY);
+    return($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16);
 }
 

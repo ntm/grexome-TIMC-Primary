@@ -334,8 +334,8 @@ if ($nbF > 0) {
     $homYSdF = sqrt($homYSdF / $nbF);
 }
 if (($nbF+$nbM) > 0) {
-    $het16Sd /= ($nbF+$nbM);
-    $hom16Sd /= ($nbF+$nbM);
+    $het16Sd = sqrt($het16Sd / ($nbF+$nbM));
+    $hom16Sd = sqrt($hom16Sd / ($nbF+$nbM));
 }
 
 

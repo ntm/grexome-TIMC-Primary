@@ -3,16 +3,19 @@
 # 26/10/2021
 # NTM
 
-# QC script: examine variant calls on the X and Y chromosomes,
-# and also chr16 as a control (similar number of genes as X) in
-# single-sample FILTERED GVCFs; taking into account the sex of
-# each sample, print to stdout some summary statistics of the
-# calls and identify putative annotation errors, ie outliers in
-# the numbers of aberrant calls (any calls on the Y in women,
-# HET calls on the X or Y in men).
+# QC script: examine variant calls on the X and Y chromosomes
+# (ignoring PARs), and also chr16 as a control (similar number
+# of genes as X) in single-sample FILTERED GVCFs;
+# taking into account the sex of each sample, print to stdout
+# some summary statistics of the calls and identify putative
+# annotation errors, ie outliers in the numbers of aberrant calls
+# (any calls on the Y in women, HET calls on the X or Y in men).
 # You can provide the output of this script from a previous run
 # with --prevQC, to avoid parsing every GVCF whenever you get
 # a few new samples (n+1 scenario).
+# NOTE: designed for the Ensembl version of GRCh38, eg chromosomes
+# must be named chrX chrY chr16 rather than X Y 16, and the coordinates
+# of the PARs are for GRCh38.
 
 use strict;
 use warnings;
@@ -58,7 +61,8 @@ my $help = '';
 
 
 my $USAGE = "\nGrab the sex of each patient in the metadata XLSX, and count the variants 
-called on the sex chromosomes (+ chr16 as control) in each patient's FILTERED GVCF in indir.
+called on the sex chromosomes (ignoring PARs) + chr16 (as control) in each 
+patient's FILTERED GVCF in indir.
 Print summary statistics to stdout in TSV format, including info on putative errors (outliers).
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --samplesFile : samples metadata xlsx file, with path
@@ -136,8 +140,8 @@ if ($prevQC) {
 
     while (my $line = <PREV>) {
 	chomp($line);
-	# file has per-sample counts, then a blank line, then global summary stats;
-	# stop at the blank line:
+	# file has per-sample counts, then at least one blank line, then
+	# comments and global summary stats. Stop at the blank line:
 	($line) || last;
 
 	# -1 to grab "outlier" column even if it's empty
@@ -385,8 +389,9 @@ foreach my $sample (sort(keys %results)) {
     print join("\t", @$res)."\t$outlier\n";
 }
 
-# print summary stats at the end after blank line
+# print summary stats at the end after blank lines
 print "\n\n";
+print "NOTE: pseudo-autosomal regions PAR1 and PAR2 are excluded from all X and Y counts\n\n";
 print "SUMMARY STATS\n";
 print "TYPE\tMEAN\tSD\n";
 printf("HetXM\t%.2f\t%.2f\n", $hetXMeanM, $hetXSdM);
@@ -414,7 +419,8 @@ warn "I $now: $0 - ALL DONE, completed successfully!\n";
 # tabix-indexed (G)VCF, containing at least all non-HR calls on chrX, chrY
 # and chr16 (any HR calls and non X|Y|16 chroms are ignored).
 # Return the number of HET or HV variant calls on the X, Y and 16 chromosomes,
-# as a list: ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16)
+# ignoring PARs on X and Y, as a list:
+# ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16)
 # Die on errors.
 # Pre-conditions: $tabix exists, and $gvcf is single-sample and tabix-indexed
 sub countCalls {
@@ -429,7 +435,14 @@ sub countCalls {
     # number of HET or HV calls on the X/Y/16 chromosomes
     my ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16) = (0,0,0,0,0,0);
 
-    open(my $GVCF, "$tabix $gvcf chrX chrY chr16 |") ||
+    # HET calls are expected in PARs -> ignore them.
+    # Grabbing PAR coordinates here:
+    # https://www.ensembl.org/info/genome/genebuild/human_PARS.html
+    my $ROIs = "chrX:1-10000 chrX:2781480-155701382 chrX:156030896-156040895 ";
+    $ROIs .= "chrY:1-10000 chrY:2781480-56887902 chrY:57217416-57227415 ";
+    $ROIs .= "chr16 ";
+    
+    open(my $GVCF, "$tabix $gvcf $ROIs |") ||
 	die "E $0: countCalls cannot tabix-open GVCF $gvcf\n";
 
     while (my $line = <$GVCF>) {

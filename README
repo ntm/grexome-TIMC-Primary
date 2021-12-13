@@ -12,13 +12,14 @@ This will "process" every sampleID in samples.xlsx, ie:
 - produce analysis-ready BAMs (trim, align, mark dupes, sort);
 - produce individual GVCFs with STRELKA2, GATK4 and ELPREP5;
 - fix variant-caller quirks and bugs, filter low-quality variant calls;
-- produce a single multi-sample merged GVCF per variant-caller.
+- produce a single multi-sample merged GVCF per variant-caller;
+- optionally produce QC files analyzing HOMO/HET calls on the sex chromosomes.
 
 BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of grexome-TIMC-primary.pl, all within \$dataDir (defined in prim_config.pm) which you should customize.
-Logs and copies of the metadata are produced in PrimaryAnalyses_TEST/ .
+Logs and copies of the metadata are produced in the provided workdir (eg PrimaryAnalyses_TEST/).
 For each sample, any step where the result file already exists is skipped.
 
-Extensive documentation is obtained with:
+More extensive documentation is obtained with:
 perl grexome-TIMC-primary.pl --help
 
 
@@ -31,6 +32,9 @@ Required columns:
 - patientID: can be empty, ignored in grexome-TIMC-Primary.
 - pathologyID: required (alphanumeric string) but ignored in grexome-TIMC-Primary.
 - Causal gene: can be empty, ignored in grexome-TIMC-Primary.
+Optional column:
+- Sex: if this column exists each sample must be 'F' or 'M', used by qc_sexChroms*.
+
 
 [1] https://github.com/ntm/grexome-TIMC-Secondary
 [2] https://github.com/ntm/grexome-TIMC-Secondary/blob/master/Documentation/samples.xlsx

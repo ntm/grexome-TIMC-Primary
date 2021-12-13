@@ -108,6 +108,11 @@ my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from \"gre
      filter low-quality variant calls with filterBadCalls.pl;
      produce a merged GVCF per variant-caller with mergeGVCFs.pl.
 
+Optionally, if the samplesFile has a \"Sex\" column, also produce qc_sexChroms*.csv 
+files in GVCFs_*_Filtered/ , counting HOMO and HET calls on chromosomes X, Y and 16 
+(as a control) in every sample, and identifying possible outliers (can indicate 
+mis-labeling of samples or other quality issues).
+
 Each step of the pipeline is a stand-alone self-documented script, this is just a wrapper.
 For each sample, any step where the result file already exists is skipped.
 

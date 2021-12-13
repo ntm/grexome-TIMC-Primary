@@ -40,9 +40,28 @@ Optional column:
 [2] https://github.com/ntm/grexome-TIMC-Secondary/blob/master/Documentation/samples.xlsx
 
 
+REQUIRED DATA:
+**************
+The reference genome in fasta format is required, and it must be indexed/preprocessed as needed by bwa, bwa-mem2, strelka, gatk and elprep. Suggested protocol: use run-gen-ref from [3] to produce hs38DH.fa, and index/preprocess it as follows:
+run-gen-ref hs38DH
+bwa index hs38DH.fa ## for BWA
+bwa-mem2 index hs38DH.fa ## for BWA-MEM2 if you use it, careful this indexing requires tons of RAM
+samtools faidx hs38DH.fa ## for strelka
+gatk CreateSequenceDictionary -R hs38DH.fa ## for GATK
+elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path . ## for elprep
+
+In addition, a small BED file with chromosomes 1-22,X,Y,M is required for the variant callers. Suggested protocol: copy-paste content from [4] into a file (eg hs38_chroms.bed), then bgzip and index it:
+bgzip hs38_chroms.bed
+tabix -p bed hs38_chroms.bed.gz
+
+
+[3] https://github.com/lh3/bwa/tree/master/bwakit
+[4] https://github.com/Illumina/strelka/blob/v2.9.x/docs/userGuide/README.md#improving-runtime-for-references-with-many-short-contigs-such-as-grch38
+
+
 CONFIGURATION:
 **************
-Before using the pipeline you must customize the grexomeTIMCprim_config.pm file, which defines every install-specific variable (eg path+name of the reference human genome fasta file). Every subroutine in grexomeTIMCprim_config.pm is self-documented and will need to be customized. To do this you can either copy the file somewhere and edit the copy, then use --config; or edit the distributed copy in-place (not as flexible).
+Before using the pipeline you must customize the grexomeTIMCprim_config.pm file, which defines every install-specific variable (eg path+name of the reference human genome fasta file, possibly produced following the instructions in "REQUIRED DATA" above). Every subroutine in grexomeTIMCprim_config.pm is self-documented and will need to be customized. To do this you can either copy the file somewhere and edit the copy, then use --config; or edit the distributed copy in-place (not as flexible).
 
 
 DEPENDENCIES:

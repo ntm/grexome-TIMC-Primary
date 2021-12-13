@@ -52,10 +52,12 @@ sub mirror {
 }
 
 
-# Return the reference human genome fasta file, with path
+# Return the reference human genome fasta file, with path.
+# It needs to be indexed/preprocessed in various ways for all
+# the tools we use, see "REQUIRED DATA" section in the README.
 sub refGenome {
     # return the first file that exists, so this works on
-    # both luxor and fauve
+    # all our servers
     foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.fa",
 			"/data/HumanGenome/hs38DH.fa",
 			"/bettik/nthierry/HumanGenome/hs38DH.fa") {
@@ -70,7 +72,7 @@ sub refGenome {
 # elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path .
 sub refGenomeElPrep {
     # return the first file that exists, so this works on
-    # both luxor and fauve
+    # all our servers
     foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.elfasta",
 			"/data/HumanGenome/hs38DH.elfasta",
 			"/bettik/nthierry/HumanGenome/hs38DH.elfasta") {
@@ -80,9 +82,9 @@ sub refGenomeElPrep {
     die "E: no refGenome.elfasta found, you need to edit *config.pm";
 }
 
-# Full path to gzipped hs38_chrom-only BED file, with the full
-# chromosomes 1-22,X,Y,M.
-# This allows to ignore decoy/unplaced/alt regions. 
+# Full path to bgzipped and tabix-indexed hs38_chrom-only BED file,
+# with the full chromosomes 1-22,X,Y,M.
+# This allows to ignore decoy/unplaced/alt regions.
 sub refGenomeChromsBed {
     # default to a file alongside the ref genome
     my $chromsBed = &refGenome();

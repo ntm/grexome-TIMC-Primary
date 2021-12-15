@@ -218,6 +218,7 @@ foreach my $sample (sort keys(%$sample2specimenR)) {
 
 my $nbInfiles = scalar(keys(%infilesDone));
 my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
+chomp($nbFqFiles);
 # some grexomes have been obsoleted because they were dupes,
 # the corresponding FASTQs are still there, don't warn about them.
 # number of obsolete FASTQ files: hard-coded here, 

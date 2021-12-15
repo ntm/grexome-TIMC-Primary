@@ -154,15 +154,21 @@ if ($prevQC) {
 	my $sample = $fields[0];
 	# check that metadata matches $samplesFile
 	my $thisOK = 1;
-	if ($fields[1] ne $sample2cohortR->{$sample}) {
-	    warn "W $0: pathologyID for $sample in prevQC differs from samplesFile $samplesFile\n";
+	if (!defined $sample2cohortR->{$sample}) {
+	    warn "W $0: sample $sample from prevQC doesn't exist in samplesFile $samplesFile\n";
 	    $thisOK = 0;
 	}
-	if ($fields[2] ne $sample2sexR->{$sample}) {
-	    warn "W $0: sex for $sample in prevQC differs from samplesFile $samplesFile\n";
-	    $thisOK = 0;
+	else {
+	    if ($fields[1] ne $sample2cohortR->{$sample}) {
+		warn "W $0: pathologyID for $sample in prevQC differs from samplesFile $samplesFile\n";
+		$thisOK = 0;
+	    }
+	    if ($fields[2] ne $sample2sexR->{$sample}) {
+		warn "W $0: sex for $sample in prevQC differs from samplesFile $samplesFile\n";
+		$thisOK = 0;
+	    }
 	}
-
+	
 	if ($thisOK) {
 	    ($resultsPrev{$sample}) &&
 		die "E $0: found 2 lines in prevQC $prevQC with the same sampleID $sample\n";

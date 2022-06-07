@@ -4,45 +4,31 @@ from FASTQs to a single multi-sample GVCF per variant-caller.
 The pipeline currently performs variant-calling independently with Strelka2, GATK4 and elPrep5.
 
 
-EXAMPLE USAGE:
-**************
-perl grexome-TIMC-Primary/grexome-TIMC-primary.pl --samplesFile=Grexome_Metadata/samples.xlsx --workdir=PrimaryAnalyses_TEST --config=Grexome_Metadata/prim_config.pm &> grexomeTIMCprim.log &
-
-This will "process" every sampleID in samples.xlsx, ie:
-- produce analysis-ready BAMs (trim, align, mark dupes, sort);
-- produce individual GVCFs with STRELKA2, GATK4 and ELPREP5;
-- fix variant-caller quirks and bugs, filter low-quality variant calls;
-- produce a single multi-sample merged GVCF per variant-caller;
-- optionally produce QC files analyzing HOMO/HET calls on the sex chromosomes.
-
-BAMs and GVCFs are produced in a hierarchy of subdirs defined at the top of grexome-TIMC-primary.pl, all within \$dataDir (defined in prim_config.pm) which you should customize.
-Logs and copies of the metadata are produced in the provided workdir (eg PrimaryAnalyses_TEST/).
-For each sample, any step where the result file already exists is skipped.
-
-More extensive documentation is obtained with:
-perl grexome-TIMC-primary.pl --help
+INSTALLATION:
+********
+git clone https://github.com/ntm/grexome-TIMC-Primary.git
 
 
-METADATA FILES:
-***************
-The pipeline uses a single metadata XLSX file, which describes the samples. This metadata file (and the code that parses it, in grexome_metaParse.pm) is shared with the grexome-TIMC-Secondary pipeline [1]. Therefore some columns are required in the XLSX despite not being used in this primary pipeline. The provided example file [2] can serve as a starting point. All columns present in this file (and listed below) are required, don't change their names! You can add new columns and/or change the order of columns to your taste, just don't touch the pre-existing column names. 
-Required columns:
-- sampleID: unique identifier for each sample, these are typically created with a uniform naming scheme when new samples are integrated into the pipeline and are used internally throughout the pipeline. Rows with sampleID=="0" are ignored, this allows to retain metadata info about obsolete samples.
-- specimenID: external identifier for each sample, typically related to the original FASTQ filenames.
-- patientID: can be empty, ignored in grexome-TIMC-Primary.
-- pathologyID: required (alphanumeric string) but ignored in grexome-TIMC-Primary.
-- Causal gene: can be empty, ignored in grexome-TIMC-Primary.
-Optional column:
-- Sex: if this column exists each sample must be 'F' or 'M', used by qc_sexChroms*.
+DEPENDENCIES:
+*************
+We try to keep external dependencies to a minimum.
 
+- The only required PERL modules are listed below. Most are standard core modules and should already be available on your system, a few will probably need to be installed from your distribution's standard repositories (e.g. "sudo yum install perl-Parallel-ForkManager perl-Spreadsheet-XLSX" on RHEL7).
+Standard core modules: Exporter, File::Basename, File::Copy, File::Glob, File::Path, File::Spec, File::Temp, FindBin, Getopt::Long, POSIX.
+Other modules: Parallel::ForkManager, Spreadsheet::XLSX.
 
-[1] https://github.com/ntm/grexome-TIMC-Secondary
-[2] https://github.com/ntm/grexome-TIMC-Secondary/blob/master/Documentation/samples.xlsx
+- We use the following external tools. They must be installed and should be in your PATH (though you can customize their names and paths if needed, check the script arguments). Refer to each tool's github / webpage instructions for installation.
+grexome-TIMC-primary.pl: bgzip, tabix, zgrep;
+1_fastq2bam.pl: fastp, bwa OR bwa-mem2, samblaster, samtools, bwa-postalt.js and k8 from Heng Li's BWA-kit package;
+In adition you may need the following, depending on the variant-callers you specify with --callers:
+2_bam2gvcf_strelka.pl: configureStrelkaGermlineWorkflow.py (from STRELKA2);
+2_bam2gvcf_gatk.pl: gatk (from GATK4);
+2_bam2gvcf_elprep.pl: elprep (from ELPREP5)
 
 
 REQUIRED DATA:
 **************
-The reference genome in fasta format is required, and it must be indexed/preprocessed as needed by bwa, bwa-mem2, strelka, gatk and elprep. Suggested protocol: use run-gen-ref from [3] to produce hs38DH.fa, and index/preprocess it as follows:
+The reference genome in fasta format is required, and it must be indexed/preprocessed as needed by bwa, bwa-mem2, strelka, gatk and elprep. Suggested protocol: use run-gen-ref from [1] to produce hs38DH.fa, and index/preprocess it as follows:
 run-gen-ref hs38DH
 bwa index hs38DH.fa ## for BWA
 bwa-mem2 index hs38DH.fa ## for BWA-MEM2 if you use it, careful this indexing requires tons of RAM
@@ -50,39 +36,61 @@ samtools faidx hs38DH.fa ## for strelka
 gatk CreateSequenceDictionary -R hs38DH.fa ## for GATK
 elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path . ## for elprep
 
-In addition, a small BED file with chromosomes 1-22,X,Y,M is required for the variant callers. Suggested protocol: copy-paste content from [4] into a file (eg hs38_chroms.bed), then bgzip and index it:
+In addition, a small BED file with chromosomes 1-22,X,Y,M is required for the variant callers.
+To produce this file, you can copy-paste content from [2] into a file (eg hs38_chroms.bed), then bgzip and index it:
 bgzip hs38_chroms.bed
 tabix -p bed hs38_chroms.bed.gz
+Alternately a copy of the resulting bgzipped file is provided in Metadata/hs38_chroms.bed.gz (still needs to be indexed).
 
-
-[3] https://github.com/lh3/bwa/tree/master/bwakit
-[4] https://github.com/Illumina/strelka/blob/v2.9.x/docs/userGuide/README.md#improving-runtime-for-references-with-many-short-contigs-such-as-grch38
+[1] https://github.com/lh3/bwa/tree/master/bwakit
+[2] https://github.com/Illumina/strelka/blob/v2.9.x/docs/userGuide/README.md#improving-runtime-for-references-with-many-short-contigs-such-as-grch38
 
 
 CONFIGURATION:
 **************
-Before using the pipeline you must customize the grexomeTIMCprim_config.pm file, which defines every install-specific variable (eg path+name of the reference human genome fasta file, possibly produced following the instructions in "REQUIRED DATA" above). Every subroutine in grexomeTIMCprim_config.pm is self-documented and will need to be customized. To do this you can either copy the file somewhere and edit the copy, then use --config; or edit the distributed copy in-place (not as flexible).
+Before using the pipeline you must customize (a copy of) the grexomeTIMCprim_config.pm file, which defines every install-specific variable (eg path+name of the reference human genome fasta file, possibly produced following the instructions in "REQUIRED DATA" above). Every subroutine in grexomeTIMCprim_config.pm is self-documented and will need to be customized. To do this you should copy the file somewhere and edit the copy, then use --config. Otherwise you could just edit the distributed copy in-place, although this not as flexible and your customizations will get squashed when you git pull.
 
 
-DEPENDENCIES:
-*************
-We try to keep external dependencies to a minimum. The only required perl modules are listed below. Most are standard core modules and should already be available on your system, a few will probably need to be installed from your distribution's standard repositories (e.g. "sudo yum install perl-Parallel-ForkManager perl-Spreadsheet-XLSX" on RHEL7).
-Standard core modules: Exporter, File::Basename, File::Copy, File::Glob, File::Path, File::Spec, File::Temp, FindBin, Getopt::Long, POSIX.
-Other modules: Parallel::ForkManager, Spreadsheet::XLSX.
+METADATA FILES:
+***************
+The pipeline uses a single metadata XLSX file, which describes the samples. This metadata file (and the code that parses it, in grexome_metaParse.pm) is shared with the grexome-TIMC-Secondary pipeline [3]. Therefore some columns are required in the XLSX despite not being used in this primary pipeline. The provided example file Metadata/samples.xlsx can serve as a starting point. All columns present in this file (and listed below) are required, don't change their names! You can add new columns and/or change the order of columns to your taste, just don't touch the pre-existing column names. 
+Required columns:
+- sampleID: unique identifier for each sample, these are typically created with a uniform naming scheme when new samples are integrated into the pipeline and are used internally throughout the pipeline. Rows with sampleID=="0" are ignored, this allows to retain metadata info about obsolete samples.
+- specimenID: external identifier for each sample, typically related to the original FASTQ filenames.
+- patientID: can be empty, ignored in grexome-TIMC-Primary.
+- pathologyID: required (alphanumeric string) but ignored in grexome-TIMC-Primary.
+- Causal gene: can be empty, ignored in grexome-TIMC-Primary.
+Optional column:
+- Sex: if this column exists each sample must be 'F' or 'M', used by 0_qc_checkSexChroms.pl .
 
-In addition, we use the following programs. They must be installed and should be in your PATH, but you can easily customize their names and paths if needed (check the scripts).
-grexome-TIMC-primary.pl: bgzip, tabix, zgrep;
-1_fastq2bam.pl: fastp, bwa OR bwa-mem2, samblaster, samtools, bwa-postalt.js and k8 from Heng Li's BWA-kit package;
-2_bam2gvcf_strelka.pl: configureStrelkaGermlineWorkflow.py (from STRELKA2);
-2_bam2gvcf_gatk.pl: gatk (from GATK4);
-2_bam2gvcf_elprep.pl: elprep (from ELPREP5)
+[3] https://github.com/ntm/grexome-TIMC-Secondary
+
+
+EXAMPLE USAGE:
+**************
+DATE="220525"
+perl ~/grexome-TIMC-Primary/grexome-TIMC-primary.pl --samples=samples.xlsx --workdir=PrimaryAnalyses_${DATE} --callers=strelka,gatk,elprep --config=myPrimConfig.pm &> grexomeTIMCprim_${DATE}.log &
+
+This will "process" every sampleID in samples.xlsx, ie:
+- produce analysis-ready BAMs (trim, align, mark dupes, sort);
+- produce individual GVCFs with STRELKA2, GATK4 and ELPREP5;
+- fix variant-caller quirks and bugs, filter low-quality variant calls;
+- produce a single multi-sample merged GVCF per variant-caller;
+- produce QC files analyzing HOMO/HET calls on the sex chromosomes (optional, only if samples.xlsx has a "Sex" column).
+
+For each sample, any step where the result file already exists is skipped.
+FASTQs, BAMs and GVCFs are searched for / produced in a hierarchy of subdirs defined at the top of grexome-TIMC-primary.pl, all within \$dataDir (exported from your customized copy of grexomeTIMCprim_config.pm, see CONFIGURATION).
+Logs and copies of the metadata are produced in the provided workdir (PrimaryAnalyses_${DATE}/).
+
+More extensive documentation is obtained with:
+perl grexome-TIMC-primary.pl --help
 
 
 OTHER REPO CONTENT:
 *******************
 
 ##### PREP STEP #####
-0_grexomizeFastqs.pl : house-keeping script used to organize our FASTQ files before running the grexome-TIMC-primary pipeline. It parses the samples.xlsx metadata file and takes original fastqs to produce a consolidated uniform dataset of "grexomized" fastqs. It's probably not re-usable as-is.
+0_grexomizeFastqs.pl : house-keeping script used to organize our FASTQ files before running the grexome-TIMC-primary pipeline. It parses the samples.xlsx metadata file and takes original fastqs to produce a consolidated uniform dataset of "grexomized" fastqs. It's probably not re-usable as-is since it depends on your file-naming conventions, but should provide a good starting point.
 
 ##### "PACKAGED" VERSIONS FOR RUNNING SOME STEPS ON CLUSTERS #####
 Fastq2Bam_PackagedWithBinaries_Centos7/ :

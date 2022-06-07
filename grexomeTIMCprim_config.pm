@@ -35,6 +35,10 @@ sub dataDir {
 # dir containing the "grexomized" FASTQs: for each sample we expect
 # a single pair of FASTQ files in $fastqDir, and these files must be
 # named ${sample}_1.fq.gz and ${sample}_2.fq.gz .
+# If you have several pairs of files for some samples and/or heterogeneous filename
+# conventions, you need to preprocess your FASTQs (merge and/or rename and/or symlink).
+# We use 0_grexomizeFastqs.pl for this, it could be helpful but you'll likely have to
+# adapt it so it meets your local conventions.
 sub fastqDir {
     #default to a subdir of &dataDir()
     my $fastqDir = &dataDir()."/FASTQs_All_Grexomized/";
@@ -43,7 +47,7 @@ sub fastqDir {
 
 
 # rsync path where you maintain a mirror of the BAMs and GVCFs.
-# This string is never used, it only appears at the end of the logs to
+# This string is never executed, it only appears at the end of the logs to
 # allow easy copy-pasting.
 # Return "" to NOT print these final log lines (eg if you mirror via cron)
 sub mirror {
@@ -85,6 +89,7 @@ sub refGenomeElPrep {
 # Full path to bgzipped and tabix-indexed hs38_chrom-only BED file,
 # with the full chromosomes 1-22,X,Y,M.
 # This allows to ignore decoy/unplaced/alt regions.
+# An example of the expected file is provided in Metadata/ .
 sub refGenomeChromsBed {
     # default to a file alongside the ref genome
     my $chromsBed = &refGenome();

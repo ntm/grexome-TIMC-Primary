@@ -49,6 +49,9 @@ my $outDir;
 # this is the default (works on fauve, luxor...)
 my $strelka = "strelkaGermline.sh";
 
+# type of data: exome or genome
+$datatype = "exome";
+
 # number of parallel jobs to run
 my $jobs = 16;
 
@@ -69,6 +72,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --outdir : dir where GVCF-containing subdirs will be created (one subdir per sample)
 --strelka [$strelka] : must be either the path+name of configureStrelkaGermlineWorkflow.py
           (from strelka distrib), or a wrapper script that can be in your PATH
+--datatype [$datatype] : type of data, among {exome,genome}
 --jobs [$jobs] : number of cores that strelka can use
 --real : actually do the work, otherwise this is a dry run
 --help : print this USAGE";
@@ -80,6 +84,7 @@ GetOptions ("indir=s" => \$inDir,
 	    "chroms=s" => \$chromsBed,
 	    "outdir=s" => \$outDir,
 	    "strelka=s" => \$strelka,
+	    "datatype=s" => \$datatype,
 	    "jobs=i" => \$jobs, 
 	    "real" => \$real,
 	    "help" => \$help)
@@ -109,6 +114,12 @@ foreach my $sample (split(/,/, $samples)) {
 ($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
 (-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
 
+($datatype eq 'exome') || ($datatype eq 'genome') ||
+    die "E $0: illegal datatype $datatype, must be among {exome,genome}\n";
+
+($jobs > 0) ||
+    die "E $0: called with jobs=$jobs but we need at least one thread\n";
+
 ($outDir) || 
     die "E $0: you MUST specify --outdir where GVCF-containing subdirs will be created\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
@@ -135,7 +146,9 @@ foreach my $sample (sort keys(%samples)) {
     my $runDir = "$outDir/$sample/";
 
     # strelka configure command
-    my $com = "$strelka --bam $bam  --referenceFasta $refGenome --callRegions $chromsBed --exome --runDir $runDir > /dev/null";
+    my $com = "$strelka --bam $bam  --referenceFasta $refGenome --callRegions $chromsBed";
+    ($datatype eq 'exome') && ($com .= " --exome");
+    $com .= " --runDir $runDir > /dev/null";
 
     # only run the strelka configuration step if runDir doesn't exist
     if (! -e $runDir) {

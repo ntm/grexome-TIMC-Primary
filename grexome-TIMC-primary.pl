@@ -90,6 +90,9 @@ my $callers = "";
 # workDir must not exist, it will be created and populated
 my $workDir;
 
+# type of data among {exome,genome}, used by some variant-callers
+my $datatype = 'exome';
+
 # indication of the number of threads / parallel jobs that we can run
 my $jobs = 20;
 
@@ -138,6 +141,7 @@ Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --SOIs : optional, comma-separated list of \"samples of interest\" to process
 --callers [default: none, ie only produce BAMs]: comma-separated list of variant-callers to use among ".join(',',keys(%callerDirs))."
 --workdir : subdir where logs and workfiles will be created, must not pre-exist
+--datatype [$datatype] : type of data among {exome,genome}
 --jobs [$jobs] : approximate number of threads/jobs that we should run
 --config [defaults to grexomeTIMCprim_config.pm alongside this script] : your customized copy of *config.pm
 --help : print this USAGE";
@@ -146,6 +150,7 @@ GetOptions ("samplesFile=s" => \$samplesFile,
 	    "SOIs=s" => \$SOIs,
 	    "callers=s" => \$callers,
 	    "workdir=s" => \$workDir,
+	    "datatype=s" => \$datatype,
 	    "jobs=i" => \$jobs,
 	    "config=s" => \$config,
 	    "help" => \$help)
@@ -187,6 +192,8 @@ grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome refGenomeEl
 (-e $workDir) && 
     die "E $0: workDir $workDir already exists, remove it or choose another name.\n";
 
+($datatype eq 'exome') || ($datatype eq 'genome') ||
+    die "E $0: illegal datatype $datatype, must be among {exome,genome}\n";
 
 #############################################
 # sanity-check all hard-coded paths (only now, so --help works)
@@ -402,7 +409,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	$com .= " --outdir $callerWorkDir --jobs $jobs --real";
 	#caller-specific args
 	if ($caller eq "strelka") {
-	    $com .= " --genome ".&refGenome();
+	    $com .= " --datatype $datatype --genome ".&refGenome();
 	}
 	elsif ($caller eq "gatk") {
 	    $com .= " --tmpdir $tmpDir/gatk --genome ".&refGenome();

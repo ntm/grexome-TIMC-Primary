@@ -18,7 +18,7 @@ our @ISA = ('Exporter');
 # customized *config.pm as an argument, see --config in grexome-TIMC-primary.pl
 # for an example.
 our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
-		    fastTmpPath binPath bwakitPath deepVariantSIF);
+		    fastTmpPath binPath bwakitPath strelkaBin deepVariantSIF gatkBin elprepBin);
 
 
 #################################################################
@@ -143,7 +143,19 @@ sub bwakitPath {
 }
 
 
-# Return the path/name of the deepVariant singularity image you want to use (assuming
+# path+name of configureStrelkaGermlineWorkflow.py from strelka distrib,
+# or use a two-liner wrapper that can be in your PATH or in &binPath(),
+# such as the following (which we have in /usr/local/bin/strelkaGermline.sh):
+### #!/bin/sh
+### /home/nthierry/Software/Strelka/strelka-latest/bin/configureStrelkaGermlineWorkflow.py "$@"
+sub strelkaBin {
+    my $strelka = "strelkaGermline.sh";
+    # prepend &binPath() if it's non-empty and $strelka exists there
+    (&binPath() ne "") && (-f &binPath()."/$strelka") && ($strelka = &binPath()."/$strelka");
+    return($strelka);
+}
+
+# path+name of the deepVariant singularity image you want to use (assuming
 # you want to include deepVariant in --callers).
 # For example, we currently produce our image on centos7 with:
 ### BIN_VERSION="1.4.0"
@@ -153,6 +165,22 @@ sub deepVariantSIF {
     (-f $dvSif) ||
 	die "E: deepVariant singularity image $dvSif not found, you need to edit *config.pm";
     return($dvSif);
+}
+
+# path+name of GATK launcher script distributed with GATK4, default is "gatk"
+sub gatkBin {
+    my $gatk = "gatk";
+    # prepend &binPath() if it's non-empty and $gatk exists there
+    (&binPath() ne "") && (-f &binPath()."/$gatk") && ($gatk = &binPath()."/$gatk");
+    return($gatk);
+}
+
+# path+name of elPrep5 binary, default is "elprep"
+sub elprepBin {
+    my $elprep = "elprep";
+    # prepend &binPath() if it's non-empty and $elprep exists there
+    (&binPath() ne "") && (-f &binPath()."/$elprep") && ($elprep = &binPath()."/$elprep");
+    return($elprep);
 }
 
 

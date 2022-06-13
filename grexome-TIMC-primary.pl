@@ -188,7 +188,7 @@ GetOptions ("samplesFile=s" => \$samplesFile,
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
 require($config);
 grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
-				   fastTmpPath binPath bwakitPath deepVariantSIF) );
+				   fastTmpPath binPath bwakitPath strelkaBin deepVariantSIF gatkBin elprepBin) );
 
 ($workDir) || die "E $0: you must provide a workDir. Try $0 --help\n";
 (-e $workDir) && 
@@ -414,16 +414,22 @@ foreach my $caller (sort(keys %callerDirs)) {
 	#caller-specific args
 	if ($caller eq "strelka") {
 	    $com .= " --datatype $datatype --genome ".&refGenome();
+	    $com .= " --strelka ".&strelkaBin();
 	}
 	elsif ($caller eq "deepVariant") {
-	    $com .= " --datatype $datatype --tmpdir $tmpDir/deepVariant";
-	    $com .= " --deepvariant ".&deepVariantSIF()." --genome ".&refGenome();
+	    $com .= " --datatype $datatype --tmpdir $tmpDir/deepVariant --genome ".&refGenome();
+	    $com .= " --deepvariant ".&deepVariantSIF();
 	}
 	elsif ($caller eq "gatk") {
 	    $com .= " --tmpdir $tmpDir/gatk --genome ".&refGenome();
+	    $com .= " --gatk ".&gatkBin();
 	}
 	elsif ($caller eq "elprep") {
-	    $com .= " --tmpdir $tmpDir/elprep --mode sfm --logdir $callerWorkDir --genome ".&refGenomeElPrep();
+	    $com .= " --tmpdir $tmpDir/elprep --logdir $callerWorkDir --genome ".&refGenomeElPrep();
+	    # we prefer SFM mode, filter mode is too resource-hungry and not
+	    # much faster in our hands. You can test it with "--mode filter"
+	    $com .= " --mode sfm";
+	    $com .= " --elprep ".&elprepBin();
 	}
 	else {
 	    die "E $0: unknown variant-caller $caller, need to implement caller-specific args";

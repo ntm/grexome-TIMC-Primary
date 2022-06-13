@@ -50,7 +50,7 @@ my $outDir;
 my $strelka = "strelkaGermline.sh";
 
 # type of data: exome or genome
-$datatype = "exome";
+my $datatype = "exome";
 
 # number of parallel jobs to run
 my $jobs = 16;

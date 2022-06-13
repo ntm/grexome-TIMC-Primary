@@ -17,7 +17,8 @@ our @ISA = ('Exporter');
 # we never "use grexomeTIMCprim_config" but instead provide the
 # customized *config.pm as an argument, see --config in grexome-TIMC-primary.pl
 # for an example.
-our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed fastTmpPath);
+our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
+		    fastTmpPath bwakitPath);
 
 
 #################################################################
@@ -115,6 +116,30 @@ sub fastTmpPath {
     }
     # if we get here no dir was found...
     die "E: no fastTmpPath found, you need to edit *config.pm";
+}
+
+
+# Path to programs used (fastp, samblaster, samtools, bwa-mem2 / bwa, ),
+# Returning the empty string searches in $PATH.
+# If your binaries are in various dirs all over the place, you should
+# create a subdir somewhere and symlink all the required binaries there,
+# then use that subdir as binPath
+sub binPath {
+    # default to searching in PATH
+    my $binPath = "";
+    return($binPath);
+}
+
+# Dir containing Heng Li's bwa-kit package - we use k8 and bwa-postalt.js to correctly
+# deal with ALT contigs.
+# See https://github.com/lh3/bwa/blob/master/README-alt.md
+sub bwakitPath {
+    # path to bwa-kit subdir (with k8 and bwa-postalt.js), available on SF:
+    # https://sourceforge.net/projects/bio-bwa/files/bwakit/
+    my $bwakit = "/home/nthierry/Software/BWA-kit/bwa.kit/";
+    (-d $bwakit) ||
+	die "E: specified bwakitPath $bwakit not found, you need to edit *config.pm";
+    return($bwakit);
 }
 
 

@@ -78,8 +78,7 @@ my $binPath = '';
 
 # also need path to bwa-kit subdir (with k8 and bwa-postalt.js),
 # gets its own variable because it should never be in PATH
-# set a default that works on fauve, luxor, krakenator
-my $bwakit = "~/Software/BWA-kit/bwa.kit/";
+my $bwakit = '';
 
 # path+filename of ref genome, currently we recommend the full GRCh38 with
 # decoy+alts+unmapped, as produced by Heng Li's run-gen-ref (from bwa-kit)
@@ -103,20 +102,17 @@ my $USAGE = "\nProcess a bunch of FASTQ paired-end files:
 4. sort the BAM (with samtools)
 
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
---indir string : subdir containing the FASTQs
+--indir : subdir containing the FASTQs
 --samples : comma-separated list of sampleIDs to process, for each sample there should be 
 	  a pair of FASTQ files in indir called [sample]_1.fq.gz and [sample]_2.fq.gz
---outdir string : subdir where BAMs and accessory files will be created
---binpath string [default '']: path where binaries $fastp, $samblaster, $samtools and 
+--outdir : subdir where BAMs and accessory files will be created
+--binpath : path where binaries $fastp, $samblaster, $samtools and 
     ".join('/',@bwas)." can be found, leave empty to search in PATH
---bwakit string [default '~/Software/BWA-kit/bwa.kit/'] : path where k8 and
-    bwa-postalt.js (from bwa-kit) can be found
---genome string [no default] : ref genome fasta, with path, must be indexed
-    with 'bwa-mem2 index' and/or 'bwa index'
+--bwakit : path where k8 and bwa-postalt.js (from bwa-kit) can be found
+--genome : ref genome fasta, with path, must be indexed with 'bwa-mem2 index' and/or 'bwa index'
 --threads N [default = 4] : number of threads for BWA, and also for samtools if <= 4 
     (but if > 4 samtools uses only 4 threads)
---real : actually do the work, otherwise this is a dry run, just print 
-    info on what would be done
+--real : actually do the work, otherwise this is a dry run, just print info on what would be done
 --help : print this USAGE";
 
 GetOptions ("indir=s" => \$inDir,
@@ -149,7 +145,7 @@ GetOptions ("indir=s" => \$inDir,
 # actual bwa-postalt command (use k8 to interpret the js)
 my $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
 (`$bwakitPostalt -v` =~ /^r\d+$/) ||
-    die "E $0: bwakitPostalt test doesn't run as expected, maybe fix bwakit subdir, command run: $bwakitPostalt -v\n";
+    die "E $0: bwakitPostalt test doesn't run as expected, maybe fix bwakitPath in config.pm, command run: $bwakitPostalt -v\n";
 
 # make sure ref genome exists
 ($genome) || die "E $0: you must provide a ref genome fasta file\n";

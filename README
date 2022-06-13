@@ -1,7 +1,7 @@
 Exome pipeline from TIMC in Grenoble - primary analyses:
 from FASTQs to a single multi-sample GVCF per variant-caller.
 
-The pipeline currently performs variant-calling independently with Strelka2, GATK4 and elPrep5.
+The pipeline currently performs variant-calling independently with Strelka2, GATK4, elPrep5, and deepVariant.
 
 
 INSTALLATION:
@@ -14,25 +14,26 @@ DEPENDENCIES:
 We try to keep external dependencies to a minimum.
 
 - The only required PERL modules are listed below. Most are standard core modules and should already be available on your system, a few will probably need to be installed from your distribution's standard repositories (e.g. "sudo yum install perl-Parallel-ForkManager perl-Spreadsheet-XLSX" on RHEL7).
-Standard core modules: Exporter, File::Basename, File::Copy, File::Glob, File::Path, File::Spec, File::Temp, FindBin, Getopt::Long, POSIX.
+Standard core modules: Exporter, File::Basename, File::Copy, File::Glob, File::Path, File::Spec, File::Temp, FindBin, Getopt::Long, POSIX, Cwd.
 Other modules: Parallel::ForkManager, Spreadsheet::XLSX.
 
-- We use the following external tools. They must be installed and should be in your PATH (though you can customize their names and paths if needed, check the script arguments). Refer to each tool's github / webpage instructions for installation.
-grexome-TIMC-primary.pl: bgzip, tabix, zgrep;
-1_fastq2bam.pl: fastp, bwa OR bwa-mem2, samblaster, samtools, bwa-postalt.js and k8 from Heng Li's BWA-kit package;
+- We use the following external tools. They must be installed and should be in your PATH (though you can customize their names and paths if needed, check the script arguments). Refer to each tool's github / webpage instructions for installation if needed.
+bgzip, tabix, zgrep (grexome-TIMC-primary.pl);
+fastp, bwa OR bwa-mem2, samblaster, samtools, bwa-postalt.js and k8 from Heng Li's BWA-kit package (1_fastq2bam.pl);
+gunzip (2_bam2gvcf_deepVariant.pl and 4_mergeGVCFs.pl);
 In adition you may need the following, depending on the variant-callers you specify with --callers:
-2_bam2gvcf_strelka.pl: configureStrelkaGermlineWorkflow.py (from STRELKA2);
-2_bam2gvcf_gatk.pl: gatk (from GATK4);
-2_bam2gvcf_elprep.pl: elprep (from ELPREP5)
-
+configureStrelkaGermlineWorkflow.py (from STRELKA2, for 2_bam2gvcf_strelka.pl)
+gatk (from GATK4, for 2_bam2gvcf_gatk.pl)
+elprep (from ELPREP5, for 2_bam2gvcf_elprep.pl)
+a deepvariant singularity image (SIF format, for 2_bam2gvcf_deepVariant.pl)
 
 REQUIRED DATA:
 **************
-The reference genome in fasta format is required, and it must be indexed/preprocessed as needed by bwa, bwa-mem2, strelka, gatk and elprep. Suggested protocol: use run-gen-ref from [1] to produce hs38DH.fa, and index/preprocess it as follows:
+The reference genome in fasta format is required, and it must be indexed/preprocessed as needed by bwa, bwa-mem2, strelka, gatk, elprep and deepVariant. Suggested protocol: use run-gen-ref from [1] to produce hs38DH.fa, and index/preprocess it as follows:
 run-gen-ref hs38DH
 bwa index hs38DH.fa ## for BWA
 bwa-mem2 index hs38DH.fa ## for BWA-MEM2 if you use it, careful this indexing requires tons of RAM
-samtools faidx hs38DH.fa ## for strelka
+samtools faidx hs38DH.fa ## for strelka (and deepVariant?)
 gatk CreateSequenceDictionary -R hs38DH.fa ## for GATK
 elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path . ## for elprep
 

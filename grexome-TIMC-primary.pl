@@ -50,6 +50,7 @@ my $gvcfDir = "GVCFs_grexome/";
 # --callers will specify the variant-callers to actually use
 my %callerDirs = (
     "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
+    "deepVariant" => ["GVCFs_DV_Raw/","GVCFs_DV_Filtered/","GVCFs_DV_Filtered_Merged/"],
     "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"],
     "elprep" => ["GVCFs_ElPrep_Raw/","GVCFs_ElPrep_Filtered/","GVCFs_ElPrep_Filtered_Merged/"]);
 
@@ -186,7 +187,8 @@ GetOptions ("samplesFile=s" => \$samplesFile,
 ($config =~ m~/~) || ($config = "./$config");
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
 require($config);
-grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed fastTmpPath) );
+grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
+				   fastTmpPath binPath bwakitPath deepVariantSIF) );
 
 ($workDir) || die "E $0: you must provide a workDir. Try $0 --help\n";
 (-e $workDir) && 
@@ -318,7 +320,9 @@ if ($samples) {
     warn "I $now: $0 - fastq2bam will process sample(s) $samples\n";
     # make BAMs
     my $com = "perl $RealBin/1_fastq2bam.pl --indir $fastqDir --samples $samples --outdir $dataDir/$bamDir ";
-    $com .= "--genome ".&refGenome()." --threads $jobs --real ";
+    $com .= "--genome ".&refGenome()." --bwakit ".&bwakitPath()." --threads $jobs --real";
+    (&binPath() ne '') && ($com .= " --binpath ".&binPath());
+    
     system($com) && die "E $0: fastq2bam FAILED: $!";
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - fastq2bam DONE, logfiles are available as $dataDir/$bamDir/*log\n";
@@ -411,6 +415,10 @@ foreach my $caller (sort(keys %callerDirs)) {
 	if ($caller eq "strelka") {
 	    $com .= " --datatype $datatype --genome ".&refGenome();
 	}
+	elsif ($caller eq "deepVariant") {
+	    $com .= " --datatype $datatype --tmpdir $tmpDir/deepVariant";
+	    $com .= " --deepvariant ".&deepVariantSIF()." --genome ".&refGenome();
+	}
 	elsif ($caller eq "gatk") {
 	    $com .= " --tmpdir $tmpDir/gatk --genome ".&refGenome();
 	}
@@ -442,6 +450,17 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
 	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $callerWorkDir ".$callerDirs{"strelka"}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
+	}
+	elsif ($caller eq "deepVariant") {
+	    # DV log is a single file per sample, not trying to parse it, just moving it with the
+	    # GVCF and TBI into $gvcfDir subtree and removing now-empty callerWorkDir:
+	    foreach my $s (split(/,/,$samples)) {
+		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
+		    move("$callerWorkDir/$file", $callerDirs{"deepVariant"}->[0]) ||
+			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{"deepVariant"}->[0]." : $!";
+		}
+	    }
+	    rmdir($callerWorkDir) || die "E $0: cannot rmdir deepVariant callerWorkDir $callerWorkDir: $!";
 	}
 	elsif ($caller eq "gatk") {
 	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,

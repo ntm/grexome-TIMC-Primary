@@ -18,7 +18,7 @@ our @ISA = ('Exporter');
 # customized *config.pm as an argument, see --config in grexome-TIMC-primary.pl
 # for an example.
 our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
-		    fastTmpPath bwakitPath);
+		    fastTmpPath binPath bwakitPath deepVariantSIF);
 
 
 #################################################################
@@ -140,6 +140,19 @@ sub bwakitPath {
     (-d $bwakit) ||
 	die "E: specified bwakitPath $bwakit not found, you need to edit *config.pm";
     return($bwakit);
+}
+
+
+# Return the path/name of the deepVariant singularity image you want to use (assuming
+# you want to include deepVariant in --callers).
+# For example, we currently produce our image on centos7 with:
+### BIN_VERSION="1.4.0"
+### singularity pull docker://google/deepvariant:"${BIN_VERSION}"
+sub deepVariantSIF {
+    my $dvSif = "/home/nthierry/Software/DeepVariant/deepvariant_1.4.0.sif";
+    (-f $dvSif) ||
+	die "E: deepVariant singularity image $dvSif not found, you need to edit *config.pm";
+    return($dvSif);
 }
 
 

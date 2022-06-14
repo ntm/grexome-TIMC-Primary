@@ -65,7 +65,7 @@ my $chroms = "/bettik/thierryn/HumanGenome/hs38_chroms.bed.gz";
 # oarsub command with params: run on my project ngs-timc, and...
 my $oarBase = "oarsub --project ngs-timc";
 ## INITIAL BIG JOBS TO PROCESS GREXOMES 50-630: ask for 1 full node, 24h walltime, per job
-$oarBase .= " -l /nodes=1,cores=32,walltime=24 ";
+$oarBase .= " -l /nodes=1,core=32,walltime=24 ";
 
 my $grex = $first;
 while ($grex <= $last) {
@@ -93,7 +93,7 @@ while ($grex <= $last) {
 	((warn "W: no remaining samples starting at $grexStartJob, all done\n") && last);
     my $oar = $oarBase." -O $logDir/bam2gvcf.$grexStartJob.out -E $logDir/bam2gvcf.$grexStartJob.err ";
     $oar .= "\" perl $bam2gvcf --indir $inDir --samples $samples --genome $genome --chroms $chroms ";
-    $oar .= "--outdir $outDir --tmpdir $tmpDir --deepvariant $deepvariant --jobs $jobs \""; #--real\"";
+    $oar .= "--outdir $outDir --tmpdir $tmpDir --deepvariant $deepvariant --jobs $jobs --real\"";
 
 
     #warn "$oar\n";

@@ -120,7 +120,7 @@ foreach my $sample (split(/,/, $samples)) {
 ($deepVariant) || die "E $0: you must provide a deepVariant singularity image file\n";
 (-f $deepVariant) || die "E $0: provided deepVariant SIF file doesn't exist\n";
 $deepVariant .= " /opt/deepvariant/bin/run_deepvariant";
-(`$deepVariant --version` =~ /^DeepVariant version/) ||
+(`singularity run $deepVariant --version` =~ /^DeepVariant version/) ||
     die "E $0: provided DV image broken / mis-behaving, can't find DV version with:\n".
     "$deepVariant --version\n";
 

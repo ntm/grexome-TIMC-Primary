@@ -56,7 +56,7 @@ my $tmpDir = "/var/tmp/DVtmp/";
 my $deepvariant = "/home/thierryn/Software/DeepVariant/deepvariant_1.4.0.sif";
 
 # path to bam2gvcf_deepvariant.pl
-my $bam2gvcf = "/home/thierryn/Bam2gvcf_DV_PackagedWithBinaries/2_bam2gvcf_deepvariant.pl";
+my $bam2gvcf = "/home/thierryn/Software/grexome-TIMC-Primary/2_bam2gvcf_deepvariant.pl";
 # ref genome
 my $genome = "/bettik/thierryn/HumanGenome/hs38DH.fa";
 # chroms or target regions
@@ -64,7 +64,7 @@ my $chroms = "/bettik/thierryn/HumanGenome/hs38_chroms.bed.gz";
 
 # oarsub command with params: run on my project ngs-timc, and...
 my $oarBase = "oarsub --project ngs-timc";
-## INITIAL BIG JOB TO PROCESS GREXOMES 50-630: ask for 1 full node, 24h walltime
+## INITIAL BIG JOBS TO PROCESS GREXOMES 50-630: ask for 1 full node, 24h walltime, per job
 $oarBase .= " -l /nodes=1,cores=32,walltime=24 ";
 
 my $grex = $first;

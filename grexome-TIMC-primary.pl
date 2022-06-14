@@ -50,7 +50,7 @@ my $gvcfDir = "GVCFs_grexome/";
 # --callers will specify the variant-callers to actually use
 my %callerDirs = (
     "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
-    "deepVariant" => ["GVCFs_DV_Raw/","GVCFs_DV_Filtered/","GVCFs_DV_Filtered_Merged/"],
+    "deepvariant" => ["GVCFs_DV_Raw/","GVCFs_DV_Filtered/","GVCFs_DV_Filtered_Merged/"],
     "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"],
     "elprep" => ["GVCFs_ElPrep_Raw/","GVCFs_ElPrep_Filtered/","GVCFs_ElPrep_Filtered_Merged/"]);
 
@@ -416,7 +416,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    $com .= " --datatype $datatype --genome ".&refGenome();
 	    $com .= " --strelka ".&strelkaBin();
 	}
-	elsif ($caller eq "deepVariant") {
+	elsif ($caller eq "deepvariant") {
 	    $com .= " --datatype $datatype --tmpdir $tmpDir/deepVariant --genome ".&refGenome();
 	    $com .= " --deepvariant ".&deepVariantSIF();
 	}
@@ -454,19 +454,19 @@ foreach my $caller (sort(keys %callerDirs)) {
 		}
 	    }
 	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
-	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $callerWorkDir ".$callerDirs{"strelka"}->[0];
+	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $callerWorkDir ".$callerDirs{$caller}->[0];
 	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
 	}
-	elsif ($caller eq "deepVariant") {
+	elsif ($caller eq "deepvariant") {
 	    # DV log is a single file per sample, not trying to parse it, just moving it with the
 	    # GVCF and TBI into $gvcfDir subtree and removing now-empty callerWorkDir:
 	    foreach my $s (split(/,/,$samples)) {
 		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
-		    move("$callerWorkDir/$file", $callerDirs{"deepVariant"}->[0]) ||
-			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{"deepVariant"}->[0]." : $!";
+		    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
+			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
 		}
 	    }
-	    rmdir($callerWorkDir) || die "E $0: cannot rmdir deepVariant callerWorkDir $callerWorkDir: $!";
+	    rmdir($callerWorkDir) || die "E $0: cannot rmdir $caller callerWorkDir $callerWorkDir: $!";
 	}
 	elsif ($caller eq "gatk") {
 	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,
@@ -474,8 +474,8 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty callerWorkDir:
 	    foreach my $s (split(/,/,$samples)) {
 		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
-		    move("$callerWorkDir/$file", $callerDirs{"gatk"}->[0]) ||
-			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{"gatk"}->[0]." : $!";
+		    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
+			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
 		}
 	    }
 	    rmdir($callerWorkDir) || die "E $0: cannot rmdir gatk callerWorkDir $callerWorkDir: $!";
@@ -487,8 +487,8 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    # move elPrep GVCFs into $gvcfDir subtree
 	    foreach my $s (split(/,/,$samples)) {
 		my $file = "$s.g.vcf.gz";
-		move("$callerWorkDir/$file", $callerDirs{"elprep"}->[0]) ||
-		    die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{"elprep"}->[0]." : $!";
+		move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
+		    die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
 	    }
 	}
 	else {

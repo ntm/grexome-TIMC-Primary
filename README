@@ -25,7 +25,7 @@ In adition you may need the following, depending on the variant-callers you spec
 configureStrelkaGermlineWorkflow.py (from STRELKA2, for 2_bam2gvcf_strelka.pl)
 gatk (from GATK4, for 2_bam2gvcf_gatk.pl)
 elprep (from ELPREP5, for 2_bam2gvcf_elprep.pl)
-a deepvariant singularity image (SIF format, for 2_bam2gvcf_deepVariant.pl)
+singularity, and a deepvariant singularity image (SIF format, for 2_bam2gvcf_deepVariant.pl)
 
 REQUIRED DATA:
 **************

@@ -7,8 +7,8 @@
 
 # Take as arg a filename containing a list of GVCF filenames (with full path, 
 # possible gzipped, one file per line) with one or more data columns (ie samples).
-# These GVCFs should be produced by Strelka or by GATK4, preferably cleaned up
-# by filterBadCalls.pl, and/or by this program.
+# These GVCFs should be produced by Strelka, GATK4, deepVariant or ElPrep, preferably
+# cleaned up by filterBadCalls.pl, and/or by this program.
 # If you feed random GVCF files you will probably need to adapt the code (although
 # I try to be defensive): many aspects of the VCF spec are subject to interpretation...
 # Produce to stdout a GVCF file, where:
@@ -29,20 +29,18 @@
 #   the longest REF from all infiles;
 #   all ALTs from all infiles, adjusted to fit the longest REF (append extra 
 #      bases if needed);
-#   QUAL replaced by '.'
-#   INFO and FILTER replaced by '.' except for non-variant blocks:
-#      * if all infiles have overlapping blocks with some common FILTERs, we produce a new 
-#        block covering the intersection with the largest common set of FILTER values 
+#   QUAL and FILTER replaced by '.'
+#   INFO replaced by '.' except for non-variant blocks:
+#      * if all infiles have overlapping blocks, we produce a new block covering the intersection
 #        (POS and END get updated, any other info such as BLOCKAVG_* from Strelka stays);
-#      * otherwise we print individual lines, not a block, and each sample gets its FT
-#        with all its FILTERs;
+#      * otherwise we print individual lines, not a block;
 #   FORMAT contains the union of FORMAT keys from all files (see below);
 #   DATA columns contain the CORRECTED sample data for every sample.
 #   CORRECTED means:
 #     if a key was missing for a sample it gets '.'
 #     GT gets corrected values for ALTs
 #     GQ, GQX, DPI, DP, DPF, AF, SB, FT, PS, PGT, PID don't change
-#     AD/ADF/ADR, get 0 for new ALTs
+#     AD/ADF/ADR and VAF get 0 for new ALTs
 #     PL gets correct new values, using 255 for missing alleles (see explanation in the code)
 #
 ###########
@@ -67,6 +65,10 @@
 # GT:AD:DP:GQ:PL:SB
 # GT:DP:GQ:MIN_DP:PL
 #
+# From deepVariant 1.4.0 GVCFs we have only:
+# GT:GQ:MIN_DP:PL (non-variant blocks)
+# GT:GQ:DP:AD:VAF:PL (variant positions)
+#
 # AF is also accepted as a key (so input can be produced by filterBadCalls.pl).
 #
 # In the output files we can change the order of fields and
@@ -83,10 +85,13 @@
 ## -> GATK 4.1.8.1:
 ## - only available FILTER is LowQual, never seen in my data but should
 ##   be relevant
+## -> deepVariant 1.4.0:
+## - existing filters are RefCall (call should be homoref), LowQual (GQ should be low),
+##   and NoCall (should be ./.), we'll just use LowQual since we already use it
 ###########
 # NOTES on normalization and merging of variants:
 # - as stated, I do NOT left-align variants, it's too much overhead. 
-#   I am hoping that Strelka/GATK do it correctly, or at least I'm hoping
+#   I am hoping that Strelka/GATK/DV do it correctly, or at least I'm hoping
 #   they're consistent in their behavior. If they are consistent, merging
 #   will work fine and variants can be left-aligned later if needed.
 # - I also do NOT merge lines with different POS values, even if
@@ -120,7 +125,7 @@ $0 = basename($0);
 # filters to apply: any line whose FILTER value contains a key of %filtersApplied
 # will be skipped.
 # For performance reasons we do NOT check the FT fields for these keys, we assume
-# that the infiles are single-sample Strelka/GATK GVCFs or were produced by this script
+# that the infiles are single-sample GVCFs or were produced by this script
 # with the same %filtersApplied.
 # [see NOTES on FILTERS above for how I chose these]
 my %filtersApplied = ('LowDepth'=>1, 'HighDPFRatio'=>1, 'LowQual'=>1);
@@ -168,7 +173,8 @@ my $help = '';
 
 my $USAGE = 'Merge several GVCFs into a single multi-sample GVCF, printed on STDOUT.
 This software was developed and tested for merging single-sample GVCFs produced by 
-Strelka (2.9.10) or by GATK (4.1.8.1), and for multi-sample GVCFs produced by itself.
+Strelka (2.9.10), GATK (4.1.8.1), elPrep (5.0.2) or DeepVariant (1.4.0); and for 
+multi-sample GVCFs produced by itself.
 However it tries to be very defensive, so it should detect and report any problem it 
 has with the GVCFs you provide. If this happens please report the issues so we can 
 fix them.
@@ -561,8 +567,8 @@ warn "I $now: $0 - ALL DONE\n";
 # leading bases common to REF and all ALTs are also removed and POS is 
 # adjusted accordingly.
 # A "line" is an arrayref, result of tab-splitting the actual line up to
-# DATA columns, with INFO cleared ('.') except if line is a non-var block
-# (ie has END=).
+# DATA columns, with FILTER cleared ('.') and INFO also cleared except if
+# line is a non-var block (ie has END=).
 # The last array element has all DATA columns in a single string.
 sub grabNextLine {
     (@_ == 1) || die "E $0: grabNextLine needs 1 arg.\n";
@@ -579,7 +585,9 @@ sub grabNextLine {
 	foreach my $f (@filters) {
 	    (defined $filtersApplied{$f}) && (next LINE);
 	}
-	# if we get here no filters apply, clear INFO if not in a non-var block
+	# if we get here no filters apply, clear FILTER
+	$line[6] = ".";
+	# also clear INFO if not in a non-var block
 	($line[7] =~ /^END=/) || ($line[7] = ".");
 
 	# normalize variants:
@@ -587,12 +595,16 @@ sub grabNextLine {
 	if (length($line[3]) >= 2) {
 	    my $ref = $line[3];
 	    my @alts = split(/,/,$line[4]);
-	    # never normalize <NON_REF> or * : if they are here, store their indexes
-	    # in @alts and splice them out (trick: start from the end)
-	    my ($nonrefi,$stari) = (-1,-1);
+	    # never normalize <NON_REF>, * or <*> (the DV equivalent of gatk's <NON_REF>) : if they are here,
+	    # store their indexes in @alts and splice them out (trick: start from the end)
+	    my ($nonrefi,$stari,$dvStari) = (-1,-1,-1);
 	    foreach my $i (reverse(0..$#alts)) {
 		if ($alts[$i] eq '<NON_REF>') {
 		    $nonrefi = $i;
+		    splice(@alts,$i,1);
+		}
+		elsif ($alts[$i] eq '<*>') {
+		    $dvStari = $i;
 		    splice(@alts,$i,1);
 		}
 		elsif ($alts[$i] eq '*') {
@@ -655,8 +667,9 @@ sub grabNextLine {
 		}
 	    }
 
-	    # place <NON_REF> and/or * back where they belong: need to splice
+	    # place <NON_REF> and/or * or <*> back where they belong: need to splice
 	    # in correct order, smallest index first
+	    # NOTE: dvStari (deepVariant only) and stari/nonrefi (GATK/elPrep) are exclusive
 	    if ($stari != -1) {
 		if ($nonrefi == -1) {
 		    splice(@alts, $stari, 0, '*');
@@ -673,6 +686,9 @@ sub grabNextLine {
 	    }
 	    elsif ($nonrefi != -1) {
 		splice(@alts, $nonrefi, 0, '<NON_REF>');
+	    }
+	    elsif ($dvStari != -1) {
+		splice(@alts, $dvStari, 0, '<*>');
 	    }
 
 	    $line[3] = $ref;
@@ -716,13 +732,13 @@ sub addLineToBatch {
 	push(@$batchR, $lineR);
     }
     elsif ($lineR->[1] == $prevLineR->[1]) {
-	if (($lineR->[4] eq '.') || ($lineR->[4] eq '<NON_REF>')) {
+	if (($lineR->[4] eq '.') || ($lineR->[4] eq '<NON_REF>') || ($lineR->[4] eq '<*>')) {
 	    # if lineR is non-var ignore it at POS, but make it start at POS+1
 	    # if it's a block (just skip it if it's not a block)
 	    $lineR = &splitBlockLine($lineR,$lineR->[1]);
 	    ($lineR) && (push(@$batchR,$lineR));
 	}
-	elsif(($prevLineR->[4] eq '.') || ($prevLineR->[4] eq '<NON_REF>')) {
+	elsif(($prevLineR->[4] eq '.') || ($prevLineR->[4] eq '<NON_REF>') || ($prevLineR->[4] eq '<*>')) {
 	    # prevLineR was non-var, replace it with lineR
 	    pop(@$batchR);
 	    push(@$batchR,$lineR);
@@ -933,18 +949,10 @@ sub mergeBatchOfLines {
 	else {
 	    # build array from %longestFormat, respecting the order specified 
 	    # in @maxFormatSorted, and ignoring MIN_DP since we are not in a non-var block
-	    my @maxFormatSorted = ('GT','AF','FT','GQ','GQX','DP','DPF','DPI','AD','ADF','ADR','SB','PL','PS','PGT','PID');
+	    my @maxFormatSorted = ('GT','AF','DP','FT','GQ','GQX','DPF','DPI','AD','ADF','ADR','VAF','SB','PL','PS','PGT','PID');
 	    my @longestFormat = ();
-	    # if any infile had FILTER ne '.', we need to add FT to FORMAT even if it wasn't there
-	    my $addFT = 0;
-	    foreach my $lineR (@nextToMerge) {
-		($lineR) && ($lineR->[6] ne '.') && ($addFT = 1) && last;
-	    }
 	    foreach my $fkey (@maxFormatSorted) {
-		# if $addFT, we must add FT even if it wasn't there
-		if ( ($longestFormat{$fkey}) || (($fkey eq 'FT') && $addFT) ) {
-		    push(@longestFormat,$fkey);
-		}
+		($longestFormat{$fkey}) && (push(@longestFormat,$fkey));
 	    }
 	    print($outFH &mergeLines(\@nextToMerge, $numSamplesR, $longestRef, \@longestFormat));
 	}
@@ -981,9 +989,12 @@ sub mergeLines {
 	($toMergeR->[$fileIndex]) || next;
 	my ($ref,$alts) = @{$toMergeR->[$fileIndex]}[3,4];
 	# if we're in a non-variant position in this file: $ref might be 'N' and anyways
-	# no extension of alts is needed, but for gatk NON_REF must still go in newAlts
+	# no extension of alts is needed, but <NON_REF> (GATK) or <*> (DV) must still go in newAlts
 	($alts eq '.') && next;
-	($alts eq '<NON_REF>') && ($newAlts{$alts} = 1) && next;
+	if (($alts eq '<NON_REF>') || ($alts eq '<*>')) {
+	    $newAlts{$alts} = 1;
+	    next;
+	}
 	if ($longestRef ne $ref) {
 	    ($longestRef =~ /^$ref(\w+)$/) || 
 		die "E $0: longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
@@ -992,8 +1003,8 @@ sub mergeLines {
 	    my @fixedAlts = ();
 	    foreach my $thisAlt (split(/,/,$alts)) {
 		my $fixedAlt = $thisAlt;
-		# never extend NON_REF or *
-		if (($fixedAlt ne '<NON_REF>') && ($fixedAlt ne '*')) {
+		# never extend <NON_REF> or * or <*>
+		if (($fixedAlt ne '<NON_REF>') && ($fixedAlt ne '*') && ($fixedAlt ne '<*>')) {
 		    $fixedAlt .= $extraBases;
 		}
 		$newAlts{$fixedAlt} = 1;
@@ -1013,15 +1024,17 @@ sub mergeLines {
     ####################################
     # STEP 2 (NO LOOP): build @newAlts, the list of fixed ALTs sorted appropriately:
     # by increasing length, and at equal length in alphabetical order (so we are
-    # deterministic), always keeping '*' and NON_REF last (in that order) if present
-    my ($starPresent,$nonrefPresent) = (0,0);
+    # deterministic), always keeping '*' and <NON_REF> and <*> last (in that order) if present
+    my ($starPresent,$nonrefPresent,$dvStarPresent) = (0,0,0);
     ($newAlts{'*'}) && ($starPresent = 1) && (delete($newAlts{'*'}));
     ($newAlts{'<NON_REF>'}) && ($nonrefPresent = 1) && (delete($newAlts{'<NON_REF>'}));
+    ($newAlts{'<*>'}) && ($dvStarPresent = 1) && (delete($newAlts{'<*>'}));
 
     my @newAlts = sort {(length($a) <=> length($b)) || ($a cmp $b)} keys(%newAlts);
-    # add back * and NON_REF if they were here
+    # add back *, NON_REF and <*> if they were here
     ($starPresent) && (push(@newAlts, '*'));
     ($nonrefPresent) && (push(@newAlts, '<NON_REF>'));
+    ($dvStarPresent) && (push(@newAlts, '<*>'));
     # if no ALTs, use '.' as a bogus ALT
     (@newAlts) || push(@newAlts, '.');
 
@@ -1099,10 +1112,9 @@ sub mergeLines {
 
 		foreach my $fi (0..$#format) {
 		    #     GT gets adjusted values from %altsNew2Old
-		    #     AF GQ GQX DPF DPI SB PS PGT PID don't change
+		    #     AF GQ GQX DPF DPI SB PS PGT PID FT don't change
 		    #     DP gets MIN_DP value if it exists, otherwise doesn't change
-		    #     AD ADF ADR get 0 for new ALTs
-		    #     FT gets value from FILTER if it didn't exist, otherwise doesn't change
+		    #     AD ADF ADR VAF get 0 for new ALTs
 		    #     PL gets correct new values (see explanation in the code)
 		    if (!defined $data[$fi]) {
 			# data columns can be shorter than FORMAT when last values are unknown
@@ -1153,21 +1165,23 @@ sub mergeLines {
 			(defined $formatIndex{"DP"}) && ($fixedData[$formatIndex{"DP"}] = $data[$fi]);
 		    }
 
-		    elsif (($format[$fi] eq "AD") || ($format[$fi] eq "ADF")|| ($format[$fi] eq "ADR")) {
+		    elsif (($format[$fi] eq "AD") || ($format[$fi] eq "ADF") || ($format[$fi] eq "ADR") || ($format[$fi] eq "VAF")) {
 			my @ADs = split(/,/, $data[$fi]);
-			# copy REF AD and remove from @ADs
-			$fixedData[$formatIndex{$format[$fi]}] = shift(@ADs);
+			# copy REF AD and remove from @ADs (except for VAF where there's no REF value)
+			($format[$fi] ne "VAF") && ($fixedData[$formatIndex{$format[$fi]}] = shift(@ADs).",");
 			# append ADs for all ALTs, inserting '0' except for 
 			# alts also present in currentLine
 			foreach my $newAltIndex (0..$#newAlts) {
 			    if (defined $altsNew2Old[$newAltIndex]) {
-				$fixedData[$formatIndex{$format[$fi]}] .= ",".$ADs[$altsNew2Old[$newAltIndex]]; 
+				$fixedData[$formatIndex{$format[$fi]}] .= $ADs[$altsNew2Old[$newAltIndex]].","; 
 			    }
 			    else {
 				# this newAlt is not in current line, use zero
-				$fixedData[$formatIndex{$format[$fi]}] .= ",0";
+				$fixedData[$formatIndex{$format[$fi]}] .= "0,";
 			    }
 			}
+			# remove trailing ','
+			chop($fixedData[$formatIndex{$format[$fi]}]);
 		    }
 
 		    elsif ($format[$fi] eq "PL") {
@@ -1270,17 +1284,14 @@ sub mergeLines {
 		    }
 		}
 
-		# if FT is needed but wasn't found, grab data from FILTER
-		if ((defined $formatIndex{"FT"}) && ($#fixedData >= $formatIndex{"FT"}) && (! $fixedData[$formatIndex{"FT"}])) {
-		    $fixedData[$formatIndex{"FT"}] = $toMergeR->[$fileIndex]->[6];
-		}
-
-		# if AD* is needed but wasn't found, use correct number of dummy '.'
-		foreach my $fkey ("AD","ADF","ADR") {
+		# if AD* / VAF is needed but wasn't found, use correct number of dummy '.'
+		foreach my $fkey ("AD","ADF","ADR","VAF") {
 		    if ((defined $formatIndex{$fkey}) && ($#fixedData >= $formatIndex{$fkey}) && (! $fixedData[$formatIndex{$fkey}])) {
-			# need one value per allele (one REF and all newAlts), use dummy '.'
-			$fixedData[$formatIndex{$fkey}] = '.';
-			$fixedData[$formatIndex{$fkey}] .= ",." x scalar(@newAlts);
+			# need one value for REF (except for VAF) + one value per newAlts allele, use dummy '.'
+			($fkey ne 'VAF') && ($fixedData[$formatIndex{$fkey}] = '.,');
+			$fixedData[$formatIndex{$fkey}] .= ".," x scalar(@newAlts);
+			# remove last ','
+			chop($fixedData[$formatIndex{$fkey}]);
 		    }
 		}
 
@@ -1308,12 +1319,8 @@ sub mergeLines {
 
 ###############
 # special case of mergeLines: every line to merge is a non-variant block,
-# and they all have the same END (this is checked).
-# -> if all lines share at least one FILTER value, we return a new blockline 
-# using as FILTER the largest set of common FILTER values
-# -> else no FILTER value is shared, we return a bunch of single-position lines
-# Precondition: FORMAT ends with DP:DPF:MIN_DP (strelka) or DP:GQ:MIN_DP:PL (gatk),
-#    this is checked
+# and they all have the same POS, FORMAT and END (this is checked).
+# -> return a new \n-terminated blockline with all samples merged
 sub mergeLinesNonVarBlock {
     (@_ == 3) || die "E $0: mergeLinesNonVarBlock needs 3 args.\n";
     my ($toMergeR,$numSamplesR, $longestRef) = @_;
@@ -1323,191 +1330,40 @@ sub mergeLinesNonVarBlock {
     while(! $toMergeR->[$firstNonNull]) {
 	$firstNonNull++;
     }
-    # we can make a new non-var block iff all blocks share some FILTER value(s)
-    my $makeNewBlock = 1;
-    # shared filters, initialize with filters of first non-null line
-    # we use both a ';'-separated string and an array for efficiency
-    my $sharedFilters = $toMergeR->[$firstNonNull]->[6];
-    my @sharedFilters = split(/;/,$sharedFilters);
-    # then update to keep smallest set of shared filters from all files
-    foreach my $fileIndex ($firstNonNull+1..$#$toMergeR) {
-	($toMergeR->[$fileIndex]) || next;
-	my $thisFilter = $toMergeR->[$fileIndex]->[6];
-	# quick test, if strings are equal it's fine
-	($thisFilter eq $sharedFilters) && next;
-	# trick: start at the end so we can splice out any unshared filters
-	foreach my $i (reverse(0..$#sharedFilters)) {
-	    my $thisShared = $sharedFilters[$i];
-	    # protect for regexp search if it's '.'
-	    ($thisShared eq '.') && ($thisShared = '\.');
-	    if ($thisFilter !~ /$thisShared/) {
-		# remove thisShared from @sharedFilters
-		splice(@sharedFilters,$i,1);
+
+    # make a new non-variant block: grab start of line from first non-null file,
+    # except for REF: use $longestRef because if any infile has non-N it will be there 
+    my $toPrint = join("\t", @{$toMergeR->[$firstNonNull]}[0..2]);
+    $toPrint .= "\t$longestRef";
+    # grab ALT, QUAL, FILTER ('.'), INFO and FORMAT from first non-null file, all
+    # files should have the same (this is checked for INFO and FORMAT)
+    $toPrint .= "\t".join("\t", @{$toMergeR->[$firstNonNull]}[4-8]);
+
+    # add data columns (even for files that don't have a line at this pos)
+    foreach my $fileIndex (0..$#$numSamplesR) {
+	if ($toMergeR->[$fileIndex]) {
+	    # check INFO
+	    ($toMergeR->[$fileIndex]->[7] eq $toMergeR->[$firstNonNull]->[7]) ||
+		die "E $0: in mergeLinesNonVarBlock, INFO mismatch when toPrint=$toPrint\n";
+	    # check FORMAT
+	    ($toMergeR->[$fileIndex]->[8] eq $toMergeR->[$firstNonNull]->[8]) || 
+		die "E $0: in mergeLinesNonVarBlock, FORMAT mismatch when toPrint=$toPrint\n";
+	    # print data columns
+	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
+		$toPrint .= "\t".$toMergeR->[$fileIndex]->[8+$j];
 	    }
-	}
-	# if nothing is shared we can stop now, otherwise update string version
-	if (! @sharedFilters) {
-	    # incompatible filter values, can't make a new block
-	    $makeNewBlock = 0;
-	    last;
 	}
 	else {
-	    $sharedFilters = join(';',@sharedFilters);
+	    # file $fileIndex doesn't have a line for this position, print 
+	    # "blank" data for each sample from infile
+	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
+		$toPrint .= "\t.";
+	    }
 	}
     }
-
-    # $toPrint will be returned, it can have one or several lines but is always \n-terminated
-    my $toPrint = "";
-    if ($makeNewBlock) {
-	# ok make a new non-variant block: grab start of line from first non-null file,
-	# except for REF: use $longestRef because if any infile has non-N it will be there 
-	$toPrint = join("\t", @{$toMergeR->[$firstNonNull]}[0..2]);
-	$toPrint .= "\t$longestRef";
-	$toPrint .= "\t".join("\t", @{$toMergeR->[$firstNonNull]}[4,5]);
-
-	# use smallest set of shared filters
-	$toPrint .= "\t$sharedFilters";
-
-	# grab INFO from first non-null file, all files should have the same (this is checked)
-	my $info = ${$toMergeR->[$firstNonNull]}[7];
-	$toPrint .= "\t$info";
-
-	# grab FORMAT from first non-null file, all files should have the same (this is checked)
-	my $format = $toMergeR->[$firstNonNull]->[8];
-	$toPrint .= "\t$format";
-
-	# add data columns (even for files that don't have a line at this pos)
-	foreach my $fileIndex (0..$#$numSamplesR) {
-	    if ($toMergeR->[$fileIndex]) {
-		# check INFO
-		($toMergeR->[$fileIndex]->[7] eq $info) ||
-		    die "E $0: in mergeLinesNonVarBlock, info $info in first file $firstNonNull is different from ".
-		    $toMergeR->[$fileIndex]->[7]." in file $fileIndex\n";
-		# check FORMAT
-		($toMergeR->[$fileIndex]->[8] eq $format) || 
-		    die "E $0: in mergeLinesNonVarBlock, format $format in first file $firstNonNull is different from ".
-		    $toMergeR->[$fileIndex]->[8]." in file $fileIndex\n";
-
-		# print data columns
-		$toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
-	    }
-	    else {
-		# file $fileIndex doesn't have a line for this position, print 
-		# "blank" data for each sample from infile
-		foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		    $toPrint .= "\t.";
-		}
-	    }
-	}
-	$toPrint .= "\n";
-    }
-
-    else {
-	# no shared FILTER values, we must put FILTER in data->FT and produce
-	# one line per position (using N for REF except for the first line, 
-	# otherwise we would need the reference genome in fasta)
-
-	# grab the FILTER value from each file (leave undef if no line in file)
-	my @filters = ();
-	foreach my $fileIndex (0..$#$toMergeR) {
-	    if ($toMergeR->[$fileIndex]) {
-		$filters[$fileIndex] = $toMergeR->[$fileIndex]->[6];
-	    }
-	}
-
-	# use chrom from first non-null file
-	my $chrom = $toMergeR->[$firstNonNull]->[0];
-
-	# grab END from first INFO, we will check that all files have the same
-	my $infoFirstNonNull = $toMergeR->[$firstNonNull]->[7];
-	($infoFirstNonNull =~ /^END=(\d+)/) ||
-	    die "E $0: in mergeLinesNonVarBlock: cant grab END from firstNonNull $firstNonNull\n";
-	my $end = $1;
-
-	# FORMAT can also be grabbed from the first file, we will check that all
-	# files have the same, but we strip MIN_DP and add FT
-	my $formatFirstNonNull = $toMergeR->[$firstNonNull]->[8];
-	my $format = $formatFirstNonNull;
-	# remove MIN_DP
-	# behavior depends on $caller: "strelka" or "gatk"
-	# if this code changes you MUST also change the substitutions of $data below 
-	my $caller;
-	if ($format =~ s/:DP:DPF:MIN_DP$/:DP:DPF/) {
-	    $caller = "strelka";
-	}
-	elsif ($format =~ s/:DP:GQ:MIN_DP:PL$/:DP:GQ:PL/) {
-	    $caller = "gatk";
-	}
-	else {
-	    die "E $0: in mergeLinesNonVarBlock: no shared filters but cannot remove MIN_DP from FORMAT in first file $firstNonNull, format is $format\n";
-	}
-	# add FT right after GT
-	($format =~ s/^GT:/GT:FT:/) || 
-	    die "E $0: in mergeLinesNonVarBlock: no shared filters but cannot add FT to FORMAT in first file $firstNonNull, format is $format\n";
-
-	my $firstPos = $toMergeR->[$firstNonNull]->[1];
-	foreach my $pos ($firstPos..$end) {
-	    # use N for REF except for first line
-	    my $line = "$chrom\t$pos\t.";
-	    if ($pos == $firstPos) {
-		$line .= "\t$longestRef\t.\t.";
-	    }
-	    else {
-		$line .= "\tN\t.\t.";
-	    }
-	    # FILTER becomes '.' (will be added to DATA columns)
-	    $line .= "\t.";
-	    # INFO becomes '.'
-	    $line .= "\t.";
-	    # FORMAT
-	    $line .= "\t$format";
-	    # geno-data: remove MIN_DP, replace DP value with MIN_DP value,
-	    # and add the correct FT for each, but go all the way to $#$numSamplesR
-	    foreach my $fileIndex (0..$#$numSamplesR) {
-		if ($toMergeR->[$fileIndex]) {
-		    # sanity: check INFO and FORMAT
-		    ($toMergeR->[$fileIndex]->[7] eq $infoFirstNonNull) ||
-			die "E $0: in mergeLinesNonVarBlock: no shared, pos $pos, INFO differs in file $fileIndex from $infoFirstNonNull\n"; 
-		    ($toMergeR->[$fileIndex]->[8] eq $formatFirstNonNull) ||
-			die "E $0: in mergeLinesNonVarBlock: no shared, pos $pos, FORMAT differs in file $fileIndex from $formatFirstNonNull\n";
-		    my @dataCols = split("\t",$toMergeR->[$fileIndex]->[9]);
-		    foreach my $data (@dataCols) {
-			# if no data, leave as '.'
-			if ($data ne '.') {
-			    # remove MIN_DP and replace DP with its value
-			    if ($caller eq "strelka") {
-				($data =~ s/:\d+:(\d+):(\d+)$/:$2:$1/) ||
-				    die "E $0: in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
-			    }
-			    elsif ($caller eq "gatk") {
-				($data =~ s/:\d+:(\d+):(\d+):([^:]+)$/:$2:$1:$3/) ||
-				    die "E $0: in mergeLinesNonVarBlock: no shared, caller $caller, cannot DP->MIN_DP in data from file $fileIndex:$data\n";
-			    }
-			    else {
-				die "E $0: in mergeLinesNonVarBlock: caller $caller not implemented!\n";
-			    }
-			    # add filters in second field, after GT
-			    ($data =~ s/^([^:]+):/$1:$filters[$fileIndex]:/) ||
-				die "E $0: in mergeLinesNonVarBlock: no shared, cannot add FT values in data from file $fileIndex:$data\n"; 
-			}
-			$line .= "\t$data";
-		    }
-		}
-		else {
-		    # this file doesn't have data here, use "."
-		    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-			$line .= "\t.";
-		    }
-		}
-	    }
-	    $toPrint .= "$line\n";
-	}
-    }
-
+    $toPrint .= "\n";
     return($toPrint);
 }
-
-
 
 
 ###############

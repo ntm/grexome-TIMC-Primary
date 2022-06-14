@@ -5,7 +5,7 @@
 # NTM
 
 # Call variants on BAMs and produce GVCF files using deepVariant.
-# Currently equires singularity/apptainer, though the code code be easily
+# Currently requires singularity/apptainer, though the code could be easily
 # adapted to run a natively compiled version (or docker image).
 #
 # See $USAGE for arguments.

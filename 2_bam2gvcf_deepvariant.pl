@@ -122,7 +122,7 @@ foreach my $sample (split(/,/, $samples)) {
 $deepVariant .= " /opt/deepvariant/bin/run_deepvariant";
 (`singularity run $deepVariant --version` =~ /^DeepVariant version/) ||
     die "E $0: provided DV image broken / mis-behaving, can't find DV version with:\n".
-    "$deepVariant --version\n";
+    "\tsingularity run $deepVariant --version\n";
 
 ($datatype eq 'exome') || ($datatype eq 'genome') ||
     die "E $0: illegal datatype $datatype, must be among {exome,genome}\n";
@@ -179,8 +179,9 @@ foreach my $sample (sort keys(%samples)) {
     my $chrResolved = abs_path($chromsBed);
 
     # override env $TMPDIR (DV writes stuff there) and silence perl warnings due
-    # to missing locales in the DV docker/singularity image
-    my $com = "export TMPDIR=$singTmp ; export LC_ALL=C ;";
+    # to missing locales in the DV docker/singularity image, but do it all in a 'bash -c " ('
+    # so we can capture stderr in OAR (remeber to close the ') "' after redirecting stderr)
+    my $com = "bash -c \" ( TMPDIR=$singTmp LC_ALL=C ";
     $com .= " singularity run --bind $bindings $deepVariant";
 
     $com .= " --reads=$singIn/$bamResFile";
@@ -208,16 +209,18 @@ foreach my $sample (sort keys(%samples)) {
     
     # DV logging: one file per sample
     my $log = "${sample}.log";
-    $com .= " &> $outDir/$log";
+    # need to close parenthesis and quote (for capturing stderr)
+    $com .= " &> $outDir/$log ) \" ";
 
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - running deepVariant for $sample\n";
     if (system($com)) {
 	# non-zero status, clean up and die
 	remove_tree($tmpDir);
+	$now = strftime("%F %T", localtime);
 	(-e $tmpDir) && 
 	    warn "E $now: $0 - running deepVariant FAILED but cannot rmdir tmpDir $tmpDir, why?\n";
-        die "E $0: running deepVariant for $sample FAILED ($?)! INSPECT THE LOGFILE $outDir/$log\n";
+        die "E $now: $0 - running deepVariant for $sample FAILED ($?)! INSPECT THE LOGFILE $outDir/$log\n";
     }
 }
 

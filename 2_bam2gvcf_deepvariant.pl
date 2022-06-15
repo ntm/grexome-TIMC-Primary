@@ -14,6 +14,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 use POSIX qw(strftime);
+use File::Copy qw(move);
 use File::Basename qw(basename fileparse);
 use Cwd qw(abs_path);
 use File::Path qw(remove_tree);
@@ -202,7 +203,8 @@ foreach my $sample (sort keys(%samples)) {
     $com .= " --regions=$singTmp/chroms.bed";
     $com .= " --intermediate_results_dir=$singTmp/intermediate/";
     $com .= " --num_shards=$jobs";
-    $com .= " --novcf_stats_report"; # disable HTML stats logfile
+    # keep HTML stats file for now, to disable uncomment:
+    # $com .= " --novcf_stats_report"; # disable HTML stats logfile
     ($real) || ($com .= " --dry_run=true");
     # unused: --logging_dir
 
@@ -221,6 +223,19 @@ foreach my $sample (sort keys(%samples)) {
 	(-e $tmpDir) && 
 	    warn "E $now: $0 - running deepVariant FAILED but cannot rmdir tmpDir $tmpDir, why?\n";
         die "E $now: $0 - running deepVariant for $sample FAILED ($?)! INSPECT THE LOGFILE $outDir/$log\n";
+    }
+    else {
+	# DV completed successfully.
+	# If we didn't disable HTML stats, the filename can't be specified
+	# so we need to rename it or it'll get squashed by the next sample
+	my $htmlStatsDV = "$outDir/output.visual_report.html";
+	if (-e "$htmlStatsDV") {
+	    my $htmlStatsNew = "$outDir/$sample.visual_report.html";
+	    (-e "$htmlStatsNew") &&
+		warn "W $0: DV for $sample successful but stats file $htmlStatsNew pre-exists, I will clobber it\n";
+	    move("$htmlStatsDV", "$htmlStatsNew") ||
+		die "E $0: move failed for $htmlStatsDV to $htmlStatsNew : $!";
+	}
     }
 }
 

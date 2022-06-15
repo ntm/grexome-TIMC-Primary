@@ -459,11 +459,18 @@ foreach my $caller (sort(keys %callerDirs)) {
 	}
 	elsif ($caller eq "deepvariant") {
 	    # DV log is a single file per sample, not trying to parse it, just moving it with the
-	    # GVCF and TBI into $gvcfDir subtree and removing now-empty callerWorkDir:
+	    # GVCF and TBI (and HTML stats file if present) into $gvcfDir subtree and removing
+	    # now-empty callerWorkDir:
 	    foreach my $s (split(/,/,$samples)) {
 		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
 		    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
 			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
+		}
+		# hard-coded HTML stats file from DV
+		my $htmlStatsDV = "$s.visual_report.html";
+		if (-e "$callerWorkDir/$htmlStatsDV") {
+		    move("$callerWorkDir/$htmlStatsDV", $callerDirs{$caller}->[0]) ||
+			die "E $0: cannot move DV stats $callerWorkDir/$htmlStatsDV to ".$callerDirs{$caller}->[0]." : $!";
 		}
 	    }
 	    rmdir($callerWorkDir) || die "E $0: cannot rmdir $caller callerWorkDir $callerWorkDir: $!";

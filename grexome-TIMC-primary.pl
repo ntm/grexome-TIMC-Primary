@@ -50,7 +50,7 @@ my $gvcfDir = "GVCFs_grexome/";
 # --callers will specify the variant-callers to actually use
 my %callerDirs = (
     "strelka" => ["GVCFs_Strelka_Raw/","GVCFs_Strelka_Filtered/","GVCFs_Strelka_Filtered_Merged/"],
-    "deepvariant" => ["GVCFs_DV_Raw/","GVCFs_DV_Filtered/","GVCFs_DV_Filtered_Merged/"],
+    "deepvariant" => ["GVCFs_DeepVariant_Raw/","GVCFs_DeepVariant_Filtered/","GVCFs_DeepVariant_Filtered_Merged/"],
     "gatk" => ["GVCFs_GATK_Raw/","GVCFs_GATK_Filtered/","GVCFs_GATK_Filtered_Merged/"],
     "elprep" => ["GVCFs_ElPrep_Raw/","GVCFs_ElPrep_Filtered/","GVCFs_ElPrep_Filtered_Merged/"]);
 

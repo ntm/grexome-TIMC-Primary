@@ -1337,7 +1337,7 @@ sub mergeLinesNonVarBlock {
     $toPrint .= "\t$longestRef";
     # grab ALT, QUAL, FILTER ('.'), INFO and FORMAT from first non-null file, all
     # files should have the same (this is checked for INFO and FORMAT)
-    $toPrint .= "\t".join("\t", @{$toMergeR->[$firstNonNull]}[4-8]);
+    $toPrint .= "\t".join("\t", @{$toMergeR->[$firstNonNull]}[4..8]);
 
     # add data columns (even for files that don't have a line at this pos)
     foreach my $fileIndex (0..$#$numSamplesR) {

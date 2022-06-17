@@ -354,10 +354,10 @@ if (! $pm->start) {
     $pm->finish;
 }
 
-# array of "lines", a line is an arrayref to a tab-splitted line from infile, one
-# line (max) per infile, each line has been parsed from the infile
-#  but didn't belong to the current batch and will be dealt with 
-# in the next batch
+# array of "lines", a line is an arrayref to a tab-splitted (up to DATA columns,
+# ie all DATA columns are kept as a single un-split string as element [9]) line
+# from infile, one line (max) per infile, each line has been parsed from the infile
+#  but didn't belong to the current batch and will be dealt with in the next batch
 my @startNextBatch;
 
 # initialize with first non-filtered dataline from each file
@@ -1348,10 +1348,8 @@ sub mergeLinesNonVarBlock {
 	    # check FORMAT
 	    ($toMergeR->[$fileIndex]->[8] eq $toMergeR->[$firstNonNull]->[8]) || 
 		die "E $0: in mergeLinesNonVarBlock, FORMAT mismatch when toPrint=$toPrint\n";
-	    # print data columns
-	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		$toPrint .= "\t".$toMergeR->[$fileIndex]->[8+$j];
-	    }
+	    # print data columns (they are all in ->[9], we never split them)
+	    $toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
 	}
 	else {
 	    # file $fileIndex doesn't have a line for this position, print 

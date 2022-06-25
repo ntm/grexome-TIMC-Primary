@@ -112,16 +112,16 @@ my $USAGE = "Run the grexome-TIMC primary analysis pipeline, ie start from \"gre
      filter low-quality variant calls with filterBadCalls.pl;
      produce a merged GVCF per variant-caller with mergeGVCFs.pl.
 
-Optionally, if the samplesFile has a \"Sex\" column, also produce qc_sexChroms*.csv 
-files in GVCFs_*_Filtered/ , counting HOMO and HET calls on chromosomes X, Y and 16 
-(as a control) in every sample, and identifying possible outliers (can indicate 
-mis-labeling of samples or other quality issues).
+Optionally, if the samples metadata file has a \"Sex\" column, also produce
+qc_sexChroms*.csv files in GVCFs_*_Filtered/ , counting HOMO and HET calls on 
+chromosomes X, Y and 16 (as a control) in every sample, and identifying possible
+outliers (can indicate mis-labeling of samples, contamination or other quality issues).
 
 Each step of the pipeline is a stand-alone self-documented script, this is just a wrapper.
 For each sample, any step where the result file already exists is skipped.
 
 The \"samples\" must appear in the 'sampleID' column of the samples metadata XLSX file
-(provided with --samplesFile).
+(provided with --samples).
 Default behavior is to process every non-'0' sampleID from this file;
 processing can be restricted to specific samples of interest with --SOIs.
 
@@ -138,7 +138,7 @@ Every parameter that you could want to customize should be in this script or
 in grexomeTIMCprim_config.pm.
 
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
---samplesFile : samples metadata xlsx file, with path
+--samples : samples metadata xlsx file, with path
 --SOIs : optional, comma-separated list of \"samples of interest\" to process
 --callers [default: none, ie only produce BAMs]: comma-separated list of variant-callers to use among ".join(',',keys(%callerDirs))."
 --workdir : subdir where logs and workfiles will be created, must not pre-exist
@@ -147,7 +147,7 @@ Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --config [defaults to grexomeTIMCprim_config.pm alongside this script] : your customized copy of *config.pm
 --help : print this USAGE";
 
-GetOptions ("samplesFile=s" => \$samplesFile,
+GetOptions ("samples=s" => \$samplesFile,
 	    "SOIs=s" => \$SOIs,
 	    "callers=s" => \$callers,
 	    "workdir=s" => \$workDir,
@@ -160,7 +160,7 @@ GetOptions ("samplesFile=s" => \$samplesFile,
 # make sure required options were provided and sanity check them
 ($help) && die "$USAGE\n\n";
 
-($samplesFile) || die "E $0: you must provide a samples metadata file. Try $0 --help\n";
+($samplesFile) || die "E $0: you must provide a samples metadata file.\n\n$USAGE\n";
 (-f $samplesFile) || die "E $0: the supplied samples metadata file doesn't exist: $samplesFile\n";
 
 {
@@ -277,7 +277,7 @@ foreach my $s (sort(keys %samples)) {
 	    die "E $0: sample $s from --SOIs doesn't have FASTQs (looking for $f1 and $f2)\n";
 	}
 	else {
-	    warn "W $0: sample $s from samplesFile doesn't have FASTQs, skipping it\n";
+	    warn "W $0: sample $s from samples metadata file doesn't have FASTQs, skipping it\n";
 	    delete($samples{$s});
 	}
     }

@@ -2,8 +2,8 @@
 ############################################################################################
 # Copyright (C) Nicolas Thierry-Mieg, 2019-2022
 #
-# This file is part of grexome-TIMC-Primary, written by Nicolas Thierry-Mieg
-# (CNRS, France) Nicolas.Thierry-Mieg@univ-grenoble-alpes.fr
+# This file is part of grexome-TIMC-Primary and grexome-TIMC-Secondary, written by
+# Nicolas Thierry-Mieg (CNRS, France) Nicolas.Thierry-Mieg@univ-grenoble-alpes.fr
 #
 # This program is free software: you can redistribute it and/or modify it under 
 # the terms of the GNU General Public License as published by the Free Software 

@@ -41,7 +41,7 @@ We use the following external tools. They must be installed and should be in you
 - [samtools](http://www.htslib.org/download/)
 - bwa-postalt.js and k8 from Heng Li's [BWA-kit package](https://sourceforge.net/projects/bio-bwa/files/bwakit/)
 
-In adition you may need the following, depending on the variant-callers you specify with --callers:
+In addition you may need the following, depending on the variant-callers you specify with --callers:
 - configureStrelkaGermlineWorkflow.py from [STRELKA2](https://github.com/Illumina/strelka), for 2_bam2gvcf_strelka.pl
 - gatk from [GATK4](https://github.com/broadinstitute/gatk/), for 2_bam2gvcf_gatk.pl
 - elprep from [ELPREP5](https://github.com/exascience/elprep), for 2_bam2gvcf_elprep.pl
@@ -66,6 +66,7 @@ elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path . ## for elprep
 ```
 
 In addition, a small BED file with chromosomes 1-22,X,Y,M is required for the variant callers.
+
 To produce this file, you can copy-paste [this content](https://github.com/Illumina/strelka/blob/v2.9.x/docs/userGuide/README.md#improving-runtime-for-references-with-many-short-contigs-such-as-grch38) into a file (eg hs38_chroms.bed), then bgzip and index it:
 ```
 bgzip hs38_chroms.bed
@@ -77,19 +78,23 @@ Alternately a copy of the resulting bgzipped file is [provided](Metadata/hs38_ch
 *****************
 ### CONFIGURATION:
 Before using the pipeline you must customize (a copy of) the grexomeTIMCprim_config.pm file, which defines every install-specific variable (eg path+name of the reference human genome fasta file, possibly produced following the instructions in "REQUIRED DATA" above).
+
 Every subroutine in grexomeTIMCprim_config.pm is self-documented and will need to be customized.
-To do this you should copy the file somewhere and edit the copy, then use `--config`. Otherwise you could just edit the distributed copy in-place, although this not as flexible and your customizations will get squashed when you git pull.
+
+To do this you should copy the file somewhere and edit the copy, then use `--config`. Otherwise you could just edit the distributed copy in-place, although this not as flexible and your customizations will cause conflicts when you git pull.
 
 
 ******************
 ### METADATA FILES:
 The pipeline uses a single metadata XLSX file, which describes the samples. This metadata file (and the code that parses it, in grexome_metaParse.pm) is shared with the [grexome-TIMC-Secondary pipeline](https://github.com/ntm/grexome-TIMC-Secondary). Therefore some columns are required in the XLSX despite not being used in this primary pipeline. The provided [example file](Metadata/samples.xlsx) can serve as a starting point. All columns present in this file (and listed below) are required, don't change their names! You can add new columns and/or change the order of columns to your taste, just don't touch the pre-existing column names. 
+
 Required columns:
 - sampleID: unique identifier for each sample, these are typically created with a uniform naming scheme when new samples are integrated into the pipeline and are used internally throughout the pipeline. Rows with sampleID=="0" are ignored, this allows to retain metadata info about obsolete samples.
 - specimenID: external identifier for each sample, typically related to the original FASTQ filenames.
 - patientID: can be empty, ignored in grexome-TIMC-Primary.
 - pathologyID: required (alphanumeric string) but ignored in grexome-TIMC-Primary.
 - Causal gene: can be empty, ignored in grexome-TIMC-Primary.
+
 Optional column:
 - Sex: if this column exists each sample must be 'F' or 'M', used by 0_qc_checkSexChroms.pl .
 
@@ -110,7 +115,9 @@ This will "process" every sampleID in samples.xlsx, ie:
 - produce QC files analyzing HOMO/HET calls on the sex chromosomes (optional, only if samples.xlsx has a "Sex" column).
 
 For each sample, any step where the result file already exists is skipped.
+
 FASTQs, BAMs and GVCFs are searched for / produced in a hierarchy of subdirs defined at the top of grexome-TIMC-primary.pl, all within \$dataDir (defined in your customized copy of grexomeTIMCprim_config.pm, see CONFIGURATION).
+
 Logs and copies of the metadata are produced in the provided workdir (PrimaryAnalyses_${DATE}/).
 
 More extensive documentation is obtained with:
@@ -125,14 +132,17 @@ perl grexome-TIMC-primary.pl --help
 ##### PREP STEP #####
 0_grexomizeFastqs.pl : house-keeping script used to organize our FASTQ files before running the grexome-TIMC-primary pipeline. It parses the samples.xlsx metadata file and takes original fastqs to produce a consolidated uniform dataset of "grexomized" fastqs. It's probably not re-usable as-is since it depends on your file-naming conventions, but should provide a good starting point.
 
+
 ##### "PACKAGED" VERSIONS FOR RUNNING SOME STEPS ON CLUSTERS #####
-Fastq2Bam_PackagedWithBinaries_Centos7/ :
-Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/ :
-Bam2gvcf_GATK_PackagedWithBinaries_Centos7/ :
+- Fastq2Bam_PackagedWithBinaries_Centos7/ :
+- Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/ :
+- Bam2gvcf_GATK_PackagedWithBinaries_Centos7/ :
+
 "packages" for running fastq2bam, bam2gvcf_strelka or bam2gvcf_gatk on other systems / compute clusters, eg f-dahu. Each subdir has its README. Probably not re-usable as-is.
 
+
 ##### EXPERIMENTAL STEPS, NOT USED #####
-4_CombineGVCFs_GATK/ : attempt to use GATK CombineGVCFs, crazy slow.
-4_GVCFs2GenomicsDB/ : import single-sample GATK GVCFs into a GenomicsDB.
-5_GenomicsDB2VCF/ : perform joint genotyping with GATK GenotypeGVCFs from a GenomicsDB. Unusably slow.
+- 4_CombineGVCFs_GATK/ : attempt to use GATK CombineGVCFs, crazy slow.
+- 4_GVCFs2GenomicsDB/ : import single-sample GATK GVCFs into a GenomicsDB.
+- 5_GenomicsDB2VCF/ : perform joint genotyping with GATK GenotypeGVCFs from a GenomicsDB. Unusably slow.
 

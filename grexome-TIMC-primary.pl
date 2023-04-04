@@ -83,12 +83,15 @@ my $mergeBatchSize = 25;
 my $bgzip = "bgzip";
 my $tabix = "tabix";
 my $zgrep = "zgrep";
+my $bash = "bash";
 (`which $bgzip` =~ /$bgzip$/) ||
     die "E $0: the bgzip executable $bgzip can't be found\n";
 (`which $tabix` =~ /$tabix$/) ||
     die "E $0: the tabix executable $tabix can't be found\n";
 (`which $zgrep` =~ /$zgrep$/) ||
     die "E $0: the zgrep executable $zgrep can't be found\n";
+(`which $bash` =~ /$bash$/) ||
+    die "E $0: the bash executable $bash can't be found\n";
 
 
 #############################################
@@ -545,6 +548,9 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    ($jf2 > $jf1) && ($jobsFilter = $jf2);
 	    $com .= "perl $RealBin/3_filterBadCalls.pl --samplesFile=$samplesFile --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
 	    $com .= "$bgzip -c -\@2 > $gvcf";
+	    # fail if any component of the pipe fails
+	    $com =~ s/"/\\"/g;
+	    $com = "$bash -o pipefail -c \" $com \"";
 	    system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
 	}
 	if (! -e "$gvcf.tbi") {
@@ -656,6 +662,9 @@ foreach my $caller (sort(keys %callerDirs)) {
 	    $com .= "| $bgzip -c -\@8 > $newMerged";
 	    $now = strftime("%F %T", localtime);
 	    warn "I $now: $0 - starting to batchwise-merge $caller GVCFs batch $b\n";
+	    # fail if any component of the pipe fails
+	    $com =~ s/"/\\"/g;
+	    $com = "$bash -o pipefail -c \" $com \"";
 	    system($com) && die "E $0: batchwise-mergeGvcfs for $caller batch $b FAILED: $?";
 	    $now = strftime("%F %T", localtime);
 	    warn "I $now: $0 - batchwise-merging $caller GVCFs batch $b DONE\n";
@@ -690,6 +699,9 @@ foreach my $caller (sort(keys %callerDirs)) {
 	$com .= "| $bgzip -c -\@12 > $newMerged";
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - starting to merge $caller GVCFs\n";
+	# fail if any component of the pipe fails
+	$com =~ s/"/\\"/g;
+	$com = "$bash -o pipefail -c \" $com \"";
 	system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - merging $caller GVCFs DONE\n";

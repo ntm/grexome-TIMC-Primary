@@ -73,6 +73,8 @@ my $samtools = "samtools";
 # if we find it, bwa otherwise)
 my @bwas = ("bwa-mem2", "bwa");
 
+# require bash so we can use -o pipefail
+my $bash = "bash";
 
 #############################################
 ## options / params from the command-line
@@ -174,6 +176,7 @@ my $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
     "as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
 
 # make sure all progs can be found
+(`which $binPath$bash` =~ /$bash$/) || die "E $0: the bash executable $bash can't be found\n";
 (`which $binPath$fastp` =~ /$fastp$/) || die "E $0: the fastp executable $fastp can't be found\n";
 (`which $binPath$samblaster` =~ /$samblaster$/) || die "E $0: the samblaster executable $samblaster can't be found\n";
 (`which $binPath$samtools` =~ /$samtools$/) || die "E $0: the samtools executable $samtools can't be found\n";
@@ -211,6 +214,7 @@ foreach my $b (@bwas) {
 ($bwa) || die "E $0: cannot find any usable (indexed genome) BWA executable among (".join(',',@bwas).")\n";
 
 # ok, prepend binPath
+$bash = "$binPath$bash";
 $fastp = "$binPath$fastp";
 $bwa = "$binPath$bwa";
 $samblaster = "$binPath$samblaster";
@@ -293,6 +297,12 @@ foreach my $sample (sort keys(%samples)) {
     # sort with samtools
     $com .= "$samtools sort -\@ $numThreadsCapped -m1G -o $outFile.bam - ";
 
+    # with bash -o pipefail, the return status of $com will be non-zero if any
+    # piped component of $com fails
+    # -> need to protect double-quotes
+    $com =~ s/"/\\"/g;
+    $com = "$bash -o pipefail -c \" $com \"";
+    
     $now = strftime("%F %T", localtime);
     if (! $real) {
 	warn "I $now: $0 - dryrun, would run: $com\n";
@@ -304,7 +314,8 @@ foreach my $sample (sort keys(%samples)) {
 	    $now = strftime("%F %T", localtime);
 	    warn "E $now: $0 - processing of $sample exited with non-zero status. Something went wrong, investigate!\n";
 	    $nbErrors++;
-	    # don't even try to index the bam
+	    # remove (corrupt) bamfile if it exists
+	    unlink("$outFile.bam");
 	    next;
 	}
 
@@ -322,6 +333,7 @@ foreach my $sample (sort keys(%samples)) {
 $now = strftime("%F %T", localtime);
 if ($nbErrors) {
     warn "E $now: $0 - finished but $nbErrors ERRORS DETECTED, I was running ".join(" ", $0, @ARGV)."\n";
+    exit(1);
 }
 elsif ($nbWarnings) {
     warn "W $now: $0 - finished but $nbWarnings WARNINGS need verification, I was running ".join(" ", $0, @ARGV)."\n";

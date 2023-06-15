@@ -72,7 +72,8 @@ sub fastqDir {
 # allow easy copy-pasting.
 # Return "" to NOT print these final log lines (eg if you mirror via cron)
 sub mirror {
-    my $mirror = "cargo.u-ga.fr:/bettik/thierryn/";
+    #my $mirror = "cargo.u-ga.fr:/bettik/thierryn/";
+    my $mirror = "";
     return($mirror);
 }
 

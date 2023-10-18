@@ -176,7 +176,7 @@ my $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
     "as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
 
 # make sure all progs can be found
-(`which $binPath$bash` =~ /$bash$/) || die "E $0: the bash executable $bash can't be found\n";
+(`which $bash` =~ /$bash$/) || die "E $0: the bash executable $bash can't be found\n";
 (`which $binPath$fastp` =~ /$fastp$/) || die "E $0: the fastp executable $fastp can't be found\n";
 (`which $binPath$samblaster` =~ /$samblaster$/) || die "E $0: the samblaster executable $samblaster can't be found\n";
 (`which $binPath$samtools` =~ /$samtools$/) || die "E $0: the samtools executable $samtools can't be found\n";
@@ -214,7 +214,6 @@ foreach my $b (@bwas) {
 ($bwa) || die "E $0: cannot find any usable (indexed genome) BWA executable among (".join(',',@bwas).")\n";
 
 # ok, prepend binPath
-$bash = "$binPath$bash";
 $fastp = "$binPath$fastp";
 $bwa = "$binPath$bwa";
 $samblaster = "$binPath$samblaster";

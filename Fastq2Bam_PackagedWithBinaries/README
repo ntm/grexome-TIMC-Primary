@@ -9,5 +9,5 @@ one grexome at a time.
 
 To install this package use "rsync -rtvL", eg on dahu:
 cd ..
-rsync -rtvL Fastq2Bam_PackagedWithBinaries_Centos7 f-dahu:
+rsync -rtvL Fastq2Bam_PackagedWithBinaries f-dahu:
 

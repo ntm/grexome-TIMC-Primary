@@ -58,7 +58,7 @@ my $logDir = "~/Fastq2Bam_Dahu_stdouterr/";
 (-d $logDir) || mkdir($logDir) || 
     die "E: logDir $logDir doesn't exist and can't be mkdir'd\n";
 # binaries are in $binDir
-my $binDir = "~/Fastq2Bam_PackagedWithBinaries_Centos7/";
+my $binDir = "~/Fastq2Bam_PackagedWithBinaries/";
 # fastqs are in $inDir
 my $inDir = "/bettik/thierryn/FASTQs_All_Grexomized/";
 # produce bams in $outDir

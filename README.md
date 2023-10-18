@@ -134,9 +134,9 @@ perl grexome-TIMC-primary.pl --help
 
 
 ##### "PACKAGED" VERSIONS FOR RUNNING SOME STEPS ON CLUSTERS #####
-- Fastq2Bam_PackagedWithBinaries_Centos7/ :
-- Bam2gvcf_Strelka_PackagedWithBinaries_Centos7/ :
-- Bam2gvcf_GATK_PackagedWithBinaries_Centos7/ :
+- Fastq2Bam_PackagedWithBinaries/ :
+- Bam2gvcf_Strelka_PackagedWithBinaries/ :
+- Bam2gvcf_GATK_PackagedWithBinaries/ :
 
 "packages" for running fastq2bam, bam2gvcf_strelka or bam2gvcf_gatk on other systems / compute clusters, eg f-dahu. Each subdir has its README. Probably not re-usable as-is.
 

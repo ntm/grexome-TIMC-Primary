@@ -135,8 +135,7 @@ perl grexome-TIMC-primary.pl --help
 
 ##### RUNNING SOME STEPS ON CLUSTERS #####
 - 1_fastq2bam_makeOarJobs.pl and README_fastq2bam_makeOarJobs :
-- Bam2gvcf_Strelka_PackagedWithBinaries/ :
-- Bam2gvcf_GATK_PackagedWithBinaries/ :
+- 2_bam2gvcf_*_makeOarJobs.pl and README_fastq2bam_makeOarJobs :
 
 scripts + READMEs for running fastq2bam, bam2gvcf_strelka or bam2gvcf_gatk on other systems / compute clusters, eg f-dahu. Probably not re-usable as-is, but may be useful.
 

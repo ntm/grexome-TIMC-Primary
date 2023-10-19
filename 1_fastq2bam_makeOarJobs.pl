@@ -28,6 +28,12 @@
 # it would need adapting for a different batch scheduler and/or
 # cluster, paths and filename patterns are hard-coded (eg samples
 # are called grexome\d\d\d\d), etc... 
+#
+# takes 2 args: $first and $last, these are ints and assumes that
+# all samples are named grexome\d\d\d\d , the 4-digit integer will 
+# range from $first to $last for this run of fastq2bam_makeOarJobs.pl.
+# NOTE: not more than 50 jobs at a time, or you get error:
+# Admission Rule ERROR : [ADMISSION RULE] Error: you cannot have more than 50 jobs waiting in the queue at the same time.
 
 use strict;
 use warnings;
@@ -36,11 +42,6 @@ use warnings;
 # number of samples to process in a single OAR job
 my $samplesPerJob = 4;
 
-# takes 2 args: $first and $last, these are ints and assumes that
-# all samples are named grexome\d\d\d\d , the 4-digit integer will 
-# range from $first to $last for this run of fastq2bam_makeOarJobs.pl.
-# NOTE: not more than 50 jobs at a time, or you get error:
-# Admission Rule ERROR : [ADMISSION RULE] Error: you cannot have more than 50 jobs waiting in the queue at the same time.
 (@ARGV == 2) || die "E: need two ints as arguments, first and last\n";
 my ($first,$last) = @ARGV;
 

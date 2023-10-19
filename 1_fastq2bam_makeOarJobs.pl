@@ -32,10 +32,14 @@
 use strict;
 use warnings;
 
+
+# number of samples to process in a single OAR job
+my $samplesPerJob = 4;
+
 # takes 2 args: $first and $last, these are ints and assumes that
 # all samples are named grexome\d\d\d\d , the 4-digit integer will 
 # range from $first to $last for this run of fastq2bam_makeOarJobs.pl.
-# NOTE: not more than 50 at a time, or you get error:
+# NOTE: not more than 50 jobs at a time, or you get error:
 # Admission Rule ERROR : [ADMISSION RULE] Error: you cannot have more than 50 jobs waiting in the queue at the same time.
 (@ARGV == 2) || die "E: need two ints as arguments, first and last\n";
 my ($first,$last) = @ARGV;
@@ -43,8 +47,8 @@ my ($first,$last) = @ARGV;
 ($last >= $first) || 
     die "E: must have first <= last, here we have: first $first last $last\n";
 
-(($last - $first) > 50) &&
-    die "E: cannot queue more than 50 jobs at a time on OAR/dahu\n";
+(($last - $first) > 50 * $samplesPerJob) &&
+    die "E: cannot queue more than 50 jobs == ".50 * $samplesPerJob." samples ($samplesPerJob per job) at a time on OAR/dahu\n";
 
 #################################
 # hard-coded stuff
@@ -62,19 +66,19 @@ my $binDir = "/home/thierryn/Fastq2Bam_PackagedWithBinaries/";
 # fastqs are in $inDir
 my $inDir = "/bettik/thierryn/FASTQs_All_Grexomized/";
 # produce bams in $outDir
-my $outDir = "/bettik/thierryn/BAMs_grexome_NTM/BAMs_NTM_Dahu/";
+my $outDir = "/bettik/thierryn/BAMs_Dahu/";
 # ref genome
 my $genome = "/bettik/thierryn/HumanGenome/hs38DH.fa";
 
 # oarsub command with params:
-# run on my project ngs-timc, ask for 16 cores on 1 node, 2h walltime max
-my $oarBase = "oarsub --project ngs-timc -l /nodes=1/core=$threads,walltime=2 ";
+# run on my project ngs-timc, ask for 16 cores on 1 node, 3h walltime max (should be enough for 4 samples)
+my $oarBase = "oarsub --project ngs-timc -l /nodes=1/core=$threads,walltime=3 ";
 
 
 #################################
 # queue jobs
 
-
+my @samples = ();
 foreach my $gNum ($first..$last) {
     my $grexome = $gNum;
     # left-pad with zeroes to 4 digits
@@ -82,11 +86,16 @@ foreach my $gNum ($first..$last) {
     ($gNum < 100) && ($grexome = "0$grexome");
     ($gNum < 1000) && ($grexome = "0$grexome");
     $grexome = "grexome$grexome";
-    # choose stdout and stderr filenames
-    my $oar = $oarBase."-O $logDir/fastq2bam.$grexome.out -E $logDir/fastq2bam.$grexome.err ";
-    $oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --samples $grexome --bin $binDir --bwakit $binDir --threads $threads --genome $genome -real\"";
-
-    system($oar);
-
+    push(@samples, $grexome);
+    if ((@samples == $samplesPerJob) || ($gNum == $last)) {
+	# choose stdout and stderr filenames
+	my $sampsString = $samples[0]."-".$samples[$#samples];
+	my $oar = $oarBase."-O $logDir/fastq2bam.$sampsString.out -E $logDir/fastq2bam.$sampsString.err ";
+	$oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --samples ";
+	$oar .= join(',', @samples);
+	$oar .= " --bin $binDir --bwakit $binDir --threads $threads --genome $genome --real\"";
+	system($oar);
+	@samples = ();
+    }
 }
 

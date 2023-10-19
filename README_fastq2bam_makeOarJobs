@@ -1,0 +1,29 @@
+####################################
+19/10/2023
+NTM
+
+GOAL:
+run fastq2bam on a cluster, where the queue system is OAR.
+
+
+HOW:
+In order to run fastq2bam on a cluster such as f-dahu, we need working binaries
+of all the programs used by fastq2bam: bwa or bwa-mem2, fastp, samblaster,
+samtools, k8 + bwa-postalt.js.
+Sometimes they can be installed with tools like nix or guix, but in my case
+I found the simplest method is to rebuild each software locally. This also
+provides full control on the versions of each software.
+I did this for samtools and samblaster.
+Software distributed as pre-compiled binaries (bwa-mem2, fastp, k8) worked as-is.
+
+I also wrote fastq2bam_makeOarJobs.pl to submit fastq2bam.pl jobs via OAR,
+$samplesPerJob samples at a time.
+The script has some hard-coded stuff (paths of FASTQs and paths where BAMs should go,
+naming convention for samples == grexomeXXXX, oarsub command and parameters to submit
+jobs on our compute cluster, etc...) but may still be useful.
+
+
+EXAMPLE:
+processing FASTQs for samples grexome0809 -> grexome0916 with:
+perl Fastq2Bam_PackagedWithBinaries/1_fastq2bam_makeOarJobs.pl 809 916 &> fastq2bam_submitJobs.log
+

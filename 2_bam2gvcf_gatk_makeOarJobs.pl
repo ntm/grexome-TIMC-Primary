@@ -119,7 +119,7 @@ foreach my $gNum ($first..$last) {
 	my $oar = $oarBase."-O $logDir/bam2gvcfGatk.$sampsString.out -E $logDir/bam2gvcfGatk.$sampsString.err ";
 	$oar .= "\" perl $bam2gvcf --indir $inDir --genome $genome --chroms $chroms --outdir $outDir --samples ";
 	$oar .= join(',', @samples);
-	$oar .= " --tmpdir /var/tmp/NTM --jobs $jobs --gatk \'$gatk\' --real\"";
+	$oar .= " --tmpdir /var/tmp/NTM_$sampsString --jobs $jobs --gatk \'$gatk\' --real\"";
 	#warn "$oar\n";
 	system($oar);
 	@samples = ();

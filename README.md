@@ -133,12 +133,12 @@ perl grexome-TIMC-primary.pl --help
 0_grexomizeFastqs.pl : house-keeping script used to organize our FASTQ files before running the grexome-TIMC-primary pipeline. It parses the samples.xlsx metadata file and takes original fastqs to produce a consolidated uniform dataset of "grexomized" fastqs. It's probably not re-usable as-is since it depends on your file-naming conventions, but should provide a good starting point.
 
 
-##### "PACKAGED" VERSIONS FOR RUNNING SOME STEPS ON CLUSTERS #####
-- Fastq2Bam_PackagedWithBinaries/ :
+##### RUNNING SOME STEPS ON CLUSTERS #####
+- 1_fastq2bam_makeOarJobs.pl and README_fastq2bam_makeOarJobs :
 - Bam2gvcf_Strelka_PackagedWithBinaries/ :
 - Bam2gvcf_GATK_PackagedWithBinaries/ :
 
-"packages" for running fastq2bam, bam2gvcf_strelka or bam2gvcf_gatk on other systems / compute clusters, eg f-dahu. Each subdir has its README. Probably not re-usable as-is.
+scripts + READMEs for running fastq2bam, bam2gvcf_strelka or bam2gvcf_gatk on other systems / compute clusters, eg f-dahu. Probably not re-usable as-is, but may be useful.
 
 
 ##### EXPERIMENTAL STEPS, NOT USED #####

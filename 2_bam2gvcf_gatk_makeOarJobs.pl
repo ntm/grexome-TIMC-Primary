@@ -63,7 +63,7 @@ my $jobs = 16;
 
 # hard-coded dirs:
 # log to $logDir
-my $logDir = "/home/thierryn/ProcessBams-GATK_Dahu_stdouterr/";
+my $logDir = "/home/thierryn/Bam2gvcf_GATK_stdouterr/";
 (-d $logDir) || mkdir($logDir) || 
     die "E: logDir $logDir doesn't exist and can't be mkdir'd\n";
 # path to bam2gvcf_gatk.pl
@@ -96,7 +96,7 @@ $gatk .= ' bash -c \" ( gatk';
 # oarsub command with params: run on my project ngs-timc, and...
 my $oarBase = "oarsub --project ngs-timc";
 # many samples: ask for 16 cores on 1 node, 8h walltime (should be enough for 8 samples)
-$oarBase = " -l /nodes=1/core=$jobs,walltime=8 ";
+$oarBase .= " -l /nodes=1/core=$jobs,walltime=8 ";
 # for a single sample: 4 cores on 1 node for 12h:
 ## $oarBase .= " -l /nodes=1/core=4,walltime=12 ";
 
@@ -119,9 +119,9 @@ foreach my $gNum ($first..$last) {
 	my $oar = $oarBase."-O $logDir/bam2gvcfGatk.$sampsString.out -E $logDir/bam2gvcfGatk.$sampsString.err ";
 	$oar .= "\" perl $bam2gvcf --indir $inDir --genome $genome --chroms $chroms --outdir $outDir --samples ";
 	$oar .= join(',', @samples);
-	$oar .= " --tmpdir /var/tmp/ --jobs $jobs --gatk \'$gatk\' --real\"";
-	warn "$oar\n";
-	#system($oar);
+	$oar .= " --tmpdir /var/tmp/NTM --jobs $jobs --gatk \'$gatk\' --real\"";
+	#warn "$oar\n";
+	system($oar);
 	@samples = ();
     }
 }

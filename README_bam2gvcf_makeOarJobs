@@ -19,6 +19,10 @@ cpanm  Parallel::ForkManager
 For gatk I rsync'd the latest SIF image, produced on our server luxor with:
 singularity pull docker://broadinstitute/gatk:4.4.0.0
 
+For strelka I gave up: it requires python 2, which isn't available on our compute nodes.
+Anyways Strelka is fast enough to run on a simple server.
+
+
 I also wrote 2_bam2gvcf_gatk_makeOarJobs.pl to submit 2_bam2gvcf_gatk.pl jobs via OAR,
 $samplesPerJob samples at a time.
 The script has some hard-coded stuff (paths of BAMs and path where GVCFs should go,
@@ -29,3 +33,5 @@ jobs on our compute cluster, etc...) but may still be useful.
 EXAMPLE:
 processing BAMs for samples grexome0751 -> grexome0916 with:
 perl Bam2gvcf_GATK_Binaries/2_bam2gvcf_gatk_makeOarJobs.pl 751 916 &> bam2gvcf_gatk_submitJobs.log
+
+

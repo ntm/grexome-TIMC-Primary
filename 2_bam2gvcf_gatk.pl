@@ -208,6 +208,9 @@ my $pm = new Parallel::ForkManager($samplesInPara);
     warn "I $now: $0 - STARTING TO WORK\n";
 }
 
+# if GATK fails on any sample, $failFile is produced (empty)
+my $failFile = "$tmpDir/FAILED";
+
 foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
     my $bam = "$inDir/$sample.bam";
@@ -239,7 +242,10 @@ foreach my $sample (sort keys(%samples)) {
 	warn "I $now: $0 - starting GATK4-HaplotypeCaller for $sample\n";
         if (system($fullCmd) != 0) {
             $now = strftime("%F %T", localtime);
-            warn "E $now: $0 - running GATK4-HaplotypeCaller for $sample FAILED ($?)! INSPECT THE LOGFILE $log\n";
+            warn "E $now: $0 - running GATK4-HaplotypeCaller for $sample FAILED! INSPECT THE LOGFILE $log\n";
+	    open(my $failFH, ">", $failFile) ||
+		warn "E $now: $0 - GATK failed but we can't create the failFile $failFile, why???";
+	    close($failFH);
         }
 	else{
 	    $now = strftime("%F %T", localtime);
@@ -252,8 +258,14 @@ $pm->wait_all_children;
 
 {
     my $now = strftime("%F %T", localtime);
-    remove_tree($tmpDir);
-    (-e $tmpDir) && 
-	warn "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why?\n";
-    warn "I $now: $0 - ALL DONE\n";
+    if (-e $failFile) {
+	remove_tree($tmpDir);
+	die "E $now: $0 - GATK4-HaplotypeCaller FAILED for at least one sample\n";
+    }
+    else {
+	remove_tree($tmpDir);
+	(-e $tmpDir) && 
+	    warn "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why?\n";
+	warn "I $now: $0 - ALL DONE\n";
+    }
 }

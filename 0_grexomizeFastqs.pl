@@ -245,7 +245,7 @@ chomp($nbFqFiles);
 # some grexomes have been obsoleted because they were dupes,
 # the corresponding FASTQs are still there, don't warn about them.
 # number of obsolete FASTQ files: hard-coded here, 
-my $nbObsoleteFiles = 12;
+my $nbObsoleteFiles = 22;
 if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
     warn "\nI: nb of examined ($nbInfiles) + skipped obsolete ($nbObsoleteFiles) FASTQ files == nbFqFiles found with ls|wc, good!\n";
 }

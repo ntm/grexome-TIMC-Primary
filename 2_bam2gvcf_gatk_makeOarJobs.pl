@@ -67,7 +67,7 @@ my $logDir = "/home/thierryn/Bam2gvcf_GATK_stdouterr/";
 (-d $logDir) || mkdir($logDir) || 
     die "E: logDir $logDir doesn't exist and can't be mkdir'd\n";
 # path to bam2gvcf_gatk.pl
-my $bam2gvcf = "/home/thierryn/Bam2gvcf_GATK_Binaries/2_bam2gvcf_gatk.pl";
+my $bam2gvcf = "/home/thierryn/Bam2gvcf_GATK/2_bam2gvcf_gatk.pl";
 # bams are in $inDir
 my $inDir = "/bettik/thierryn/BAMs_All_Selected/";
 # produce gvcfs in $outDir
@@ -78,14 +78,14 @@ my $genome = "/bettik/thierryn/HumanGenome/hs38DH.fa";
 my $chroms = "/bettik/thierryn/HumanGenome/hs38_chroms.bed.gz";
 
 # path/to/latest/gatk : doesn't work, gatk dies with cryptic message
-#my $gatk = "/home/nthierry/Bam2gvcf_GATK_Binaries/gatk-latest/gatk";
+#my $gatk = "/home/nthierry/Bam2gvcf_GATK/gatk-latest/gatk";
 # -> instead we use a singularity image
 my $gatk = 'singularity exec';
 # bind /bettik/thierryn/ (ie make it rw-accessible from within the container),
 # /home/thierryn/ is bound by default
 $gatk .= ' --bind /bettik/thierryn/';
 # path/to/image
-$gatk .= ' /home/thierryn/Bam2gvcf_GATK_Binaries/gatk-latest.sif';
+$gatk .= ' /home/thierryn/Bam2gvcf_GATK/gatk-latest.sif';
 # running from the sif doesn't work, trying a sandbox
 # $gatk .= ' ~/gatk_4.1.8.1_SANDBOX';
 

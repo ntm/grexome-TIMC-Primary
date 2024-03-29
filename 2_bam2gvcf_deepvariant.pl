@@ -192,8 +192,8 @@ foreach my $sample (sort keys(%samples)) {
     # need to bind the symlink-resolved dir containing $bam, as well as $outdir,
     # $tmpdir, and the symlink-resolved dirs containing $refGenome, to absolute
     # paths in the singularity container. We will bind to:
-    my ($singIn, $singOut, $singTmp, $singRefGen, $singChrBed) =
-	("/IN/", "/OUT/", "/TMP/", "/REFGEN/", "/CHRBED/");
+    my ($singIn, $singOut, $singTmp, $singRefGen) =
+	("/IN/", "/OUT/", "/TMP/", "/REFGEN/");
 
     my $bamResolved = abs_path($bam);
     my ($bamResFile,$bamResDir) = fileparse($bamResolved);
@@ -202,7 +202,6 @@ foreach my $sample (sort keys(%samples)) {
     my $refGenResolved = abs_path($refGenome);
     my ($refGenResFile,$refGenResDir) = fileparse($refGenResolved);
     $bindings .= ",$refGenResDir:$singRefGen";
-    my $chrResolved = abs_path($chromsBed);
 
     # override env $TMPDIR (DV writes stuff there) and silence perl warnings due
     # to missing locales in the DV docker/singularity image, but do it all in a 'bash -c " ('

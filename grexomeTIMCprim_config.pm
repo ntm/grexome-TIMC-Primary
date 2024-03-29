@@ -108,17 +108,26 @@ sub refGenomeElPrep {
     die "E: no refGenome.elfasta found, you need to edit *config.pm";
 }
 
-# Full path to bgzipped and tabix-indexed hs38_chrom-only BED file,
-# with the full chromosomes 1-22,X,Y,M.
-# This allows to ignore decoy/unplaced/alt regions.
-# An example of the expected file is provided in Metadata/ .
+# Full path to bgzipped and tabix-indexed BED file specifying regions where variants should
+# be called, other regions are ignored.
+# For example this can be a hs38_chrom-only BED file with the full chromosomes 1-22,X,Y,M:
+# this allows to ignore decoy/unplaced/alt regions, one such file is provided in Metadata/ .
+# Return "" to call variants everywhere.
 sub refGenomeChromsBed {
-    # default to a file alongside the ref genome
-    my $chromsBed = &refGenome();
-    ($chromsBed =~ s/hs38DH.fa$/hs38_chroms.bed.gz/) ||
-	die "E: cannot substitute hs38 fasta for bed filename, maybe refGenome isn't named as expected?";
-    (-f $chromsBed) ||
-	die "E: chromsBed file $chromsBed doesn't exist, rsync it from somewhere or fix the code";
+    # default: call variants on the whole genome
+    my $chromsBed = "";
+    # below is what we use for GRCh38, expecting a BED file with a specific name alongside the ref genome...
+    # It most likely needs to be adapted to your file naming conventions, or just commented out
+    my $chroms = &refGenome();
+    if ($chroms !~ s/hs38DH.fa$/hs38_chroms.bed.gz/) {
+	warn "W: in refGenomeChromsBed, cannot build BED filename, you should edit grexomeTIMCprim_config.pm";
+    }
+    elsif (! -f $chroms) {
+	warn "W: in refGenomeChromsBed, $chroms doesn't exist, you should edit grexomeTIMCprim_config.pm";
+    }
+    else {
+	$chromsBed = $chroms;
+    }
     return($chromsBed);
 }
 

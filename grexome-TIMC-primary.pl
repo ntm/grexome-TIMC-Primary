@@ -430,7 +430,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	(-e $b2gBin) ||
 	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
 	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples";
-	$com .= " --chroms ".&refGenomeChromsBed();
+	(&refGenomeChromsBed()) && ($com .= " --chroms ".&refGenomeChromsBed());
 	$com .= " --outdir $callerWorkDir --jobs $jobs --real";
 	#caller-specific args
 	if ($caller eq "strelka") {

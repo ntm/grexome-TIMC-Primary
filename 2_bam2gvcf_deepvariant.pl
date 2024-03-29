@@ -56,8 +56,8 @@ my $samples = '';
 # decoy+alts+unmapped, as produced by Heng Li's run-gen-ref (from bwa-kit)
 my $refGenome;
 
-# bgzipped and tabix-indexed BED with chromosomes 1-22, X, Y, M 
-# (see eg &refGenomeChromsBed in grexomeTIMCprim_config.pm)
+# bgzipped and tabix-indexed BED defining regions where variants should be called,
+# any other genomic region is ignored
 my $chromsBed;
 
 # dir where GVCFs will be created
@@ -89,7 +89,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
 --genome : ref genome fasta, with path
---chroms : bgzipped and tabix-indexed BED file with chromosomes 1-22, X, Y, M
+--chroms : optional, if provided it must be a bgzipped and tabix-indexed BED file
+	   defining regions where variants should be called
 --outdir : dir where GVCF files will be created
 --tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --deepvariant : path+name of deepvariant singularity image (SIF format)
@@ -133,8 +134,11 @@ foreach my $sample (split(/,/, $samples)) {
 ($refGenome) || die "E $0: you must provide a ref genome fasta file\n";
 (-f $refGenome) || die "E $0: provided genome fasta file doesn't exist\n";
 
-($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
-(-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
+if ($chromsBed) {
+    (-f $chromsBed) || die "E $0: provided --chroms file doesn't exist\n";
+    (-f "$chromsBed.tbi") || (-f "$chromsBed.csi") ||
+	die "E $0: can't find tabix index for provided --chroms file\n";
+}
 
 # make sure DV image exists and can be run with singularity
 ($deepVariant) || die "E $0: you must provide a deepVariant singularity image file\n";
@@ -167,11 +171,13 @@ mkdir($tmpDir) || die "E $0: cannot mkdir tmpDir $tmpDir\n";
 my $now = strftime("%F %T", localtime);
 warn "I $now: $0 - STARTING TO WORK\n";
 
-# DV needs a gunzipped $chromsBed, make a copy in $tmpDir
-if (system("gunzip -c $chromsBed > $tmpDir/chroms.bed")) {
-    # non-zero status, clean up and die
-    remove_tree($tmpDir);
-    die "E $0: need gunzipped chromsBed but failure with: gunzip -c $chromsBed > $tmpDir/chroms.bed\n";
+if ($chromsBed) {
+    # DV needs a gunzipped $chromsBed, make a copy in $tmpDir
+    if (system("gunzip -c $chromsBed > $tmpDir/chroms.bed")) {
+	# non-zero status, clean up and die
+	remove_tree($tmpDir);
+	die "E $0: need gunzipped chromsBed but failure with: gunzip -c $chromsBed > $tmpDir/chroms.bed\n";
+    }
 }
 
 foreach my $sample (sort keys(%samples)) {
@@ -219,7 +225,7 @@ foreach my $sample (sort keys(%samples)) {
     if ($datatype eq 'exome') { $com .= " --model_type=WES"; }
     else { $com .= " --model_type=WGS"; }
     $com .= " --ref=$singRefGen/$refGenResFile";
-    $com .= " --regions=$singTmp/chroms.bed";
+    ($chromsBed) && ($com .= " --regions=$singTmp/chroms.bed");
     $com .= " --intermediate_results_dir=$singTmp/intermediate/";
     $com .= " --num_shards=$jobs";
     # keep HTML stats file for now, to disable uncomment:

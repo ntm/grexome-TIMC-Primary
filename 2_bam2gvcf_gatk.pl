@@ -55,8 +55,8 @@ my $samples = '';
 # decoy+alts+unmapped, as produced by Heng Li's run-gen-ref (from bwa-kit)
 my $refGenome;
 
-# bgzipped and tabix-indexed BED with chromosomes 1-22, X, Y, M 
-# (see eg &refGenomeChromsBed in grexomeTIMCprim_config.pm)
+# bgzipped and tabix-indexed BED defining regions where variants should be called,
+# any other genomic region is ignored
 my $chromsBed;
 
 # dir where GVCFs and GATK logfiles will be created
@@ -91,7 +91,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
 --genome : ref genome fasta, with path
---chroms : bgzipped and tabix-indexed BED file with chromosomes 1-22, X, Y, M
+--chroms : optional, if provided it must be a bgzipped and tabix-indexed BED file
+	   defining regions where variants should be called
 --outdir : dir where GVCF files will be created
 --tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --gatk [default to \"$gatk\" which should be in PATH] : full path to gatk executable
@@ -133,8 +134,11 @@ foreach my $sample (split(/,/, $samples)) {
 ($refGenome) || die "E $0: you must provide a ref genome fasta file\n";
 (-f $refGenome) || die "E $0: provided genome fasta file doesn't exist\n";
 
-($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
-(-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
+if ($chromsBed) {
+    (-f $chromsBed) || die "E $0: provided --chroms file doesn't exist\n";
+    (-f "$chromsBed.tbi") || (-f "$chromsBed.csi") ||
+	die "E $0: can't find tabix index for provided --chroms file\n";
+}
 
 ($outDir) || 
     die "E $0: you MUST specify --outdir where GVCFs will be created\n$USAGE\n";
@@ -188,8 +192,8 @@ $cmd .= " --seconds-between-progress-updates 600";
 # Omar made some tests with --native-pair-hmm-threads but 
 # concluded the default 4 was ok (he saw no speedup with larger values)
 
-# limit to regular chromosomes (no decoy, unmapped, HLA etc)
-$cmd .= " -L $chromsBed";
+# limit to --chroms regions
+($chromsBed) && ($cmd .= " -L $chromsBed");
 
 # don't know why GATK doesn't default to FASTEST for SW
 $cmd .= " --smith-waterman FASTEST_AVAILABLE";

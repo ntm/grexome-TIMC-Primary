@@ -56,8 +56,8 @@ my $samples = '';
 # decoy+alts+unmapped, as produced by Heng Li's run-gen-ref (from bwa-kit)
 my $refGenome;
 
-# bgzipped and tabix-indexed BED with chromosomes 1-22, X, Y, M 
-# (see eg &refGenomeChromsBed in grexomeTIMCprim_config.pm)
+# bgzipped and tabix-indexed BED defining regions where variants should be called,
+# any other genomic region is ignored
 my $chromsBed;
 
 # dir where GVCF-containing subdirs will be created
@@ -87,7 +87,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
 --genome : ref genome fasta, with path
---chroms : bgzipped and tabix-indexed BED file with chromosomes 1-22, X, Y, M
+--chroms : optional, if provided it must be a bgzipped and tabix-indexed BED file
+	   defining regions where variants should be called
 --outdir : dir where GVCF-containing subdirs will be created (one subdir per sample)
 --strelka [$strelka] : must be either the path+name of configureStrelkaGermlineWorkflow.py
           (from strelka distrib), or a wrapper script that can be in your PATH
@@ -130,8 +131,11 @@ foreach my $sample (split(/,/, $samples)) {
 ($refGenome) || die "E $0: you must provide a ref genome fasta file\n";
 (-f $refGenome) || die "E $0: provided genome fasta file doesn't exist\n";
 
-($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
-(-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
+if ($chromsBed) {
+    (-f $chromsBed) || die "E $0: provided --chroms file doesn't exist\n";
+    (-f "$chromsBed.tbi") || (-f "$chromsBed.csi") ||
+	die "E $0: can't find tabix index for provided --chroms file\n";
+}
 
 ($datatype eq 'exome') || ($datatype eq 'genome') ||
     die "E $0: illegal datatype $datatype, must be among {exome,genome}\n";
@@ -165,7 +169,8 @@ foreach my $sample (sort keys(%samples)) {
     my $runDir = "$outDir/$sample/";
 
     # strelka configure command
-    my $com = "$strelka --bam $bam  --referenceFasta $refGenome --callRegions $chromsBed";
+    my $com = "$strelka --bam $bam  --referenceFasta $refGenome";
+    ($chromsBed) && ($com .= " --callRegions $chromsBed");
     ($datatype eq 'exome') && ($com .= " --exome");
     $com .= " --runDir $runDir > /dev/null";
 

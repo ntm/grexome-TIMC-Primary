@@ -61,8 +61,8 @@ my $samples = '';
 # by Heng Li's run-gen-ref (from bwa-kit)
 my $refGenome;
 
-# bgzipped and tabix-indexed BED with chromosomes 1-22, X, Y, M 
-# (see eg &refGenomeChromsBed in grexomeTIMCprim_config.pm)
+# bgzipped and tabix-indexed BED defining regions where variants should be called,
+# any other genomic region is ignored
 my $chromsBed;
 
 # dir where GVCFs will be created
@@ -99,7 +99,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
 	  [sample].bam and [sample].bam.bai files in indir
 --genome : ref genome in elPrep5 elfasta format, with path
---chroms : bgzipped and tabix-indexed BED file with chromosomes 1-22, X, Y, M
+--chroms : optional, if provided it must be a bgzipped and tabix-indexed BED file
+	   defining regions where variants should be called
 --outdir : dir where GVCF files will be created
 --tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --logdir [$logDir] : dir where elprep logs will be created
@@ -149,8 +150,11 @@ foreach my $sample (split(/,/, $samples)) {
 ($refGenome) || die "E $0: you must provide a ref genome elfasta file\n";
 (-f $refGenome) || die "E $0: provided genome elfasta file doesn't exist\n";
 
-($chromsBed) || die "E $0: you must provide a BED with chromosomes 1-22, X, Y, M\n";
-(-f $chromsBed) || die "E $0: provided chromsBed file doesn't exist\n";
+if ($chromsBed) {
+    (-f $chromsBed) || die "E $0: provided --chroms file doesn't exist\n";
+    (-f "$chromsBed.tbi") || (-f "$chromsBed.csi") ||
+	die "E $0: can't find tabix index for provided --chroms file\n";
+}
 
 ($outDir) || 
     die "E $0: you MUST specify --outdir where GVCFs will be created\n$USAGE\n";
@@ -186,8 +190,7 @@ my $cmdStart = "$elprep $mode ";
 my $cmdEnd = " --nr-of-threads $threadsPerSample ";
 $cmdEnd .= "--reference $refGenome ";
 $cmdEnd .= "--log-path $logDir ";
-# limit to regular chromosomes (no decoy, unmapped, HLA etc)
-$cmdEnd .= "--target-regions $chromsBed ";
+($chromsBed) && ($cmdEnd .= "--target-regions $chromsBed ");
 # $cmdEnd .= "--reference-confidence GVCF " ## this is the default
 # $cmdEnd .= "--timed "; ## not really useful for us
 

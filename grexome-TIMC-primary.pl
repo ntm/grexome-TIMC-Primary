@@ -341,7 +341,8 @@ if ($samples) {
     warn "I $now: $0 - fastq2bam will process sample(s) $samples\n";
     # make BAMs
     my $com = "perl $RealBin/1_fastq2bam.pl --indir $fastqDir --samples $samples --outdir $dataDir/$bamDir ";
-    $com .= "--genome ".&refGenome()." --bwakit ".&bwakitPath()." --threads $jobs --real";
+    $com .= "--genome ".&refGenome()." --threads $jobs --real";
+    (&bwakitPath() ne '') && ($com .= " --bwakit ".&bwakitPath());
     (&binPath() ne '') && ($com .= " --binpath ".&binPath());
     
     system($com) && die "E $0: fastq2bam FAILED: $!";

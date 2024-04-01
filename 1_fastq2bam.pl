@@ -36,11 +36,11 @@
 # a pre-existing BAM).
 #
 # This is inspired by bwa-kit.
-# In particular we use $bwakitPostalt, which produces a bunch of *hla* 
-# files, we don't use them but we keep them anyways: they're not 
+# In particular, for GRCh38 we use $bwakitPostalt, which produces a bunch
+#  of *hla* files, we don't use them but we keep them anyways: they're not 
 # huge and and will be there if we ever want to do HLA typing.
-# For this reason the reference genome should be produced by
-# run-gen-ref from bwa-kit.
+# For this reason, when working on GRCh38 the reference genome should be
+# produced by run-gen-ref from bwa-kit.
 #
 # Note on error-handling:
 # - all logging goes to stderr;
@@ -98,7 +98,8 @@ my $outDir = '';
 my $binPath = '';
 
 # also need path to bwa-kit subdir (with k8 and bwa-postalt.js),
-# gets its own variable because it should never be in PATH
+# gets its own variable because it should never be in PATH.
+# Leave empty to ignore the bwakit-Postalt step (eg non-human data)
 my $bwakit = '';
 
 # path+filename of ref genome, currently we recommend the full GRCh38 with
@@ -129,7 +130,8 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --outdir : subdir where BAMs and accessory files will be created
 --binpath : path where binaries $fastp, $samblaster, $samtools and 
     ".join('/',@bwas)." can be found, leave empty to search in PATH
---bwakit : path where k8 and bwa-postalt.js (from bwa-kit) can be found
+--bwakit : when aligning on GRCh38, path where k8 and bwa-postalt.js (from bwa-kit) can
+ 	 be found; if not provided, ignore bwakit-PostAlt (eg with non-human data)
 --genome : ref genome fasta, with path, must be indexed with 'bwa-mem2 index' and/or 'bwa index'
 --threads N [default = 4] : number of threads for BWA, and also for samtools if <= 4 
     (but if > 4 samtools uses only 4 threads)
@@ -163,17 +165,20 @@ GetOptions ("indir=s" => \$inDir,
 # slash-terminate $binPath if it's not empty
 ($binPath) && (($binPath  =~ m~/$~)  || ($binPath .= "/"));
 
-# actual bwa-postalt command (use k8 to interpret the js)
-my $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
-(`$bwakitPostalt -v` =~ /^r\d+$/) ||
-    die "E $0: bwakitPostalt test doesn't run as expected, maybe fix bwakitPath in config.pm, command run: $bwakitPostalt -v\n";
-
 # make sure ref genome exists
 ($genome) || die "E $0: you must provide a ref genome fasta file\n";
 (-f $genome) || die "E $0: provided genome fasta file doesn't exist\n";
-(-f "$genome.alt") ||
-    die "E $0: provided ref genome found but we also need $genome.alt for bwa-postalt, ".
-    "as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
+
+# actual bwa-postalt command (use k8 to interpret the js)
+my $bwakitPostalt;
+if ($bwakit) {
+    $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
+    (`$bwakitPostalt -v` =~ /^r\d+$/) ||
+	die "E $0: bwakitPostalt test doesn't run as expected, maybe fix bwakitPath in config.pm, command run: $bwakitPostalt -v\n";
+    (-f "$genome.alt") ||
+	die "E $0: provided ref genome found but we also need $genome.alt for bwa-postalt, ".
+	"as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
+}
 
 # make sure all progs can be found
 (`which $bash` =~ /$bash$/) || die "E $0: the bash executable $bash can't be found\n";
@@ -288,10 +293,10 @@ foreach my $sample (sort keys(%samples)) {
     # samblaster: nothing special
     $com .= "$samblaster 2> ${outFile}_samblaster.log |";
 
-    # bwa-kit run-bwamem has a step for dealing correctly with ALT
-    # contigs (bwa-postalt.js), we run that script too
+    # bwa-kit run-bwamem has a step for dealing correctly with ALT contigs (bwa-postalt.js),
+    # we run that script too if --bwakit was provided
     # (see https://github.com/lh3/bwa/blob/master/README-alt.md )
-    $com .= "$bwakitPostalt -p $outFile.hla $genome.alt |";
+    ($bwakitPostalt) && ($com .= "$bwakitPostalt -p $outFile.hla $genome.alt |");
     
     # sort with samtools
     $com .= "$samtools sort -\@ $numThreadsCapped -m1G -o $outFile.bam - ";

@@ -160,9 +160,10 @@ sub binPath {
     return($binPath);
 }
 
-# Dir containing Heng Li's bwa-kit package - we use k8 and bwa-postalt.js to correctly
-# deal with ALT contigs.
+# Dir containing Heng Li's bwa-kit package - when aligning on GRCh38, we use k8 and
+# bwa-postalt.js to correctly deal with ALT contigs.
 # See https://github.com/lh3/bwa/blob/master/README-alt.md
+# Return '' to skip the bwakit-postAlt step (eg when working with non-human data)
 sub bwakitPath {
     # path to bwa-kit subdir (with k8 and bwa-postalt.js), available on SF:
     # https://sourceforge.net/projects/bio-bwa/files/bwakit/

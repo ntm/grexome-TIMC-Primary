@@ -78,7 +78,7 @@ sub mirror {
 }
 
 
-# Return the reference human genome fasta file, with path.
+# Return the reference genome fasta file, with path.
 # It needs to be indexed/preprocessed in various ways for all
 # the tools we use, see "REQUIRED DATA" section in the README.
 sub refGenome {
@@ -93,7 +93,7 @@ sub refGenome {
     die "E: no refGenome found, you need to edit *config.pm";
 }
 
-# Return the reference human genome in the elPrep5 elfasta format, with path
+# Return the reference genome in the elPrep5 elfasta format, with path
 # This can be produced with eg:
 # elprep fasta-to-elfasta hs38DH.fa hs38DH.elfasta --log-path .
 sub refGenomeElPrep {

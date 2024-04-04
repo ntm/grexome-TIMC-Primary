@@ -32,7 +32,8 @@
 # Produce to stdout a GVCF file, where:
 # - header is copied from first file, except: 
 #   all INFO descriptions except END and BLOCKAVG_min30p3a are stripped;
-#   if --cleanheaders, ##contig headers are stripped except chr1-22 and X,Y,M;
+#   if --cleanheaders, ##contig headers are stripped except chroms \d+ and X,Y,M/MT (possibly
+#      chr-prefixed);
 #   ##mergeGVCFs= lines from all infiles are copied;
 #   #CHROM line is modified by appending the identifiers of all samples.
 # - any line whose FILTER column contains a key from %filtersApplied gets skipped.
@@ -183,7 +184,7 @@ my $jobs = 16;
 my $batchSize;
 
 # if $cleanHeaders, don't print ##contig headers except for regular 
-# chroms (1-22, X, Y, M)
+# chroms (\d+, X, Y, M/MT)
 my $cleanHeaders = '';
 
 # help: if true just print $USAGE and exit
@@ -198,12 +199,13 @@ has with the GVCFs you provide. If this happens please report the issues so we c
 fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --filelist : file containing a list of GVCF filenames to merge, including paths, one per line
---tmpdir : subdir where tmp files will be created (on a RAMDISK if possible), must not pre-exist and will be removed after execution
+--tmpdir : subdir where tmp files will be created (on a RAMDISK if possible), must not pre-exist 
+	 and will be removed after execution
 --jobs ['.$jobs.'] : number of parallel jobs=threads to run
 --batchSize [adaptive] : size of each batch, lower decreases RAM requirements and performance,
  	    defaults to an optimized adaptive strategy, you shouldn\'t need to specify this except
 	    if you are running out of RAM (suggested reasonable values: between 5000 and 100000)
---cleanheaders : don\'t print ##contig headers except for chr1-22 and X,Y,M
+--cleanheaders : don\'t print ##contig headers except for chroms \d+ and X,Y,M/MT (possibly chr-prefixed)
 --help : print this USAGE';
 
 # construct string with full command-line for adding to headers, must be
@@ -304,7 +306,10 @@ while(my $line = <$infile>) {
     }
     elsif (($cleanHeaders) && ($line =~ /^##contig=<ID=([^,]+),/)) {
 	my $contig = $1;
-	($contig =~ /^chr[\dXYM]\d?$/) && (print $line);
+	$contig =~ s/^chr//;
+	if (($contig =~ /^\d+$/) || ($contig =~ /^[XYM]$/) || ($contig =~ /^MT$/)) {
+	    print $line;
+	}
 	# otherwise this is not a regular chrom, don't print
     }
     elsif ($line =~ /^##/) {

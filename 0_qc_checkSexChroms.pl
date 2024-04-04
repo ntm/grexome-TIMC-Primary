@@ -33,9 +33,9 @@
 # You can provide the output of this script from a previous run
 # with --prevQC, to avoid parsing every GVCF whenever you get
 # a few new samples (n+1 scenario).
-# NOTE: designed for the Ensembl version of GRCh38, eg chromosomes
-# must be named chrX chrY chr16 rather than X Y 16, and the coordinates
-# of the PARs are for GRCh38.
+# NOTE: the chromosomes can be chr-prefixed or not (ie chrX or X),
+# but the coordinates of the PARs are for GRCh38 and are hard-coded.
+
 
 use strict;
 use warnings;
@@ -81,7 +81,7 @@ my $help = '';
 
 
 my $USAGE = "\nGrab the sex of each patient in the metadata XLSX, and count the variants 
-called on the sex chromosomes (ignoring PARs) + chr16 (as control) in each 
+called on the sex chromosomes (ignoring PARs) + chrom 16 (as control) in each 
 patient's FILTERED GVCF in indir.
 Print summary statistics to stdout in TSV format, including info on putative errors (outliers).
 Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
@@ -458,15 +458,19 @@ sub countCalls {
     (`which $tabix` =~ /$tabix/) ||
 	die "E $0: countCalls called with bad tabix binary: $tabix\n";
 
+    # are the chromosomes chr-prefixed?
+    my $chrPrefix = "";
+    (`$tabix -H $gvcf | grep '##contig=<ID=chrX,'`) && ($chrPrefix = "chr");
+
     # number of HET or HV calls on the X/Y/16 chromosomes
     my ($nbHetX,$nbHomoX,$nbHetY,$nbHomoY,$nbHet16,$nbHomo16) = (0,0,0,0,0,0);
 
     # HET calls are expected in PARs -> ignore them.
     # Grabbing PAR coordinates here:
     # https://www.ensembl.org/info/genome/genebuild/human_PARS.html
-    my $ROIs = "chrX:1-10000 chrX:2781480-155701382 chrX:156030896-156040895 ";
-    $ROIs .= "chrY:1-10000 chrY:2781480-56887902 chrY:57217416-57227415 ";
-    $ROIs .= "chr16 ";
+    my $ROIs = "${chrPrefix}X:1-10000 ${chrPrefix}X:2781480-155701382 ${chrPrefix}X:156030896-156040895 ";
+    $ROIs .= "${chrPrefix}Y:1-10000 ${chrPrefix}Y:2781480-56887902 ${chrPrefix}Y:57217416-57227415 ";
+    $ROIs .= "${chrPrefix}16 ";
     
     open(my $GVCF, "$tabix $gvcf $ROIs |") ||
 	die "E $0: countCalls cannot tabix-open GVCF $gvcf\n";
@@ -474,7 +478,7 @@ sub countCalls {
     while (my $line = <$GVCF>) {
 	chomp($line);
 	# grab chrom
-	($line =~ /^chr([\dXY]\d?)\t/) ||
+	($line =~ /^$chrPrefix([\dXY]\d?)\t/o) ||
 	    die "E $0: countCalls cannot grab chrom from $gvcf in line:\n$line\n";
 	my $chr = $1;
 	# grab geno: single-sample => last column

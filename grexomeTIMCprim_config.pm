@@ -91,7 +91,8 @@ sub refGenome {
     # all our servers
     foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.fa",
 			"/data/HumanGenome/hs38DH.fa",
-			"/bettik/nthierry/HumanGenome/hs38DH.fa") {
+			"/bettik/nthierry/HumanGenome/hs38DH.fa",
+			"/home/nthierry/DATA/HumanGenome/hs38DH.fa") {
 	(-f $genome) && return($genome);
     }
     # if we get here no file was found...
@@ -106,7 +107,8 @@ sub refGenomeElPrep {
     # all our servers
     foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.elfasta",
 			"/data/HumanGenome/hs38DH.elfasta",
-			"/bettik/nthierry/HumanGenome/hs38DH.elfasta") {
+			"/bettik/nthierry/HumanGenome/hs38DH.elfasta",
+			"/home/nthierry/DATA/HumanGenome/hs38DH.fa") {
 	(-f $genome) && return($genome);
     }
     # if we get here no file was found...

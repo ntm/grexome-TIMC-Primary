@@ -49,8 +49,13 @@ our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeC
 # The hierarchy (hard-coded in grexome-TIMC-primary.pl) doesn't need
 # to change, but &dataDir() certainly does.
 sub dataDir {
-    my $dataDir = "/data/nthierry/PierreRay/";
-    return($dataDir);
+    foreach my $dataDir ("/data/nthierry/PierreRay/",
+			 "/home/nthierry/PierreRay_DATA/") {
+	(-d $dataDir) && return($dataDir);
+    }
+    # if we get here no file was found...
+    die "E: no dataDir found, you need to edit *config.pm";
+
 }
 
 # dir containing the "grexomized" FASTQs: for each sample we expect

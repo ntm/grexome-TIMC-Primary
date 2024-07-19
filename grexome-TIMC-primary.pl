@@ -703,7 +703,7 @@ foreach my $caller (sort(keys %callerDirs)) {
 	# fail if any component of the pipe fails
 	$com =~ s/"/\\"/g;
 	$com = "$bash -o pipefail -c \" $com \"";
-	system($com) && die "E $0: mergeGvcfs for $caller FAILED: $?";
+	system($com) && die "E $0: mergeGvcfs for $caller FAILED: $!";
 	$now = strftime("%F %T", localtime);
 	warn "I $now: $0 - merging $caller GVCFs DONE\n";
 

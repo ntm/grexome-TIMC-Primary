@@ -24,7 +24,7 @@
 # NTM
 
 # Take as arg a filename containing a list of GVCF filenames (with full path, 
-# possible gzipped, one file per line) with one or more data columns (ie samples).
+# possible bgzipped, one file per line) with one or more data columns (ie samples).
 # These GVCFs should be produced by Strelka, GATK4, deepVariant or ElPrep, preferably
 # cleaned up by filterBadCalls.pl, and/or by this program.
 # If you feed random GVCF files you will probably need to adapt the code (although
@@ -274,7 +274,11 @@ while(my $file = <FILES>) {
 	push(@infiles, $infile);
     }
     elsif ($file =~ /\.vcf\.gz$/) {
-	open(my $infile, "gunzip -c $file |") || die "E $0: cannot gunzip-open infile $file for reading\n";
+	# allow $jobs/4 threads for each infile, they should auto-regulate since
+	# each bgzip process will have to wait for it's output to be eaten by the pipe
+	my $bgunzipJobs = int($jobs/4);
+	($bgunzipJobs > 0) || ($bgunzipJobs = 1);
+	open(my $infile, "bgzip -c -d -\@$bgunzipJobs $file |") || die "E $0: cannot bgzip-open infile $file for reading\n";
 	push(@infiles, $infile);
     }
     else {

@@ -274,10 +274,10 @@ while(my $file = <FILES>) {
 	push(@infiles, $infile);
     }
     elsif ($file =~ /\.vcf\.gz$/) {
-	# allow $jobs/6 threads for each infile, they should auto-regulate since
+	# allow $jobs/8 threads for each infile, they should auto-regulate since
 	# each bgzip process will have to wait for it's output to be eaten by the
 	# pipe, and we stall worker threads when needed
-	my $bgunzipJobs = int($jobs/6);
+	my $bgunzipJobs = int($jobs/8);
 	($bgunzipJobs > 0) || ($bgunzipJobs = 1);
 	open(my $infile, "bgzip -c -d -\@$bgunzipJobs $file |") || die "E $0: cannot bgzip-open infile $file for reading\n";
 	push(@infiles, $infile);

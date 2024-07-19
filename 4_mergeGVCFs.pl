@@ -543,7 +543,14 @@ while ($firstFile <= $#infiles) {
 	$firstFile++;
     }
 
-    # OK we can merge the batch and print the result to a tmpfile
+    # OK we can merge the batch and print the result to a tmpfile, but wait a bit if we already
+    # have a lot of *done tmpfiles, otherwise in some scenarios we saturate tmpDir
+    while(1) {
+	my @doneFiles = glob("$tmpDir/*_done");
+	(@doneFiles <= int($jobs / 2)) && last;
+	sleep(10);
+    }
+    
     $pm->start && next;
     # if you change $tmpOut or $tmpOutFlag you MUST EDIT &eatTmpFiles()
     my $tmpOut = "$tmpDir/$batchNum.g.vcf";

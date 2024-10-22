@@ -188,7 +188,7 @@ system("which $binPath$samtools &> /dev/null") && die "E $0: the samtools execut
 
 my $bwa = "";
 foreach my $b (@bwas) {
-    if (`which $binPath$b` =~ /$b$/) {
+    if (system("which $binPath$b &> /dev/null") == 0) {
 	# make sure genome is indexed for this flavor of BWA
 	if ($b =~ /mem/) {
 	    # bwa-mem2

@@ -149,7 +149,7 @@ if ($chromsBed) {
     die "E $0: outDir $outDir doesn't exist as a dir and can't be created\n";
 
 # make sure strelka can be found
-(`which $strelka` =~ /$strelka$/) || 
+system("which $strelka &> /dev/null") &&
     die "E $0: the strelka python (or shell wrapper) $strelka can't be found\n";
 
 

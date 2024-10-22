@@ -116,7 +116,7 @@ opendir(INDIR, $inDir) ||
 (! $prevQC) || (-f $prevQC) ||
     die "E $0: --prevQC specified but $prevQC isn't a file / doesn't exist\n";
 
-(`which $tabix` =~ /$tabix/) ||
+system("which $tabix &> /dev/null") &&
     die "E $0: the tabix executable $tabix can't be found\n";
 
 
@@ -455,7 +455,7 @@ sub countCalls {
 
     (-e $gvcf) || die "E $0: countCalls called with GVCF that doesn't exist: $gvcf\n";
     (-e "$gvcf.tbi") || die "E $0: countCalls called with GVCF lacking a tbi: $gvcf.tbi\n";
-    (`which $tabix` =~ /$tabix/) ||
+    system("which $tabix &> /dev/null") &&
 	die "E $0: countCalls called with bad tabix binary: $tabix\n";
 
     # are the chromosomes chr-prefixed?

@@ -162,7 +162,7 @@ if ($chromsBed) {
     die "E $0: outDir $outDir doesn't exist as a dir and can't be created\n";
 
 # make sure elprep executable is found
-(`which $elprep` =~ /$elprep$/) ||
+system("which $elprep &> /dev/null") &&
     die "E $0: cannot find elprep binary, you must provide it with --elprep\n";
 
 ($tmpDir) || die "E $0: you must provide a tmpDir\n";

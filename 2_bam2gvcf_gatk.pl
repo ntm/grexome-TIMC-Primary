@@ -148,8 +148,8 @@ if ($chromsBed) {
 # make sure gatk executable is found, this test is disabled if
 # we will be running GATK from a singularity container
 ($gatk =~ /singularity/) ||
-    (`which $gatk` =~ /$gatk$/) ||
-    die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n";
+    (system("which $gatk &> /dev/null") &&
+     die "E $0: cannot find 'gatk' (from GATK4 package), you must provide it with --gatk\n");
 
 ($tmpDir) || die "E $0: you must provide a tmpDir\n";
 (-e $tmpDir) && 

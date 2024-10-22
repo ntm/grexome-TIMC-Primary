@@ -181,10 +181,10 @@ if ($bwakit) {
 }
 
 # make sure all progs can be found
-(`which $bash` =~ /$bash$/) || die "E $0: the bash executable $bash can't be found\n";
-(`which $binPath$fastp` =~ /$fastp$/) || die "E $0: the fastp executable $fastp can't be found\n";
-(`which $binPath$samblaster` =~ /$samblaster$/) || die "E $0: the samblaster executable $samblaster can't be found\n";
-(`which $binPath$samtools` =~ /$samtools$/) || die "E $0: the samtools executable $samtools can't be found\n";
+system("which $bash &> /dev/null") && die "E $0: the bash executable $bash can't be found\n";
+system("which $binPath$fastp &> /dev/null") && die "E $0: the fastp executable $fastp can't be found\n";
+system("which $binPath$samblaster &> /dev/null") && die "E $0: the samblaster executable $samblaster can't be found\n";
+system("which $binPath$samtools &> /dev/null") && die "E $0: the samtools executable $samtools can't be found\n";
 
 my $bwa = "";
 foreach my $b (@bwas) {

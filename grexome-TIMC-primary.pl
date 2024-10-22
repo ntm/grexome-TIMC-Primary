@@ -84,13 +84,13 @@ my $bgzip = "bgzip";
 my $tabix = "tabix";
 my $zgrep = "zgrep";
 my $bash = "bash";
-(`which $bgzip` =~ /$bgzip$/) ||
+system("which $bgzip &> /dev/null") &&
     die "E $0: the bgzip executable $bgzip can't be found\n";
-(`which $tabix` =~ /$tabix$/) ||
+system("which $tabix &> /dev/null") &&
     die "E $0: the tabix executable $tabix can't be found\n";
-(`which $zgrep` =~ /$zgrep$/) ||
+system("which $zgrep &> /dev/null") &&
     die "E $0: the zgrep executable $zgrep can't be found\n";
-(`which $bash` =~ /$bash$/) ||
+system("which $bash &> /dev/null") &&
     die "E $0: the bash executable $bash can't be found\n";
 
 

@@ -89,6 +89,10 @@ my $samples = '';
 # subdir where BAMS will be created (required)
 my $outDir = '';
 
+# tmpDir, must not pre-exist and will be rm'd, faster is better
+# (ramdisk or at least SSD)
+my $tmpDir;
+
 # path to programs used (fastp etc...), empty string seaches in $PATH,
 # otherwise it must be a slash-terminated path (but we add trailing 
 # slash if needed)
@@ -128,6 +132,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --samples : comma-separated list of sampleIDs to process, for each sample there should be 
 	  a pair of FASTQ files in indir called [sample]_1.fq.gz and [sample]_2.fq.gz
 --outdir : subdir where BAMs and accessory files will be created
+--tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --binpath : path where binaries $fastp, $samblaster, $samtools and 
     ".join('/',@bwas)." can be found, leave empty to search in PATH
 --bwakit : when aligning on GRCh38, path where k8 and bwa-postalt.js (from bwa-kit) can
@@ -141,6 +146,7 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 GetOptions ("indir=s" => \$inDir,
 	    "samples=s" => \$samples,
 	    "outdir=s" => \$outDir,
+	    "tmpdir=s" => \$tmpDir,
 	    "binpath=s" => \$binPath,
 	    "bwakit=s" => \$bwakit,
 	    "genome=s" => \$genome,
@@ -161,6 +167,11 @@ GetOptions ("indir=s" => \$inDir,
     die "E $0: you MUST specify the dir where BAMs will be created, with --outdir\n$USAGE\n";
 (-d $outDir) || (mkdir($outDir)) || 
     die "E $0: outDir $outDir doesn't exist as a dir and can't be created\n";
+
+($tmpDir) || die "E $0: you must provide a tmpDir\n";
+(-e $tmpDir) &&
+    die "E $0: found argument $tmpDir but it already exists, remove it or choose another name.\n";
+mkdir($tmpDir) || die "E $0: cannot mkdir tmpDir $tmpDir\n";
 
 # slash-terminate $binPath if it's not empty
 ($binPath) && (($binPath  =~ m~/$~)  || ($binPath .= "/"));
@@ -299,7 +310,7 @@ foreach my $sample (sort keys(%samples)) {
     ($bwakitPostalt) && ($com .= "$bwakitPostalt -p $outFile.hla $genome.alt |");
     
     # sort with samtools
-    $com .= "$samtools sort -\@ $numThreadsCapped -m1G -o $outFile.bam - ";
+    $com .= "$samtools sort -\@ $numThreadsCapped -m1G -T $tmpDir -o $outFile.bam - ";
 
     # with bash -o pipefail, the return status of $com will be non-zero if any
     # piped component of $com fails
@@ -333,6 +344,10 @@ foreach my $sample (sort keys(%samples)) {
 	}
     }
 }
+
+remove_tree($tmpDir);
+(-e $tmpDir) && 
+    warn "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why?\n";
 
 $now = strftime("%F %T", localtime);
 if ($nbErrors) {

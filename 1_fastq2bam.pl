@@ -55,6 +55,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use File::Path qw(remove_tree);
 use Getopt::Long;
 use POSIX qw(strftime);
 

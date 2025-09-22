@@ -96,15 +96,15 @@ foreach my $gNum ($first..$last) {
     $grexome = "grexome$grexome";
     push(@samples, $grexome);
     if ((@samples == $samplesPerJob) || ($gNum == $last)) {
-	# choose stdout and stderr filenames
-	my $sampsString = $samples[0]."-".$samples[$#samples];
-	my $oar = $oarBase."-O $logDir/bam2gvcfStrelka.$sampsString.out -E $logDir/bam2gvcfStrelka.$sampsString.err ";
-	$oar .= "\" perl $bam2gvcf --indir $inDir --genome $genome --chroms $chroms --outdir $outDir --samples ";
-	$oar .= join(',', @samples);
-	$oar .= " --strelka $strelka --jobs $threads --real\"";
-	#warn "$oar\n";
-	system($oar);
-	@samples = ();
+        # choose stdout and stderr filenames
+        my $sampsString = $samples[0]."-".$samples[$#samples];
+        my $oar = $oarBase."-O $logDir/bam2gvcfStrelka.$sampsString.out -E $logDir/bam2gvcfStrelka.$sampsString.err ";
+        $oar .= "\" perl $bam2gvcf --indir $inDir --genome $genome --chroms $chroms --outdir $outDir --samples ";
+        $oar .= join(',', @samples);
+        $oar .= " --strelka $strelka --jobs $threads --real\"";
+        #warn "$oar\n";
+        system($oar);
+        @samples = ();
     }
 }
 

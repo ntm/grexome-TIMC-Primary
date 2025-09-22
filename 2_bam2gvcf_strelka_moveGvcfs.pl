@@ -60,14 +60,14 @@ while (my $sample = readdir(IN)) {
     ($sample =~ /^\./) && next;
     my $inFile = "$inDir/$sample/results/variants/genome.S1.vcf.gz";
     foreach my $ext ("", ".tbi") {
-	(-e "$inFile$ext") ||
-	    ((warn "W $0: skipping $sample$ext because I can't find GVCF$ext file $inFile$ext\n") && next);
-	my $outFile = "$outDir/$sample.g.vcf.gz$ext";
-	(-e $outFile) &&
-	    die "E $0: about to move GVCF$ext for $sample but it already exists in outDir $outDir, WTF!!\n";
+        (-e "$inFile$ext") ||
+            ((warn "W $0: skipping $sample$ext because I can't find GVCF$ext file $inFile$ext\n") && next);
+        my $outFile = "$outDir/$sample.g.vcf.gz$ext";
+        (-e $outFile) &&
+            die "E $0: about to move GVCF$ext for $sample but it already exists in outDir $outDir, WTF!!\n";
 
-	rename("$inFile$ext",$outFile) ||
-	    die "E $0: rename failed for $inFile$ext $outFile\n";
+        rename("$inFile$ext",$outFile) ||
+            die "E $0: rename failed for $inFile$ext $outFile\n";
     }
 }
 

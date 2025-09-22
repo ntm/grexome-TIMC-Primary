@@ -200,11 +200,11 @@ fix them.
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --filelist : file containing a list of GVCF filenames to merge, including paths, one per line
 --tmpdir : subdir where tmp files will be created (on a RAMDISK if possible), must not pre-exist 
-	 and will be removed after execution
+         and will be removed after execution
 --jobs ['.$jobs.'] : number of parallel jobs=threads to run
 --batchSize [adaptive] : size of each batch, lower decreases RAM requirements and performance,
- 	    defaults to an optimized adaptive strategy, you shouldn\'t need to specify this except
-	    if you are running out of RAM (suggested reasonable values: between 5000 and 100000)
+        defaults to an optimized adaptive strategy, you shouldn\'t need to specify this except
+        if you are running out of RAM (suggested reasonable values: between 5000 and 100000)
 --cleanheaders : don\'t print ##contig headers except for chroms \d+ and X,Y,M/MT (possibly chr-prefixed)
 --help : print this USAGE';
 
@@ -219,11 +219,11 @@ chomp($addToHeader);
 $addToHeader = "##mergeGVCFs=<commandLine=\"$addToHeader\">\n";
 
 GetOptions ("filelist=s" => \$fileList,
-	    "tmpdir=s" => \$tmpDir,
-	    "jobs=i" => \$jobs,
-	    "batchSize=i" => \$batchSize,
-	    "cleanheaders" => \$cleanHeaders,
-	    "help" => \$help)
+            "tmpdir=s" => \$tmpDir,
+            "jobs=i" => \$jobs,
+            "batchSize=i" => \$batchSize,
+            "cleanheaders" => \$cleanHeaders,
+            "help" => \$help)
     or die("E: Error in command line arguments\n\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
@@ -270,20 +270,20 @@ while(my $file = <FILES>) {
     ($file =~ /^\s*$/) && next;
     (-f $file) || die "E $0: infile $file from fileList $fileList doesn't exist\n";
     if ($file =~ /\.vcf$/) {
-	open(my $infile, $file) || die "E $0: cannot open infile $file for reading\n";
-	push(@infiles, $infile);
+        open(my $infile, $file) || die "E $0: cannot open infile $file for reading\n";
+        push(@infiles, $infile);
     }
     elsif ($file =~ /\.vcf\.gz$/) {
-	# allow $jobs/8 threads for each infile, they should auto-regulate since
-	# each bgzip process will have to wait for it's output to be eaten by the
-	# pipe, and we stall worker threads when needed
-	my $bgunzipJobs = int($jobs/8);
-	($bgunzipJobs > 0) || ($bgunzipJobs = 1);
-	open(my $infile, "bgzip -c -d -\@$bgunzipJobs $file |") || die "E $0: cannot bgzip-open infile $file for reading\n";
-	push(@infiles, $infile);
+        # allow $jobs/8 threads for each infile, they should auto-regulate since
+        # each bgzip process will have to wait for it's output to be eaten by the
+        # pipe, and we stall worker threads when needed
+        my $bgunzipJobs = int($jobs/8);
+        ($bgunzipJobs > 0) || ($bgunzipJobs = 1);
+        open(my $infile, "bgzip -c -d -\@$bgunzipJobs $file |") || die "E $0: cannot bgzip-open infile $file for reading\n";
+        push(@infiles, $infile);
     }
     else {
-	die "E $0: infile $file from fileList $fileList does not end in .vcf or .vcf.gz, why?\n";
+        die "E $0: infile $file from fileList $fileList does not end in .vcf or .vcf.gz, why?\n";
     }
 }
 
@@ -307,30 +307,30 @@ my $headerEnd = "$addToHeader";
 my $infile = $infiles[0];
 while(my $line = <$infile>) {
     if (($line =~ /^##INFO/) && ($line !~ /^##INFO=<ID=END,/) && ($line !~ /^##INFO=<ID=BLOCKAVG_min30p3a,/)) {
-	next;
+        next;
     }
     elsif (($cleanHeaders) && ($line =~ /^##contig=<ID=([^,]+),/)) {
-	my $contig = $1;
-	$contig =~ s/^chr//;
-	if (($contig =~ /^\d+$/) || ($contig =~ /^[XYM]$/) || ($contig =~ /^MT$/)) {
-	    print $line;
-	}
-	# otherwise this is not a regular chrom, don't print
+        my $contig = $1;
+        $contig =~ s/^chr//;
+        if (($contig =~ /^\d+$/) || ($contig =~ /^[XYM]$/) || ($contig =~ /^MT$/)) {
+            print $line;
+        }
+        # otherwise this is not a regular chrom, don't print
     }
     elsif ($line =~ /^##/) {
-	print $line;
+        print $line;
     }
     elsif ($line =~ /^#CHROM/) {
-	# add full command-line to headers
-	chomp($line);
-	$headerEnd .= $line;
-	# VCF has 9 columns in addition to the data columns
-	my @f = split(/\t/,$line);
-	push(@numSamples, scalar(@f) - 9);
-	last;
+        # add full command-line to headers
+        chomp($line);
+        $headerEnd .= $line;
+        # VCF has 9 columns in addition to the data columns
+        my @f = split(/\t/,$line);
+        push(@numSamples, scalar(@f) - 9);
+        last;
     }
     else {
-	die "E $0: parsing header from first infile of $ARGV[0], found bad line:\n$line";
+        die "E $0: parsing header from first infile of $ARGV[0], found bad line:\n$line";
     }
 }
 
@@ -338,25 +338,25 @@ while(my $line = <$infile>) {
 foreach my $i (1..$#infiles) {
     my $infile = $infiles[$i];
     while(my $line = <$infile>) {
-	if ($line =~ /^##mergeGVCFs=/) {
-	    print $line;
-	}
-	elsif ($line =~ /^##/) {
-	    #NOOP, skip
-	}
-	elsif ($line =~ /^#CHROM/) {
-	    # grab sample ids
-	    chomp($line);
-	    my @f = split(/\t/,$line);
-	    push(@numSamples, scalar(@f) - 9);
-	    ($line =~ /\tFORMAT(\t.+)$/) ||
-		die "E $0: parsing CHROM header line from file $i:\n$line\n";
-	    $headerEnd .= $1;
-	    last;
-	}
-	else {
-	    die "E $0: parsing header from infile $ARGV[$i], found bad line:\n$line";
-	}
+        if ($line =~ /^##mergeGVCFs=/) {
+            print $line;
+        }
+        elsif ($line =~ /^##/) {
+            #NOOP, skip
+        }
+        elsif ($line =~ /^#CHROM/) {
+            # grab sample ids
+            chomp($line);
+            my @f = split(/\t/,$line);
+            push(@numSamples, scalar(@f) - 9);
+            ($line =~ /\tFORMAT(\t.+)$/) ||
+                die "E $0: parsing CHROM header line from file $i:\n$line\n";
+            $headerEnd .= $1;
+            last;
+        }
+        else {
+            die "E $0: parsing header from infile $ARGV[$i], found bad line:\n$line";
+        }
     }
 }
 
@@ -394,7 +394,7 @@ foreach  my $i (0..$#infiles) {
     my $lineR = &grabNextLine($infile);
     # every infile must have at least one non-filtered dataline
     ($lineR) || 
-	die "E $0: infile $i doesn't have ANY non-filtered dataline?? Something must be wrong";
+        die "E $0: infile $i doesn't have ANY non-filtered dataline?? Something must be wrong";
     push(@startNextBatch, $lineR);
 }
 
@@ -419,38 +419,38 @@ while ($firstFile <= $#infiles) {
     # precondition: we must have a line for file $firstFile in @startNextBatch
     $batchNum++;
     if (($batchSizeAdaptive) && ($batchNum % ($jobs-1) == 0) && ($batchNum >= $jobs)) {
-	# jobs-1 because we want #workerThreads, excluding the eatTmpFiles job
-	# $batchNum >= $jobs so we don't adjust on first batch of workers
-	my $newTime = time();
-	my $elapsed = $newTime - $timestampAdaptive;
-	if ($elapsed < $batchTimeLow) {
-	    # increase batchSize by factor (1.2 * $btLow / $elapsed)
-	    $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
-	    # however, never exceed $maxIV, otherwise when looping on 1..$batchSize we
-	    # get an error "Range iterator outside integer range"
-	    my $maxIV = -1 >> 1;
-	    ($batchSize > $maxIV) && ($batchSize = $maxIV);
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize up to $batchSize\n";
-	}
-	elsif ($elapsed > $batchTimeHigh) {
-	    # decrease batchSize by factor $btHigh / (1.2 * $elapsed) 
-	    $batchSize = int($batchSize * $batchTimeHigh / $elapsed / 1.2);
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize down to $batchSize\n";
-	}
-	$timestampAdaptive = $newTime;
+        # jobs-1 because we want #workerThreads, excluding the eatTmpFiles job
+        # $batchNum >= $jobs so we don't adjust on first batch of workers
+        my $newTime = time();
+        my $elapsed = $newTime - $timestampAdaptive;
+        if ($elapsed < $batchTimeLow) {
+            # increase batchSize by factor (1.2 * $btLow / $elapsed)
+            $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
+            # however, never exceed $maxIV, otherwise when looping on 1..$batchSize we
+            # get an error "Range iterator outside integer range"
+            my $maxIV = -1 >> 1;
+            ($batchSize > $maxIV) && ($batchSize = $maxIV);
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize up to $batchSize\n";
+        }
+        elsif ($elapsed > $batchTimeHigh) {
+            # decrease batchSize by factor $btHigh / (1.2 * $elapsed) 
+            $batchSize = int($batchSize * $batchTimeHigh / $elapsed / 1.2);
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize down to $batchSize\n";
+        }
+        $timestampAdaptive = $newTime;
     }
 
     # chrom to deal with in the current batch, grab it from first file
     my $thisChr = $startNextBatch[$firstFile]->[0] ;
     ($chromsDone{$thisChr}) &&
-	die "E $0: found line with chrom $thisChr in file $firstFile, but we thought we had processed all lines for this chrom. ".
-	"Expected cause: some file < $firstFile has NO lines for a chrom (probably just before $thisChr). ".
-	"Fix the code if you want to deal with this corner-case.";
+        die "E $0: found line with chrom $thisChr in file $firstFile, but we thought we had processed all lines for this chrom. ".
+        "Expected cause: some file < $firstFile has NO lines for a chrom (probably just before $thisChr). ".
+        "Fix the code if you want to deal with this corner-case.";
     ($firstFile > 0) &&
-	warn "W $0: surprisingly one or more infiles (indexes 0-".($firstFile-1).
-	") don't have any variants for chrom $thisChr, maybe check that they aren't truncated. Proceeding anyways.\n";
+        warn "W $0: surprisingly one or more infiles (indexes 0-".($firstFile-1).
+        ") don't have any variants for chrom $thisChr, maybe check that they aren't truncated. Proceeding anyways.\n";
 
     # array of refs (one per infile) to arrays of (lines == arrayrefs)
     my @batchToMerge;
@@ -466,24 +466,24 @@ while ($firstFile <= $#infiles) {
     # start with first file, so we can set $posNextBatch
     my $infile = $infiles[$firstFile];
     foreach my $j (1..$batchSize) {
-	if (my $lineR = &grabNextLine($infile)) {
-	    my $chr = $lineR->[0];
-	    if ($chr eq $thisChr) {
-		&addLineToBatch($batchToMerge[$firstFile], $lineR);
-	    }
-	    else {
-		# $lineR is from another chrom, will be for next batch
-		$posNextBatch = 0;
-		$startNextBatch[$firstFile] = $lineR;
-		$chromsDone{$thisChr} = 1;
-		last;
-	    }
-	}
-	else {
-	    # no more non-filtered lines in $infile
-	    $posNextBatch = 0;
-	    last;
-	}
+        if (my $lineR = &grabNextLine($infile)) {
+            my $chr = $lineR->[0];
+            if ($chr eq $thisChr) {
+                &addLineToBatch($batchToMerge[$firstFile], $lineR);
+            }
+            else {
+                # $lineR is from another chrom, will be for next batch
+                $posNextBatch = 0;
+                $startNextBatch[$firstFile] = $lineR;
+                $chromsDone{$thisChr} = 1;
+                last;
+            }
+        }
+        else {
+            # no more non-filtered lines in $infile
+            $posNextBatch = 0;
+            last;
+        }
     }
     # 3 possibilities:
     # - we ran out of lines -> $posNextBatch==0
@@ -491,65 +491,65 @@ while ($firstFile <= $#infiles) {
     # - otherwise we have one too many lines in @{$batchToMerge[$firstFile]},
     #   move it to @startNextBatch and set $posNextBatch
     if ($posNextBatch) {
-	my $lineR = pop(@{$batchToMerge[$firstFile]});
-	$posNextBatch = $lineR->[1];
-	$startNextBatch[$firstFile] = $lineR;
+        my $lineR = pop(@{$batchToMerge[$firstFile]});
+        $posNextBatch = $lineR->[1];
+        $startNextBatch[$firstFile] = $lineR;
     }
 
     # Now deal with all files except the first:
     # move relevant previously stored lines of non-first files to @batchToMerge
     foreach my $i ($firstFile+1..$#infiles) {
-	if (my $lineR = $startNextBatch[$i]) {
-	    my $chr = $lineR->[0];
-	    my $pos = $lineR->[1];
-	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
-		# stored line for file $i is from good chrom and pos, we will move it to
-		# @batchToMerge, but if it's a long non-var block that extends beyond 
-		# $posNextBatch we also have to continue the block for the next batch.
-		# splitBlockLine does it all
-		$startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
-		$batchToMerge[$i] = [$lineR];
-	    }
-	    # else: file $i doesn't have any more lines for this chrom before $posNextBatch,
-	    # leave its next line in @startNextBatch ie NOOP
-	}
+        if (my $lineR = $startNextBatch[$i]) {
+            my $chr = $lineR->[0];
+            my $pos = $lineR->[1];
+            if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
+                # stored line for file $i is from good chrom and pos, we will move it to
+                # @batchToMerge, but if it's a long non-var block that extends beyond 
+                # $posNextBatch we also have to continue the block for the next batch.
+                # splitBlockLine does it all
+                $startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
+                $batchToMerge[$i] = [$lineR];
+            }
+            # else: file $i doesn't have any more lines for this chrom before $posNextBatch,
+            # leave its next line in @startNextBatch ie NOOP
+        }
     }
 
     # fill @batchToMerge for non-first files from the infiles themselves
     foreach my $i ($firstFile+1..$#infiles) {
-	# if we already have a line in startNextBatch, this file doesn't
-	# have any more lines for $thisChr before $posNextBatch
-	($startNextBatch[$i]) && next;
-	# otherwise:
-	my $infile = $infiles[$i];
-	while (my $lineR = &grabNextLine($infile)) {
-	    my $chr = $lineR->[0];
-	    my $pos = $lineR->[1];
-	    if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
-		$startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
-		&addLineToBatch($batchToMerge[$i], $lineR);
-		# if we produced a continuation blockline, this was the last line for infile $i
-		($startNextBatch[$i]) && last;
-	    }
-	    else {
-		# wrong chrom or position too big, store for next batch
-		$startNextBatch[$i] = $lineR;
-		last; # last line for infile $i
-	    }
-	}
+        # if we already have a line in startNextBatch, this file doesn't
+        # have any more lines for $thisChr before $posNextBatch
+        ($startNextBatch[$i]) && next;
+        # otherwise:
+        my $infile = $infiles[$i];
+        while (my $lineR = &grabNextLine($infile)) {
+            my $chr = $lineR->[0];
+            my $pos = $lineR->[1];
+            if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
+                $startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
+                &addLineToBatch($batchToMerge[$i], $lineR);
+                # if we produced a continuation blockline, this was the last line for infile $i
+                ($startNextBatch[$i]) && last;
+            }
+            else {
+                # wrong chrom or position too big, store for next batch
+                $startNextBatch[$i] = $lineR;
+                last; # last line for infile $i
+            }
+        }
     }
 
     # increment $firstFile if needed, for next batch
     while ((!$startNextBatch[$firstFile]) && ($firstFile <= $#infiles)) {
-	$firstFile++;
+        $firstFile++;
     }
 
     # OK we can merge the batch and print the result to a tmpfile, but wait a bit if we already
     # have a lot of *done tmpfiles, otherwise in some scenarios we saturate tmpDir
     while(1) {
-	my @doneFiles = glob("$tmpDir/*_done");
-	(@doneFiles <= 1 + int($jobs / 4)) && last;
-	sleep(10);
+        my @doneFiles = glob("$tmpDir/*_done");
+        (@doneFiles <= 1 + int($jobs / 4)) && last;
+        sleep(10);
     }
     
     $pm->start && next;
@@ -578,7 +578,7 @@ $pm->wait_all_children;
 # sanity: 
 foreach my $i (0..$#infiles) {
     ($startNextBatch[$i]) && 
-	die "E $0: All done but startNextBatch not empty for file $i:\n".join("\t",@{$startNextBatch[$i]})."\n";
+        die "E $0: All done but startNextBatch not empty for file $i:\n".join("\t",@{$startNextBatch[$i]})."\n";
 }
 foreach my $infile (@infiles) {
     close($infile);
@@ -614,127 +614,127 @@ sub grabNextLine {
     my ($infile) = @_;
   LINE:
     while (my $li = <$infile>) {
-	chomp($li);
-	# split into 10 fields, last one has all DATA columns
-	my @line = split(/\t/, $li, 10);
-	# ignore GATK "GT:PGT:PID:PS" lines, these are useless
-	($line[8] eq "GT:PGT:PID:PS") && (next LINE);
-	# filter bad lines
-	my @filters = split(/;/,$line[6]);
-	foreach my $f (@filters) {
-	    (defined $filtersApplied{$f}) && (next LINE);
-	}
-	# if we get here no filters apply, clear FILTER
-	$line[6] = ".";
-	# also clear INFO if not in a non-var block
-	($line[7] =~ /^END=/) || ($line[7] = ".");
+        chomp($li);
+        # split into 10 fields, last one has all DATA columns
+        my @line = split(/\t/, $li, 10);
+        # ignore GATK "GT:PGT:PID:PS" lines, these are useless
+        ($line[8] eq "GT:PGT:PID:PS") && (next LINE);
+        # filter bad lines
+        my @filters = split(/;/,$line[6]);
+        foreach my $f (@filters) {
+            (defined $filtersApplied{$f}) && (next LINE);
+        }
+        # if we get here no filters apply, clear FILTER
+        $line[6] = ".";
+        # also clear INFO if not in a non-var block
+        ($line[7] =~ /^END=/) || ($line[7] = ".");
 
-	# normalize variants:
-	# most REFs are a single base => cannot be normalized -> test first
-	if (length($line[3]) >= 2) {
-	    my $ref = $line[3];
-	    my @alts = split(/,/,$line[4]);
-	    # never normalize <NON_REF>, * or <*> (the DV equivalent of gatk's <NON_REF>) : if they are here,
-	    # store their indexes in @alts and splice them out (trick: start from the end)
-	    my ($nonrefi,$stari,$dvStari) = (-1,-1,-1);
-	    foreach my $i (reverse(0..$#alts)) {
-		if ($alts[$i] eq '<NON_REF>') {
-		    $nonrefi = $i;
-		    splice(@alts,$i,1);
-		}
-		elsif ($alts[$i] eq '<*>') {
-		    $dvStari = $i;
-		    splice(@alts,$i,1);
-		}
-		elsif ($alts[$i] eq '*') {
-		    $stari = $i;
-		    splice(@alts,$i,1);
-		}
-	    }
+        # normalize variants:
+        # most REFs are a single base => cannot be normalized -> test first
+        if (length($line[3]) >= 2) {
+            my $ref = $line[3];
+            my @alts = split(/,/,$line[4]);
+            # never normalize <NON_REF>, * or <*> (the DV equivalent of gatk's <NON_REF>) : if they are here,
+            # store their indexes in @alts and splice them out (trick: start from the end)
+            my ($nonrefi,$stari,$dvStari) = (-1,-1,-1);
+            foreach my $i (reverse(0..$#alts)) {
+                if ($alts[$i] eq '<NON_REF>') {
+                    $nonrefi = $i;
+                    splice(@alts,$i,1);
+                }
+                elsif ($alts[$i] eq '<*>') {
+                    $dvStari = $i;
+                    splice(@alts,$i,1);
+                }
+                elsif ($alts[$i] eq '*') {
+                    $stari = $i;
+                    splice(@alts,$i,1);
+                }
+            }
 
-	    # 1. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
-	    #    common ending bases, remove them (keeping at least 1 base everywhere).
-	    while ($ref =~ /\w(\w)$/) {
-		# ref has at least 2 chars
-		my $lastRef = $1;
-		my $removeLast = 1;
-		foreach my $alt (@alts) {
-		    if ($alt !~ /\w$lastRef$/) {
-			# this alt is length one or doesn't end with $lastRef
-			$removeLast = 0;
-			last;
-		    }
-		}
-		if ($removeLast) {
-		    # OK remove last base from REF and all @alts
-		    ($ref =~ s/$lastRef$//) || 
-			die "E $0: WTF can't remove $lastRef from end of $ref\n";
-		    foreach my $i (0..$#alts) {
-			($alts[$i] =~ s/$lastRef$//) || 
-			    die "E $0: WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
-		    }
-		}
-		else {
-		    # can't remove $lastRef, get out of while loop
-		    last;
-		}
-	    }
+            # 1. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+            #    common ending bases, remove them (keeping at least 1 base everywhere).
+            while ($ref =~ /\w(\w)$/) {
+                # ref has at least 2 chars
+                my $lastRef = $1;
+                my $removeLast = 1;
+                foreach my $alt (@alts) {
+                    if ($alt !~ /\w$lastRef$/) {
+                        # this alt is length one or doesn't end with $lastRef
+                        $removeLast = 0;
+                        last;
+                    }
+                }
+                if ($removeLast) {
+                    # OK remove last base from REF and all @alts
+                    ($ref =~ s/$lastRef$//) || 
+                        die "E $0: WTF can't remove $lastRef from end of $ref\n";
+                    foreach my $i (0..$#alts) {
+                        ($alts[$i] =~ s/$lastRef$//) || 
+                            die "E $0: WTF can't remove $lastRef from end of alt $i == $alts[$i]\n";
+                    }
+                }
+                else {
+                    # can't remove $lastRef, get out of while loop
+                    last;
+                }
+            }
 
-	    # 2. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
-	    #    common starting bases, remove them (keeping at least 1 base everywhere)
-	    #    and adjust POS.
-	    while ($ref =~ /^(\w)\w/) {
-		my $firstRef = $1;
-		my $removeFirst = 1;
-		foreach my $alt (@alts) {
-		    if ($alt !~ /^$firstRef\w/) {
-			$removeFirst = 0;
-			last;
-		    }
-		}
-		if ($removeFirst) {
-		    ($ref =~ s/^$firstRef//) || 
-			die "E $0: WTF can't remove $firstRef from start of $ref\n";
-		    foreach my $i (0..$#alts) {
-			($alts[$i] =~ s/^$firstRef//) || 
-			    die "E $0: WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
-		    }
-		    $line[1]++;
-		}
-		else {
-		    last;
-		}
-	    }
+            # 2. if length >= 2 for REF and all ALTS, and if REF and all ALTs have 
+            #    common starting bases, remove them (keeping at least 1 base everywhere)
+            #    and adjust POS.
+            while ($ref =~ /^(\w)\w/) {
+                my $firstRef = $1;
+                my $removeFirst = 1;
+                foreach my $alt (@alts) {
+                    if ($alt !~ /^$firstRef\w/) {
+                        $removeFirst = 0;
+                        last;
+                    }
+                }
+                if ($removeFirst) {
+                    ($ref =~ s/^$firstRef//) || 
+                        die "E $0: WTF can't remove $firstRef from start of $ref\n";
+                    foreach my $i (0..$#alts) {
+                        ($alts[$i] =~ s/^$firstRef//) || 
+                            die "E $0: WTF can't remove $firstRef from start of alt $i == $alts[$i]\n";
+                    }
+                    $line[1]++;
+                }
+                else {
+                    last;
+                }
+            }
 
-	    # place <NON_REF> and/or * or <*> back where they belong: need to splice
-	    # in correct order, smallest index first
-	    # NOTE: dvStari (deepVariant only) and stari/nonrefi (GATK/elPrep) are exclusive
-	    if ($stari != -1) {
-		if ($nonrefi == -1) {
-		    splice(@alts, $stari, 0, '*');
-		}
-		elsif ($nonrefi > $stari) {
-		    splice(@alts, $stari, 0, '*');
-		    splice(@alts, $nonrefi, 0, '<NON_REF>');
-		}
-		else {
-		    # nonref needs to be spliced back in first, then *
-		    splice(@alts, $nonrefi, 0, '<NON_REF>');
-		    splice(@alts, $stari, 0, '*');
-		}
-	    }
-	    elsif ($nonrefi != -1) {
-		splice(@alts, $nonrefi, 0, '<NON_REF>');
-	    }
-	    elsif ($dvStari != -1) {
-		splice(@alts, $dvStari, 0, '<*>');
-	    }
+            # place <NON_REF> and/or * or <*> back where they belong: need to splice
+            # in correct order, smallest index first
+            # NOTE: dvStari (deepVariant only) and stari/nonrefi (GATK/elPrep) are exclusive
+            if ($stari != -1) {
+                if ($nonrefi == -1) {
+                    splice(@alts, $stari, 0, '*');
+                }
+                elsif ($nonrefi > $stari) {
+                    splice(@alts, $stari, 0, '*');
+                    splice(@alts, $nonrefi, 0, '<NON_REF>');
+                }
+                else {
+                    # nonref needs to be spliced back in first, then *
+                    splice(@alts, $nonrefi, 0, '<NON_REF>');
+                    splice(@alts, $stari, 0, '*');
+                }
+            }
+            elsif ($nonrefi != -1) {
+                splice(@alts, $nonrefi, 0, '<NON_REF>');
+            }
+            elsif ($dvStari != -1) {
+                splice(@alts, $dvStari, 0, '<*>');
+            }
 
-	    $line[3] = $ref;
-	    $line[4] = join(',',@alts);
-	}
-	
-	return(\@line);
+            $line[3] = $ref;
+            $line[4] = join(',',@alts);
+        }
+        
+        return(\@line);
   }
     # no more good lines in infile, return undef
     return();
@@ -759,52 +759,52 @@ sub addLineToBatch {
 
     # if batchR is empty, fast return (can happen due to recursion below)
     if (! @$batchR) {
-	push(@$batchR, $lineR);
-	return();
+        push(@$batchR, $lineR);
+        return();
     }
 
     my $prevLineR = $batchR->[$#$batchR];
     
     if ($lineR->[1] > $prevLineR->[1]) {
-	# newPOS > prevPOS, just make prevLine end at newPos-1 if it was a block
-	&splitBlockLine($prevLineR, $lineR->[1] - 1);
-	push(@$batchR, $lineR);
+        # newPOS > prevPOS, just make prevLine end at newPos-1 if it was a block
+        &splitBlockLine($prevLineR, $lineR->[1] - 1);
+        push(@$batchR, $lineR);
     }
     elsif ($lineR->[1] == $prevLineR->[1]) {
-	if (($lineR->[4] eq '.') || ($lineR->[4] eq '<NON_REF>') || ($lineR->[4] eq '<*>')) {
-	    # if lineR is non-var ignore it at POS, but make it start at POS+1
-	    # if it's a block (just skip it if it's not a block)
-	    $lineR = &splitBlockLine($lineR,$lineR->[1]);
-	    ($lineR) && (push(@$batchR,$lineR));
-	}
-	elsif(($prevLineR->[4] eq '.') || ($prevLineR->[4] eq '<NON_REF>') || ($prevLineR->[4] eq '<*>')) {
-	    # prevLineR was non-var, replace it with lineR
-	    pop(@$batchR);
-	    push(@$batchR,$lineR);
-	}
-	else {
-	    # this shouldn't happen, it would mean infile has contradictory 
-	    # calls at the same POS...
-	    # we could try to deal with it (it DOES happen with strelka...),
-	    # but it's rare and usually corresponds to 2 HET calls on different
-	    # ALT alleles (ie would be 1/2 calls if we merged them). These calls
-	    # are typically ignored downstream (they go in the OTHER column).
-	    # So, for now just keep the first line, ie NOOP
+        if (($lineR->[4] eq '.') || ($lineR->[4] eq '<NON_REF>') || ($lineR->[4] eq '<*>')) {
+            # if lineR is non-var ignore it at POS, but make it start at POS+1
+            # if it's a block (just skip it if it's not a block)
+            $lineR = &splitBlockLine($lineR,$lineR->[1]);
+            ($lineR) && (push(@$batchR,$lineR));
+        }
+        elsif(($prevLineR->[4] eq '.') || ($prevLineR->[4] eq '<NON_REF>') || ($prevLineR->[4] eq '<*>')) {
+            # prevLineR was non-var, replace it with lineR
+            pop(@$batchR);
+            push(@$batchR,$lineR);
+        }
+        else {
+            # this shouldn't happen, it would mean infile has contradictory 
+            # calls at the same POS...
+            # we could try to deal with it (it DOES happen with strelka...),
+            # but it's rare and usually corresponds to 2 HET calls on different
+            # ALT alleles (ie would be 1/2 calls if we merged them). These calls
+            # are typically ignored downstream (they go in the OTHER column).
+            # So, for now just keep the first line, ie NOOP
 
-	    # following warn was used to analyze the problem, don't use it in production
-	    #warn "W $0: addLineToBatch, 2 lines with ALTs and same POS, ignoring the second line:\n".
-	    # join("\t",@$prevLineR)."\n".join("\t",@$lineR)."\n\n";
-	}
+            # following warn was used to analyze the problem, don't use it in production
+            #warn "W $0: addLineToBatch, 2 lines with ALTs and same POS, ignoring the second line:\n".
+            # join("\t",@$prevLineR)."\n".join("\t",@$lineR)."\n\n";
+        }
     }
     else {
-	# newPOS < prevPOS, we can switch the 2 lines and recurse,
-	# but how far back do we have to go?
-	# easy to code with recursive function, but I sure hope
-	# this doesn't happen too often!
-	warn "I $0: addLineToBatch is recursing, around $lineR->[0] $lineR->[1]\n";
-	pop(@$batchR);
-	&addLineToBatch($batchR, $lineR);
-	&addLineToBatch($batchR, $prevLineR);
+        # newPOS < prevPOS, we can switch the 2 lines and recurse,
+        # but how far back do we have to go?
+        # easy to code with recursive function, but I sure hope
+        # this doesn't happen too often!
+        warn "I $0: addLineToBatch is recursing, around $lineR->[0] $lineR->[1]\n";
+        pop(@$batchR);
+        &addLineToBatch($batchR, $lineR);
+        &addLineToBatch($batchR, $prevLineR);
     }
 }
 
@@ -833,7 +833,7 @@ sub splitBlockLine {
 
     # sanity: can't have newEnd positive but < POS
     ($newEnd < $lineR->[1]) &&
-	die "E $0: splitBlockLine, newEnd $newEnd smaller than POS in:\n".join("\t",@$lineR)."\n";
+        die "E $0: splitBlockLine, newEnd $newEnd smaller than POS in:\n".join("\t",@$lineR)."\n";
 
     # else make fresh line, initially copy content of $lineR
     my @newLine = @$lineR ;
@@ -842,7 +842,7 @@ sub splitBlockLine {
     $newLine[3] = 'N';
     # modify END in $lineR
     ($lineR->[7] =~ s/^END=$oldEnd/END=$newEnd/) ||
-	die "E $0: splitBlockLine, cannot subst END $oldEnd with $newEnd in:\n".join("\t",@$lineR)."\n";
+        die "E $0: splitBlockLine, cannot subst END $oldEnd with $newEnd in:\n".join("\t",@$lineR)."\n";
     return(\@newLine);
 }
 
@@ -871,130 +871,130 @@ sub mergeBatchOfLines {
     # number of files that still have at least one line to merge
     my $filesNotFinished = 0;
     foreach my $i (0..$#infiles) {
-	($batchToMergeR->[$i]->[0]) && ($filesNotFinished++);
+        ($batchToMergeR->[$i]->[0]) && ($filesNotFinished++);
     }
 
     while ($filesNotFinished) {
-	# @nextToMerge: "array-lines" for the lines that have
-	# the "smallest" position, ie that must be merged next.
-	# same indexes as @$batchToMergeR.
-	my @nextToMerge ;
-	# current smallest pos
-	my $smallestPos = 0;
-	# longest REF among the toMerge lines
-	my $longestRef = "";
-	# FORMAT keys that appear in the toMerge lines
-	my %longestFormat = ();
-	# FORMAT strings that appear in toMerge lines
-	my %seenFormats = ();
-	# will hold the smallest END if lines to merge are all non-variant blocks, POS otherwise
-	my $nonVarBlockEnd;
+        # @nextToMerge: "array-lines" for the lines that have
+        # the "smallest" position, ie that must be merged next.
+        # same indexes as @$batchToMergeR.
+        my @nextToMerge ;
+        # current smallest pos
+        my $smallestPos = 0;
+        # longest REF among the toMerge lines
+        my $longestRef = "";
+        # FORMAT keys that appear in the toMerge lines
+        my %longestFormat = ();
+        # FORMAT strings that appear in toMerge lines
+        my %seenFormats = ();
+        # will hold the smallest END if lines to merge are all non-variant blocks, POS otherwise
+        my $nonVarBlockEnd;
 
-	foreach my $i (0..$#infiles) {
-	    # ignore files without remaining lines in this batch
-	    ($batchToMergeR->[$i]->[0]) || next;
-	    
-	    # $fieldsR just to simplify code
-	    my $fieldsR = $batchToMergeR->[$i]->[0];
-	    my ($pos,$ref,$format) = @$fieldsR[1,3,8];
-	    if (($pos < $smallestPos) || (! $smallestPos)) {
-		# this is the new smallest
-		@nextToMerge = ();
-		$nextToMerge[$i] = $fieldsR;
-		# update $smallestPos at the end, we need previous value for END=
-		$longestRef = $ref;
-		%longestFormat = ();
-		foreach my $fkey (split(/:/,$format)) {
-		    $longestFormat{$fkey} = 1;
-		}
-		%seenFormats = ();
-		$seenFormats{$format} = 1;
-		if ($fieldsR->[7] =~ /^END=(\d+)/) {
-		    my $newBlockEnd = $1;
-		    # examine the previous $smallestPos here!
-		    if ((! $smallestPos) || ($newBlockEnd < $smallestPos)) {
-			# there was no previous smallestPos, or it was beyond
-			# the end of this block -> we can use the whole block
-			$nonVarBlockEnd = $newBlockEnd ;
-		    }
-		    else {
-			# we had a position starting later but within this block,
-			# we have to end this block just before
-			$nonVarBlockEnd = $smallestPos - 1;
-		    }
-		}
-		else {
-		    # this is not a blockline
-		    $nonVarBlockEnd = $pos;
-		}
-		# in any case update $smallestPos
-		$smallestPos = $pos;
-	    }
-	    elsif ($pos == $smallestPos) {
-		$nextToMerge[$i] = $fieldsR;
-		# replace longestRef if new is longer or if old was 'N'
-		if ((length($ref) > length($longestRef)) || ($longestRef eq 'N')) {
-		    $longestRef = $ref;
-		}
-		if (! $seenFormats{$format}) {
-		    foreach my $fkey (split(/:/,$format)) {
-			$longestFormat{$fkey} = 1;
-		    }
-		    $seenFormats{$format} = 1;
-		}
-		if ($fieldsR->[7] =~ /^END=(\d+)/) {
-		    my $thisEnd = $1;
-		    ($thisEnd < $nonVarBlockEnd) && ($nonVarBlockEnd = $thisEnd);
-		}
-		else {
-		    $nonVarBlockEnd = $pos;
-		}
-	    }
-	    # remaining cases are all $pos > $smallestPos, but...
-	    elsif ($pos <= $nonVarBlockEnd) {
-		# current file has "larger" position but selected is in a non-var block, we must stop
-		# the non-var block just before current file's position
-		$nonVarBlockEnd = $pos - 1;
-	    }
-	}
+        foreach my $i (0..$#infiles) {
+            # ignore files without remaining lines in this batch
+            ($batchToMergeR->[$i]->[0]) || next;
+            
+            # $fieldsR just to simplify code
+            my $fieldsR = $batchToMergeR->[$i]->[0];
+            my ($pos,$ref,$format) = @$fieldsR[1,3,8];
+            if (($pos < $smallestPos) || (! $smallestPos)) {
+                # this is the new smallest
+                @nextToMerge = ();
+                $nextToMerge[$i] = $fieldsR;
+                # update $smallestPos at the end, we need previous value for END=
+                $longestRef = $ref;
+                %longestFormat = ();
+                foreach my $fkey (split(/:/,$format)) {
+                    $longestFormat{$fkey} = 1;
+                }
+                %seenFormats = ();
+                $seenFormats{$format} = 1;
+                if ($fieldsR->[7] =~ /^END=(\d+)/) {
+                    my $newBlockEnd = $1;
+                    # examine the previous $smallestPos here!
+                    if ((! $smallestPos) || ($newBlockEnd < $smallestPos)) {
+                        # there was no previous smallestPos, or it was beyond
+                        # the end of this block -> we can use the whole block
+                        $nonVarBlockEnd = $newBlockEnd ;
+                    }
+                    else {
+                        # we had a position starting later but within this block,
+                        # we have to end this block just before
+                        $nonVarBlockEnd = $smallestPos - 1;
+                    }
+                }
+                else {
+                    # this is not a blockline
+                    $nonVarBlockEnd = $pos;
+                }
+                # in any case update $smallestPos
+                $smallestPos = $pos;
+            }
+            elsif ($pos == $smallestPos) {
+                $nextToMerge[$i] = $fieldsR;
+                # replace longestRef if new is longer or if old was 'N'
+                if ((length($ref) > length($longestRef)) || ($longestRef eq 'N')) {
+                    $longestRef = $ref;
+                }
+                if (! $seenFormats{$format}) {
+                    foreach my $fkey (split(/:/,$format)) {
+                        $longestFormat{$fkey} = 1;
+                    }
+                    $seenFormats{$format} = 1;
+                }
+                if ($fieldsR->[7] =~ /^END=(\d+)/) {
+                    my $thisEnd = $1;
+                    ($thisEnd < $nonVarBlockEnd) && ($nonVarBlockEnd = $thisEnd);
+                }
+                else {
+                    $nonVarBlockEnd = $pos;
+                }
+            }
+            # remaining cases are all $pos > $smallestPos, but...
+            elsif ($pos <= $nonVarBlockEnd) {
+                # current file has "larger" position but selected is in a non-var block, we must stop
+                # the non-var block just before current file's position
+                $nonVarBlockEnd = $pos - 1;
+            }
+        }
 
-	# remove the chosen lines from $batchToMergeR and decrement 
-	# $filesNotFinished if we finished a file, except for non-variant
-	# block lines where we only remove the lines if we eat the block
-	# to its END (otherwise keep line but fix POS and REF, and also fix
-	# END in the nextToMerge copy)
-	foreach my $i (0..$#nextToMerge) {
-	    if ($nextToMerge[$i]) {
-		my $continueBlockR = &splitBlockLine($nextToMerge[$i], $nonVarBlockEnd);
-		if ($continueBlockR) {
-		    $batchToMergeR->[$i]->[0] = $continueBlockR;
-		}
-		else {
-		    shift(@{$batchToMergeR->[$i]});
-		    ($batchToMergeR->[$i]->[0]) || ($filesNotFinished--);
-		}
-	    }
-	}
+        # remove the chosen lines from $batchToMergeR and decrement 
+        # $filesNotFinished if we finished a file, except for non-variant
+        # block lines where we only remove the lines if we eat the block
+        # to its END (otherwise keep line but fix POS and REF, and also fix
+        # END in the nextToMerge copy)
+        foreach my $i (0..$#nextToMerge) {
+            if ($nextToMerge[$i]) {
+                my $continueBlockR = &splitBlockLine($nextToMerge[$i], $nonVarBlockEnd);
+                if ($continueBlockR) {
+                    $batchToMergeR->[$i]->[0] = $continueBlockR;
+                }
+                else {
+                    shift(@{$batchToMergeR->[$i]});
+                    ($batchToMergeR->[$i]->[0]) || ($filesNotFinished--);
+                }
+            }
+        }
 
-	if ($smallestPos < $nonVarBlockEnd) {
-	    # if we get here we are in a non-var block in EVERY file, otherwise
-	    # $nonVarBlockEnd would have been set to $pos
-	    # make sure all blocks have the same FORMAT
-	    (keys(%seenFormats) == 1) ||
-		die "E $0: in mergeBatchOfLines I want to merge non-var blocks at pos $smallestPos but I have several formats:".
-		keys(%seenFormats);
-	    print($outFH &mergeLinesNonVarBlock(\@nextToMerge,$numSamplesR, $longestRef));
-	}
-	else {
-	    # build array from %longestFormat, respecting the order specified 
-	    # in @maxFormatSorted, and ignoring MIN_DP since we are not in a non-var block
-	    my @maxFormatSorted = ('GT','AF','DP','FT','GQ','GQX','DPF','DPI','AD','ADF','ADR','VAF','SB','PL','PS','PGT','PID');
-	    my @longestFormat = ();
-	    foreach my $fkey (@maxFormatSorted) {
-		($longestFormat{$fkey}) && (push(@longestFormat,$fkey));
-	    }
-	    print($outFH &mergeLines(\@nextToMerge, $numSamplesR, $longestRef, \@longestFormat));
-	}
+        if ($smallestPos < $nonVarBlockEnd) {
+            # if we get here we are in a non-var block in EVERY file, otherwise
+            # $nonVarBlockEnd would have been set to $pos
+            # make sure all blocks have the same FORMAT
+            (keys(%seenFormats) == 1) ||
+                die "E $0: in mergeBatchOfLines I want to merge non-var blocks at pos $smallestPos but I have several formats:".
+                keys(%seenFormats);
+            print($outFH &mergeLinesNonVarBlock(\@nextToMerge,$numSamplesR, $longestRef));
+        }
+        else {
+            # build array from %longestFormat, respecting the order specified 
+            # in @maxFormatSorted, and ignoring MIN_DP since we are not in a non-var block
+            my @maxFormatSorted = ('GT','AF','DP','FT','GQ','GQX','DPF','DPI','AD','ADF','ADR','VAF','SB','PL','PS','PGT','PID');
+            my @longestFormat = ();
+            foreach my $fkey (@maxFormatSorted) {
+                ($longestFormat{$fkey}) && (push(@longestFormat,$fkey));
+            }
+            print($outFH &mergeLines(\@nextToMerge, $numSamplesR, $longestRef, \@longestFormat));
+        }
     }
 }
 
@@ -1025,39 +1025,39 @@ sub mergeLines {
     # value will be 1 initially, but becomes the alt's index in @newAlts during STEP 2
     my %newAlts;
     foreach my $fileIndex (0..$#$toMergeR) {
-	($toMergeR->[$fileIndex]) || next;
-	my ($ref,$alts) = @{$toMergeR->[$fileIndex]}[3,4];
-	# if we're in a non-variant position in this file: $ref might be 'N' and anyways
-	# no extension of alts is needed, but <NON_REF> (GATK) or <*> (DV) must still go in newAlts
-	($alts eq '.') && next;
-	if (($alts eq '<NON_REF>') || ($alts eq '<*>')) {
-	    $newAlts{$alts} = 1;
-	    next;
-	}
-	if ($longestRef ne $ref) {
-	    ($longestRef =~ /^$ref(\w+)$/) || 
-		die "E $0: longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
-		join("\t",@{$toMergeR->[$fileIndex]})."\n";
-	    my $extraBases = $1;
-	    my @fixedAlts = ();
-	    foreach my $thisAlt (split(/,/,$alts)) {
-		my $fixedAlt = $thisAlt;
-		# never extend <NON_REF> or * or <*>
-		if (($fixedAlt ne '<NON_REF>') && ($fixedAlt ne '*') && ($fixedAlt ne '<*>')) {
-		    $fixedAlt .= $extraBases;
-		}
-		$newAlts{$fixedAlt} = 1;
-		push(@fixedAlts, $fixedAlt);
-	    }
-	    # now fix the actual line: replace ALTs, preserve order
-	    $toMergeR->[$fileIndex]->[4] = join(',',@fixedAlts);
-	}
-	else {
-	    # else $ref is the longestRef, just update %newAlts
-	    foreach my $thisAlt (split(/,/,$alts)) {
-		$newAlts{$thisAlt} = 1;
-	    }
-	}
+        ($toMergeR->[$fileIndex]) || next;
+        my ($ref,$alts) = @{$toMergeR->[$fileIndex]}[3,4];
+        # if we're in a non-variant position in this file: $ref might be 'N' and anyways
+        # no extension of alts is needed, but <NON_REF> (GATK) or <*> (DV) must still go in newAlts
+        ($alts eq '.') && next;
+        if (($alts eq '<NON_REF>') || ($alts eq '<*>')) {
+            $newAlts{$alts} = 1;
+            next;
+        }
+        if ($longestRef ne $ref) {
+            ($longestRef =~ /^$ref(\w+)$/) || 
+                die "E $0: longestRef $longestRef doesn't start with ref $ref (file $fileIndex), impossible\n".
+                join("\t",@{$toMergeR->[$fileIndex]})."\n";
+            my $extraBases = $1;
+            my @fixedAlts = ();
+            foreach my $thisAlt (split(/,/,$alts)) {
+                my $fixedAlt = $thisAlt;
+                # never extend <NON_REF> or * or <*>
+                if (($fixedAlt ne '<NON_REF>') && ($fixedAlt ne '*') && ($fixedAlt ne '<*>')) {
+                    $fixedAlt .= $extraBases;
+                }
+                $newAlts{$fixedAlt} = 1;
+                push(@fixedAlts, $fixedAlt);
+            }
+            # now fix the actual line: replace ALTs, preserve order
+            $toMergeR->[$fileIndex]->[4] = join(',',@fixedAlts);
+        }
+        else {
+            # else $ref is the longestRef, just update %newAlts
+            foreach my $thisAlt (split(/,/,$alts)) {
+                $newAlts{$thisAlt} = 1;
+            }
+        }
     }
 
     ####################################
@@ -1079,7 +1079,7 @@ sub mergeLines {
 
     # also update %newAlts: key==ALT, value becomes the index of that alt in @newAlts
     foreach my $i (0..$#newAlts) {
-	$newAlts{$newAlts[$i]} = $i;
+        $newAlts{$newAlts[$i]} = $i;
     }
 
     ####################################
@@ -1088,7 +1088,7 @@ sub mergeLines {
     # grab CHROM POS from first non-null file
     my $firstNonNull = 0;
     while(! $toMergeR->[$firstNonNull]) {
-	$firstNonNull++;
+        $firstNonNull++;
     }
     $toPrint = $toMergeR->[$firstNonNull]->[0]."\t".$toMergeR->[$firstNonNull]->[1];
     # ID REF
@@ -1102,251 +1102,251 @@ sub mergeLines {
     # also need %formatIndex, key==FORMAT key, value==index of this key in @$longestFormatR
     my %formatIndex = ();
     foreach my $i (0..$#$longestFormatR) {
-	($longestFormatR->[$i] eq "MIN_DP") &&
-	    die "E $0: in mergeLines: longestFormat contains MIN_DP, it MUST NOT!\n";
-	$formatIndex{$longestFormatR->[$i]} = $i;
+        ($longestFormatR->[$i] eq "MIN_DP") &&
+            die "E $0: in mergeLines: longestFormat contains MIN_DP, it MUST NOT!\n";
+        $formatIndex{$longestFormatR->[$i]} = $i;
     }
 
     ####################################
     # STEP 4: fix the data columns if needed and add them to $toPrint
     foreach my $fileIndex (0..$#$numSamplesR) {
-	if (! $toMergeR->[$fileIndex]) {
-	    # no line, use blank data for all samples from this file
-	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		$toPrint .= "\t.";
-	    }
-	}
-	elsif (($toMergeR->[$fileIndex]->[3] eq $longestRef) && 
-	       ($toMergeR->[$fileIndex]->[4] eq join(',',@newAlts)) && 
-	       ($toMergeR->[$fileIndex]->[8] eq join(':',@$longestFormatR))) {
-	    # REF ALT FORMAT didn't change for this file, just copy the data
-	    $toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
-	}
-	else {
-	    # no shortcut, have to examine and fix everything
-	    my @alts = split(/,/,$toMergeR->[$fileIndex]->[4]);
-	    # @altsNew2Old: same indexes as @newAlts,
-	    # value is the index of $newAlts[$i] in @alts, or undef if it's not there
-	    my @altsNew2Old;
-	    foreach my $i (0..$#alts) {
-		# ignore '.', it cannot be referenced in @data
-		($alts[$i] eq '.') && next;
-		$altsNew2Old[$newAlts{$alts[$i]}] = $i;
-	    }
+        if (! $toMergeR->[$fileIndex]) {
+            # no line, use blank data for all samples from this file
+            foreach my $j (1..$numSamplesR->[$fileIndex]) {
+                $toPrint .= "\t.";
+            }
+        }
+        elsif (($toMergeR->[$fileIndex]->[3] eq $longestRef) && 
+               ($toMergeR->[$fileIndex]->[4] eq join(',',@newAlts)) && 
+               ($toMergeR->[$fileIndex]->[8] eq join(':',@$longestFormatR))) {
+            # REF ALT FORMAT didn't change for this file, just copy the data
+            $toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
+        }
+        else {
+            # no shortcut, have to examine and fix everything
+            my @alts = split(/,/,$toMergeR->[$fileIndex]->[4]);
+            # @altsNew2Old: same indexes as @newAlts,
+            # value is the index of $newAlts[$i] in @alts, or undef if it's not there
+            my @altsNew2Old;
+            foreach my $i (0..$#alts) {
+                # ignore '.', it cannot be referenced in @data
+                ($alts[$i] eq '.') && next;
+                $altsNew2Old[$newAlts{$alts[$i]}] = $i;
+            }
 
-	    # make sure MIN_DP comes after DP if present
-	    ($toMergeR->[$fileIndex]->[8] =~ /:MIN_DP.*:DP/) &&
-		die "E $0: in mergeLines MIN_DP is in a FORMAT but before DP! in file $fileIndex:\n".
-		join("\t",@{$toMergeR->[$fileIndex]})."\n";
+            # make sure MIN_DP comes after DP if present
+            ($toMergeR->[$fileIndex]->[8] =~ /:MIN_DP.*:DP/) &&
+                die "E $0: in mergeLines MIN_DP is in a FORMAT but before DP! in file $fileIndex:\n".
+                join("\t",@{$toMergeR->[$fileIndex]})."\n";
 
-	    my @format = split(/:/,$toMergeR->[$fileIndex]->[8]);
+            my @format = split(/:/,$toMergeR->[$fileIndex]->[8]);
 
-	    # deal with each DATA column
-	    my @dataCols = split("\t",$toMergeR->[$fileIndex]->[9]);
-	    foreach my $j (0..$#dataCols) {
-		my @data = split(/:/, $dataCols[$j]);
+            # deal with each DATA column
+            my @dataCols = split("\t",$toMergeR->[$fileIndex]->[9]);
+            foreach my $j (0..$#dataCols) {
+                my @data = split(/:/, $dataCols[$j]);
 
-		# fixed DATA for this sample, one value per longestFormat key
-		my @fixedData;
+                # fixed DATA for this sample, one value per longestFormat key
+                my @fixedData;
 
-		foreach my $fi (0..$#format) {
-		    #     GT gets adjusted values from %altsNew2Old
-		    #     AF GQ GQX DPF DPI SB PS PGT PID FT don't change
-		    #     DP gets MIN_DP value if it exists, otherwise doesn't change
-		    #     AD ADF ADR VAF get 0 for new ALTs
-		    #     PL gets correct new values (see explanation in the code)
-		    if (!defined $data[$fi]) {
-			# data columns can be shorter than FORMAT when last values are unknown
-			last;
-		    }
-		    elsif ($format[$fi] eq "GT") {
-			if (($data[$fi] eq '.') || ($data[$fi] eq './.') || ($data[$fi] eq '.|.')) {
-			    # nocall, just copy
-			    $fixedData[$formatIndex{$format[$fi]}] = $data[$fi];
-			}
-			elsif ($data[$fi] =~ m~^(\d+)([/\|])(\d+)$~) {
-			    # diploid, regular or phased
-			    my ($geno1,$sep,$geno2) = ($1,$2,$3);
-			    if ($geno1 != 0) {
-				$geno1 = 1 + $newAlts{$alts[$geno1-1]};
-			    }
-			    if ($geno2 != 0) {
-				$geno2 = 1 + $newAlts{$alts[$geno2-1]};
-			    }
-			    $fixedData[$formatIndex{$format[$fi]}] = "$geno1$sep$geno2";
-			}
-			elsif ($data[$fi] =~ m~^(\d+)$~) {
-			    # hemizygous
-			    my ($geno1) = ($1);
-			    if ($geno1 != 0) {
-				$geno1 = 1 + $newAlts{$alts[$geno1-1]};
-			    }
-			    $fixedData[$formatIndex{$format[$fi]}] = "$geno1";
-			}
-			else {
-			    die "E $0: trying to adjust GT $data[$fi] but can't parse it, in file $fileIndex, line:\n".
-				join("\t",@{$toMergeR->[$fileIndex]})."\n";
-			}
-		    }
+                foreach my $fi (0..$#format) {
+                    #     GT gets adjusted values from %altsNew2Old
+                    #     AF GQ GQX DPF DPI SB PS PGT PID FT don't change
+                    #     DP gets MIN_DP value if it exists, otherwise doesn't change
+                    #     AD ADF ADR VAF get 0 for new ALTs
+                    #     PL gets correct new values (see explanation in the code)
+                    if (!defined $data[$fi]) {
+                        # data columns can be shorter than FORMAT when last values are unknown
+                        last;
+                    }
+                    elsif ($format[$fi] eq "GT") {
+                        if (($data[$fi] eq '.') || ($data[$fi] eq './.') || ($data[$fi] eq '.|.')) {
+                            # nocall, just copy
+                            $fixedData[$formatIndex{$format[$fi]}] = $data[$fi];
+                        }
+                        elsif ($data[$fi] =~ m~^(\d+)([/\|])(\d+)$~) {
+                            # diploid, regular or phased
+                            my ($geno1,$sep,$geno2) = ($1,$2,$3);
+                            if ($geno1 != 0) {
+                                $geno1 = 1 + $newAlts{$alts[$geno1-1]};
+                            }
+                            if ($geno2 != 0) {
+                                $geno2 = 1 + $newAlts{$alts[$geno2-1]};
+                            }
+                            $fixedData[$formatIndex{$format[$fi]}] = "$geno1$sep$geno2";
+                        }
+                        elsif ($data[$fi] =~ m~^(\d+)$~) {
+                            # hemizygous
+                            my ($geno1) = ($1);
+                            if ($geno1 != 0) {
+                                $geno1 = 1 + $newAlts{$alts[$geno1-1]};
+                            }
+                            $fixedData[$formatIndex{$format[$fi]}] = "$geno1";
+                        }
+                        else {
+                            die "E $0: trying to adjust GT $data[$fi] but can't parse it, in file $fileIndex, line:\n".
+                                join("\t",@{$toMergeR->[$fileIndex]})."\n";
+                        }
+                    }
 
-		    elsif (($format[$fi] eq "AF") || ($format[$fi] eq "GQ") || ($format[$fi] eq "GQX") || 
-			   ($format[$fi] eq "DP") || ($format[$fi] eq "DPF") || ($format[$fi] eq "DPI") || 
-			   ($format[$fi] eq "SB") || ($format[$fi] eq "FT") ||
-			   ($format[$fi] eq "PS") || ($format[$fi] eq "PGT") || ($format[$fi] eq "PID") ) {
-			# just copy values
-			$fixedData[$formatIndex{$format[$fi]}] = $data[$fi];
-		    }
+                    elsif (($format[$fi] eq "AF") || ($format[$fi] eq "GQ") || ($format[$fi] eq "GQX") || 
+                           ($format[$fi] eq "DP") || ($format[$fi] eq "DPF") || ($format[$fi] eq "DPI") || 
+                           ($format[$fi] eq "SB") || ($format[$fi] eq "FT") ||
+                           ($format[$fi] eq "PS") || ($format[$fi] eq "PGT") || ($format[$fi] eq "PID") ) {
+                        # just copy values
+                        $fixedData[$formatIndex{$format[$fi]}] = $data[$fi];
+                    }
 
-		    elsif ($format[$fi] eq "MIN_DP") {
-			# we verified that if MIN_DP exists it is after DP in FORMAT,
-			# therefore if we find MIN_DP we can just use it for DP and 
-			# it will squash any pre-exising value
-			(defined $formatIndex{"DP"}) && ($fixedData[$formatIndex{"DP"}] = $data[$fi]);
-		    }
+                    elsif ($format[$fi] eq "MIN_DP") {
+                        # we verified that if MIN_DP exists it is after DP in FORMAT,
+                        # therefore if we find MIN_DP we can just use it for DP and 
+                        # it will squash any pre-exising value
+                        (defined $formatIndex{"DP"}) && ($fixedData[$formatIndex{"DP"}] = $data[$fi]);
+                    }
 
-		    elsif (($format[$fi] eq "AD") || ($format[$fi] eq "ADF") || ($format[$fi] eq "ADR") || ($format[$fi] eq "VAF")) {
-			my @ADs = split(/,/, $data[$fi]);
-			# copy REF AD and remove from @ADs (except for VAF where there's no REF value)
-			($format[$fi] ne "VAF") && ($fixedData[$formatIndex{$format[$fi]}] = shift(@ADs).",");
-			# append ADs for all ALTs, inserting '0' except for 
-			# alts also present in currentLine
-			foreach my $newAltIndex (0..$#newAlts) {
-			    if (defined $altsNew2Old[$newAltIndex]) {
-				$fixedData[$formatIndex{$format[$fi]}] .= $ADs[$altsNew2Old[$newAltIndex]].","; 
-			    }
-			    else {
-				# this newAlt is not in current line, use zero
-				$fixedData[$formatIndex{$format[$fi]}] .= "0,";
-			    }
-			}
-			# remove trailing ','
-			chop($fixedData[$formatIndex{$format[$fi]}]);
-		    }
+                    elsif (($format[$fi] eq "AD") || ($format[$fi] eq "ADF") || ($format[$fi] eq "ADR") || ($format[$fi] eq "VAF")) {
+                        my @ADs = split(/,/, $data[$fi]);
+                        # copy REF AD and remove from @ADs (except for VAF where there's no REF value)
+                        ($format[$fi] ne "VAF") && ($fixedData[$formatIndex{$format[$fi]}] = shift(@ADs).",");
+                        # append ADs for all ALTs, inserting '0' except for 
+                        # alts also present in currentLine
+                        foreach my $newAltIndex (0..$#newAlts) {
+                            if (defined $altsNew2Old[$newAltIndex]) {
+                                $fixedData[$formatIndex{$format[$fi]}] .= $ADs[$altsNew2Old[$newAltIndex]].","; 
+                            }
+                            else {
+                                # this newAlt is not in current line, use zero
+                                $fixedData[$formatIndex{$format[$fi]}] .= "0,";
+                            }
+                        }
+                        # remove trailing ','
+                        chop($fixedData[$formatIndex{$format[$fi]}]);
+                    }
 
-		    elsif ($format[$fi] eq "PL") {
-			# ALTs that didn't exist got 0 counts, and the corresponding PLs 
-			# will get 255 values
-			# The VCF spec says the PL for x/y genotype is at index x + y*(y+1)/2
-			# Note that x and y here start at 1 for ALTs, 0 is the REF.
-			my @PLs = split(/,/, $data[$fi]);
+                    elsif ($format[$fi] eq "PL") {
+                        # ALTs that didn't exist got 0 counts, and the corresponding PLs 
+                        # will get 255 values
+                        # The VCF spec says the PL for x/y genotype is at index x + y*(y+1)/2
+                        # Note that x and y here start at 1 for ALTs, 0 is the REF.
+                        my @PLs = split(/,/, $data[$fi]);
 
-			my @newPLs;
+                        my @newPLs;
 
-			# $badPLs for Strelka bug where sometimes PL doesn't have correct number of values
-			my $badPLs = 0;
+                        # $badPLs for Strelka bug where sometimes PL doesn't have correct number of values
+                        my $badPLs = 0;
 
-			# $x and $y start at -1 because we want them to be indexes of @altsNew2Old,
-			# using -1 for REF
-			foreach my $x (-1..$#newAlts) {
-			    foreach my $y ($x..$#newAlts) {
-				# index in @newPLs where PL for X/Y will go,
-				# +1 to each because ALTs start at 1 in the VCF formula
-				my $plDest = ($x+1) + ($y+1)*($y+2)/2 ;
-				# index in @PLs where we grab the PL for X/Y
-				# careful: x and y may be in a different order in the source,
-				# in which case we must switch them
-				my $plSource = 0;
-				# $oldX and $oldY use the VCF convention => 0 is REF, ALTs start at 1
-				my ($oldX,$oldY) = (0,0);
+                        # $x and $y start at -1 because we want them to be indexes of @altsNew2Old,
+                        # using -1 for REF
+                        foreach my $x (-1..$#newAlts) {
+                            foreach my $y ($x..$#newAlts) {
+                                # index in @newPLs where PL for X/Y will go,
+                                # +1 to each because ALTs start at 1 in the VCF formula
+                                my $plDest = ($x+1) + ($y+1)*($y+2)/2 ;
+                                # index in @PLs where we grab the PL for X/Y
+                                # careful: x and y may be in a different order in the source,
+                                # in which case we must switch them
+                                my $plSource = 0;
+                                # $oldX and $oldY use the VCF convention => 0 is REF, ALTs start at 1
+                                my ($oldX,$oldY) = (0,0);
 
-				if ($x == -1) {
-				    # X is REF -> NOOP, leave $oldX==0
-				}
-				elsif (defined $altsNew2Old[$x]) {
-				    $oldX = $altsNew2Old[$x] + 1;
-				}
-				else {
-				    # X unknown, use 255 as PL
-				    $newPLs[$plDest] = 255;
-				    next;
-				}
+                                if ($x == -1) {
+                                    # X is REF -> NOOP, leave $oldX==0
+                                }
+                                elsif (defined $altsNew2Old[$x]) {
+                                    $oldX = $altsNew2Old[$x] + 1;
+                                }
+                                else {
+                                    # X unknown, use 255 as PL
+                                    $newPLs[$plDest] = 255;
+                                    next;
+                                }
 
-				if ($y == -1) {
-				    # Y is REF -> NOOP
-				}
-				elsif (defined $altsNew2Old[$y]) {
-				    $oldY = $altsNew2Old[$y] + 1;
-				}
-				else {
-				    # Y unknown
-				    $newPLs[$plDest] = 255;
-				    next;
-				}
+                                if ($y == -1) {
+                                    # Y is REF -> NOOP
+                                }
+                                elsif (defined $altsNew2Old[$y]) {
+                                    $oldY = $altsNew2Old[$y] + 1;
+                                }
+                                else {
+                                    # Y unknown
+                                    $newPLs[$plDest] = 255;
+                                    next;
+                                }
 
-				# switch if order is wrong
-				if ($oldX > $oldY) {
-				    my $tmp = $oldX;
-				    $oldX = $oldY;
-				    $oldY = $tmp;
-				}
-				
-				# calculate $plSource using VCF formula
-				$plSource = $oldX + $oldY*($oldY+1)/2;
-				# finally, fill newPLs
-				# $PLs[$plSource] should always exist according to spec, but Strelka has
-				# a bug where sometimes values are missing, and we can't know which 
-				# genotype the existing PLs were for...
-				# IOW in these cases the PL string really can't be interpreted!
-				# so we flag it here and then replace the whole PL value with comma-separated '.'
-				if (defined $PLs[$plSource]) {
-				    $newPLs[$plDest] = $PLs[$plSource];
-				}
-				else {
-				    $newPLs[$plDest] = '.';
-				    $badPLs = 1;
-				}
-			    }
-			}
-			if ($badPLs) {
-			    # wrong number of PL values in Strelka file, replace all values with '.'
-			    $fixedData[$formatIndex{"PL"}] = '.';
-			    $fixedData[$formatIndex{"PL"}] .= ",." x $#newPLs ; # we put one '.' already, need $# more
-			}
-			else {
-			    $fixedData[$formatIndex{"PL"}] = join(',', @newPLs);
-			}
-		    }
+                                # switch if order is wrong
+                                if ($oldX > $oldY) {
+                                    my $tmp = $oldX;
+                                    $oldX = $oldY;
+                                    $oldY = $tmp;
+                                }
+                                
+                                # calculate $plSource using VCF formula
+                                $plSource = $oldX + $oldY*($oldY+1)/2;
+                                # finally, fill newPLs
+                                # $PLs[$plSource] should always exist according to spec, but Strelka has
+                                # a bug where sometimes values are missing, and we can't know which 
+                                # genotype the existing PLs were for...
+                                # IOW in these cases the PL string really can't be interpreted!
+                                # so we flag it here and then replace the whole PL value with comma-separated '.'
+                                if (defined $PLs[$plSource]) {
+                                    $newPLs[$plDest] = $PLs[$plSource];
+                                }
+                                else {
+                                    $newPLs[$plDest] = '.';
+                                    $badPLs = 1;
+                                }
+                            }
+                        }
+                        if ($badPLs) {
+                            # wrong number of PL values in Strelka file, replace all values with '.'
+                            $fixedData[$formatIndex{"PL"}] = '.';
+                            $fixedData[$formatIndex{"PL"}] .= ",." x $#newPLs ; # we put one '.' already, need $# more
+                        }
+                        else {
+                            $fixedData[$formatIndex{"PL"}] = join(',', @newPLs);
+                        }
+                    }
 
-		    else {
-			die "E $0: unknown format key $format[$fi] found, add some code to deal with it!\n".
-			    join("\t",@{$toMergeR->[$fileIndex]})."\n";
-		    }
-		}
+                    else {
+                        die "E $0: unknown format key $format[$fi] found, add some code to deal with it!\n".
+                            join("\t",@{$toMergeR->[$fileIndex]})."\n";
+                    }
+                }
 
-		# now prune trailing dummy fields that may have been copied from infiles (but never GT)
-		foreach my $i (reverse(1..$#fixedData)) {
-		    if ($fixedData[$i] =~ /^[\.,]+$/) {
-			pop(@fixedData);
-		    }
-		    else {
-			last;
-		    }
-		}
+                # now prune trailing dummy fields that may have been copied from infiles (but never GT)
+                foreach my $i (reverse(1..$#fixedData)) {
+                    if ($fixedData[$i] =~ /^[\.,]+$/) {
+                        pop(@fixedData);
+                    }
+                    else {
+                        last;
+                    }
+                }
 
-		# if AD* / VAF is needed but wasn't found, use correct number of dummy '.'
-		foreach my $fkey ("AD","ADF","ADR","VAF") {
-		    if ((defined $formatIndex{$fkey}) && ($#fixedData >= $formatIndex{$fkey}) && (! $fixedData[$formatIndex{$fkey}])) {
-			# need one value for REF (except for VAF) + one value per newAlts allele, use dummy '.'
-			($fkey ne 'VAF') && ($fixedData[$formatIndex{$fkey}] = '.,');
-			$fixedData[$formatIndex{$fkey}] .= ".," x scalar(@newAlts);
-			# remove last ','
-			chop($fixedData[$formatIndex{$fkey}]);
-		    }
-		}
+                # if AD* / VAF is needed but wasn't found, use correct number of dummy '.'
+                foreach my $fkey ("AD","ADF","ADR","VAF") {
+                    if ((defined $formatIndex{$fkey}) && ($#fixedData >= $formatIndex{$fkey}) && (! $fixedData[$formatIndex{$fkey}])) {
+                        # need one value for REF (except for VAF) + one value per newAlts allele, use dummy '.'
+                        ($fkey ne 'VAF') && ($fixedData[$formatIndex{$fkey}] = '.,');
+                        $fixedData[$formatIndex{$fkey}] .= ".," x scalar(@newAlts);
+                        # remove last ','
+                        chop($fixedData[$formatIndex{$fkey}]);
+                    }
+                }
 
-		# if PL was asked for but not found: I don't want to pretend having 
-		# PLs if I don't, don't want to bother coding it, and anyways PL
-		# comes close to the end (so will rarely be needed & missing)
-		# => pretend PL is single-valued
+                # if PL was asked for but not found: I don't want to pretend having 
+                # PLs if I don't, don't want to bother coding it, and anyways PL
+                # comes close to the end (so will rarely be needed & missing)
+                # => pretend PL is single-valued
 
-		# all remaining fields are single-valued, use dummy '.' if needed and missing
-		foreach my $i (0..$#fixedData) {
-		    (defined $fixedData[$i]) || ($fixedData[$i] = '.');
-		}
+                # all remaining fields are single-valued, use dummy '.' if needed and missing
+                foreach my $i (0..$#fixedData) {
+                    (defined $fixedData[$i]) || ($fixedData[$i] = '.');
+                }
 
-		$toPrint .= "\t".join(':',@fixedData);
-	    }
-	}
+                $toPrint .= "\t".join(':',@fixedData);
+            }
+        }
     }
 
     ####################################
@@ -1367,7 +1367,7 @@ sub mergeLinesNonVarBlock {
     # find first non-null line
     my $firstNonNull = 0;
     while(! $toMergeR->[$firstNonNull]) {
-	$firstNonNull++;
+        $firstNonNull++;
     }
 
     # make a new non-variant block: grab start of line from first non-null file,
@@ -1380,23 +1380,23 @@ sub mergeLinesNonVarBlock {
 
     # add data columns (even for files that don't have a line at this pos)
     foreach my $fileIndex (0..$#$numSamplesR) {
-	if ($toMergeR->[$fileIndex]) {
-	    # check INFO
-	    ($toMergeR->[$fileIndex]->[7] eq $toMergeR->[$firstNonNull]->[7]) ||
-		die "E $0: in mergeLinesNonVarBlock, INFO mismatch when toPrint=$toPrint\n";
-	    # check FORMAT
-	    ($toMergeR->[$fileIndex]->[8] eq $toMergeR->[$firstNonNull]->[8]) || 
-		die "E $0: in mergeLinesNonVarBlock, FORMAT mismatch when toPrint=$toPrint\n";
-	    # print data columns (they are all in ->[9], we never split them)
-	    $toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
-	}
-	else {
-	    # file $fileIndex doesn't have a line for this position, print 
-	    # "blank" data for each sample from infile
-	    foreach my $j (1..$numSamplesR->[$fileIndex]) {
-		$toPrint .= "\t.";
-	    }
-	}
+        if ($toMergeR->[$fileIndex]) {
+            # check INFO
+            ($toMergeR->[$fileIndex]->[7] eq $toMergeR->[$firstNonNull]->[7]) ||
+                die "E $0: in mergeLinesNonVarBlock, INFO mismatch when toPrint=$toPrint\n";
+            # check FORMAT
+            ($toMergeR->[$fileIndex]->[8] eq $toMergeR->[$firstNonNull]->[8]) || 
+                die "E $0: in mergeLinesNonVarBlock, FORMAT mismatch when toPrint=$toPrint\n";
+            # print data columns (they are all in ->[9], we never split them)
+            $toPrint .= "\t".$toMergeR->[$fileIndex]->[9];
+        }
+        else {
+            # file $fileIndex doesn't have a line for this position, print 
+            # "blank" data for each sample from infile
+            foreach my $j (1..$numSamplesR->[$fileIndex]) {
+                $toPrint .= "\t.";
+            }
+        }
     }
     $toPrint .= "\n";
     return($toPrint);
@@ -1422,50 +1422,50 @@ sub eatTmpFiles {
     my $nextBatch = 1;
 
     while(1) {
-	my $tmpOut = "$tmpD/$nextBatch.g.vcf";
-	my $tmpOutFlag = $tmpOut."_done";
+        my $tmpOut = "$tmpD/$nextBatch.g.vcf";
+        my $tmpOutFlag = $tmpOut."_done";
 
-	if ((-e $tmpOutFlag)  && (! -z $tmpOutFlag)) {
-	    # next batch tmp file is ready
-	    open (IN, $tmpOut) || 
-		die "E $0: in eatTmpFiles, flagfile $tmpOutFlag exists but cant open tmpout $tmpOut: $!\n";
-	    while(<IN>) {
-		print;
-	    }
-	    close(IN);
-	    (unlink($tmpOut,$tmpOutFlag) == 2) ||
-		die "E $0: in eatTmpFiles, done with files for batch $nextBatch but cannot unlink (both of) them: $!\n";
+        if ((-e $tmpOutFlag)  && (! -z $tmpOutFlag)) {
+            # next batch tmp file is ready
+            open (IN, $tmpOut) || 
+                die "E $0: in eatTmpFiles, flagfile $tmpOutFlag exists but cant open tmpout $tmpOut: $!\n";
+            while(<IN>) {
+                print;
+            }
+            close(IN);
+            (unlink($tmpOut,$tmpOutFlag) == 2) ||
+                die "E $0: in eatTmpFiles, done with files for batch $nextBatch but cannot unlink (both of) them: $!\n";
 
-	    if ($nextBatch % 10 == 0) {
-		# log progress every 10 batches
-		my $now = strftime("%F %T", localtime);
-		warn "I $now: $0 - done printing results from batch $nextBatch\n";
-	    }
-	    $nextBatch++;
-	    next;
-	}
+            if ($nextBatch % 10 == 0) {
+                # log progress every 10 batches
+                my $now = strftime("%F %T", localtime);
+                warn "I $now: $0 - done printing results from batch $nextBatch\n";
+            }
+            $nextBatch++;
+            next;
+        }
 
-	elsif ((-e $tmpOutLast) && (! -z $tmpOutLast)) {
-	    open (IN, $tmpOutLast) || 
-		die "E $0: in eatTmpFiles, cannot open tmpOutLast $tmpOutLast although it exists: $!\n";
-	    $lastBatch = <IN>;
-	    chomp($lastBatch);
-	    close(IN);
-	    unlink($tmpOutLast) || 
-		die "E $0: in eatTmpFiles, cannot unlink tmpOutLast $tmpOutLast: $!\n";
-	    next;
-	}
+        elsif ((-e $tmpOutLast) && (! -z $tmpOutLast)) {
+            open (IN, $tmpOutLast) || 
+                die "E $0: in eatTmpFiles, cannot open tmpOutLast $tmpOutLast although it exists: $!\n";
+            $lastBatch = <IN>;
+            chomp($lastBatch);
+            close(IN);
+            unlink($tmpOutLast) || 
+                die "E $0: in eatTmpFiles, cannot unlink tmpOutLast $tmpOutLast: $!\n";
+            next;
+        }
 
-	elsif ((defined $lastBatch) && ($lastBatch < $nextBatch)) {
-	    # all done, return so this process can finish
-	    return();
-	}
+        elsif ((defined $lastBatch) && ($lastBatch < $nextBatch)) {
+            # all done, return so this process can finish
+            return();
+        }
 
-	else {
-	    # wait a few seconds before looking again
-	    sleep(10);
-	    next;
-	}
+        else {
+            # wait a few seconds before looking again
+            sleep(10);
+            next;
+        }
     }
 }
 

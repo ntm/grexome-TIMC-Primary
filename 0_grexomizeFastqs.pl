@@ -99,10 +99,10 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 
 
 GetOptions ("samplesFile=s" => \$samplesFile,
-	    "inpath=s" => \$inPath,
-	    "outdir=s" => \$outDir,
-	    "real" => \$real,
-	    "help" => \$help)
+            "inpath=s" => \$inPath,
+            "outdir=s" => \$outDir,
+            "real" => \$real,
+            "help" => \$help)
     or die("E $0: Error in command line arguments\n\n$USAGE\n");
 
 
@@ -179,63 +179,63 @@ foreach my $sample (sort keys(%$sample2specimenR)) {
     my @files2 = glob("${inPath}/*/*${specimen}*[_-]R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz");
 
     (@files1) || 
-	((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);
+        ((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);
     (@files1 == @files2) || 
-	die "E: different numbers of files for the 2 paired-ends of $sample == specimen $specimen:\n@files1\n@files2\n";
+        die "E: different numbers of files for the 2 paired-ends of $sample == specimen $specimen:\n@files1\n@files2\n";
 
     # make sure these files haven't been seen before
     foreach my $f (@files1, @files2) {
-	(defined $infilesDone{$f}) &&
-	    die "E: infile $f found for $sample == specimen $specimen, but it was previously used for $infilesDone{$f}! check the logs for it! Then fix the globs\n";
-	$infilesDone{$f} = $sample;
+        (defined $infilesDone{$f}) &&
+            die "E: infile $f found for $sample == specimen $specimen, but it was previously used for $infilesDone{$f}! check the logs for it! Then fix the globs\n";
+        $infilesDone{$f} = $sample;
     }
 
     if ((-e "$parentDir$outDir/${sample}_1.fq.gz") && (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
-	# 09/09/2019: don't INFO when skipping, it's too much noise
-	# warn "I: skipping $sample == specimen $specimen because grexomized fastqs already exist\n";
-	next;
+        # 09/09/2019: don't INFO when skipping, it's too much noise
+        # warn "I: skipping $sample == specimen $specimen because grexomized fastqs already exist\n";
+        next;
     }
     elsif ((-e "$parentDir$outDir/${sample}_1.fq.gz") || (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
-	die "E: $sample already has one grexomized FASTQ but not the other! Something is wrong, investigate!\n";
+        die "E: $sample already has one grexomized FASTQ but not the other! Something is wrong, investigate!\n";
     }
     # else keep going, need to make the symlinks/files
 
     if (@files1 == 1) {
-	# prepare symlink target names
-	my $f1 = $files1[0];
-	my $f2 = $files2[0];
-	# replace $inPath with ../$lastDir/
-	($f1 =~ s~^$inPath~../$lastDir/~) || 
-	    die "E: cannot replace inPath $inPath from file1 $f1 for specimen $specimen == $sample\n";
-	($f2 =~ s~^$inPath~../$lastDir/~) || 
-	    die "E: cannot replace inPath $inPath from file2 $f2 for specimen $specimen == $sample\n";
+        # prepare symlink target names
+        my $f1 = $files1[0];
+        my $f2 = $files2[0];
+        # replace $inPath with ../$lastDir/
+        ($f1 =~ s~^$inPath~../$lastDir/~) || 
+            die "E: cannot replace inPath $inPath from file1 $f1 for specimen $specimen == $sample\n";
+        ($f2 =~ s~^$inPath~../$lastDir/~) || 
+            die "E: cannot replace inPath $inPath from file2 $f2 for specimen $specimen == $sample\n";
 
-	my $com = "cd $parentDir$outDir/; ln -s $f1 ${sample}_1.fq.gz ; ln -s $f2 ${sample}_2.fq.gz" ;
+        my $com = "cd $parentDir$outDir/; ln -s $f1 ${sample}_1.fq.gz ; ln -s $f2 ${sample}_2.fq.gz" ;
 
-	if (! $real) {
-	    warn "I: dryrun, would run: $com\n";
-	}
-	else {
-	    warn "I: single pair of files for $sample, symlinking with: $com\n";
-	    system($com);
-	}
+        if (! $real) {
+            warn "I: dryrun, would run: $com\n";
+        }
+        else {
+            warn "I: single pair of files for $sample, symlinking with: $com\n";
+            system($com);
+        }
     }
 
     else {
-	# several pairs of files, need to cat them
-	my $com1 = "cat @files1 > $parentDir$outDir/${sample}_1.fq.gz";
-	my $com2 = "cat @files2 > $parentDir$outDir/${sample}_2.fq.gz";
+        # several pairs of files, need to cat them
+        my $com1 = "cat @files1 > $parentDir$outDir/${sample}_1.fq.gz";
+        my $com2 = "cat @files2 > $parentDir$outDir/${sample}_2.fq.gz";
 
-	if (! $real) {
-	    warn "I: dryrun, would run: $com1\n";
-	    warn "I: dryrun, would then run: $com2\n";
-	}
-	else {
-	    warn "I: starting cat of $sample with command: $com1\n";
-	    system($com1);
-	    warn "I: finishing cat of $sample with command: $com2\n";
-	    system($com2);
-	}
+        if (! $real) {
+            warn "I: dryrun, would run: $com1\n";
+            warn "I: dryrun, would then run: $com2\n";
+        }
+        else {
+            warn "I: starting cat of $sample with command: $com1\n";
+            system($com1);
+            warn "I: finishing cat of $sample with command: $com2\n";
+            system($com2);
+        }
     }
 }
 

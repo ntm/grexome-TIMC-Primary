@@ -131,13 +131,13 @@ my $USAGE = "\nProcess a bunch of FASTQ paired-end files:
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir : subdir containing the FASTQs
 --samples : comma-separated list of sampleIDs to process, for each sample there should be 
-	  a pair of FASTQ files in indir called [sample]_1.fq.gz and [sample]_2.fq.gz
+          a pair of FASTQ files in indir called [sample]_1.fq.gz and [sample]_2.fq.gz
 --outdir : subdir where BAMs and accessory files will be created
 --tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --binpath : path where binaries $fastp, $samblaster, $samtools and 
     ".join('/',@bwas)." can be found, leave empty to search in PATH
 --bwakit : when aligning on GRCh38, path where k8 and bwa-postalt.js (from bwa-kit) can
- 	 be found; if not provided, ignore bwakit-PostAlt (eg with non-human data)
+          be found; if not provided, ignore bwakit-PostAlt (eg with non-human data)
 --genome : ref genome fasta, with path, must be indexed with 'bwa-mem2 index' and/or 'bwa index'
 --threads N [default = $numThreads] : number of threads for BWA, and also for fastp and samtools if <= 16
     (but if > 16 fastp and samtools uses only 16 threads)
@@ -145,15 +145,15 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --help : print this USAGE";
 
 GetOptions ("indir=s" => \$inDir,
-	    "samples=s" => \$samples,
-	    "outdir=s" => \$outDir,
-	    "tmpdir=s" => \$tmpDir,
-	    "binpath=s" => \$binPath,
-	    "bwakit=s" => \$bwakit,
-	    "genome=s" => \$genome,
-	    "threads=i" => \$numThreads, 
-	    "real" => \$real,
-	    "help" => \$help)
+            "samples=s" => \$samples,
+            "outdir=s" => \$outDir,
+            "tmpdir=s" => \$tmpDir,
+            "binpath=s" => \$binPath,
+            "bwakit=s" => \$bwakit,
+            "genome=s" => \$genome,
+            "threads=i" => \$numThreads, 
+            "real" => \$real,
+            "help" => \$help)
     or die("E $0: Error in command line arguments\n\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
@@ -186,10 +186,10 @@ my $bwakitPostalt;
 if ($bwakit) {
     $bwakitPostalt = "$bwakit/k8 $bwakit/bwa-postalt.js";
     (`$bwakitPostalt -v` =~ /^r\d+$/) ||
-	die "E $0: bwakitPostalt test doesn't run as expected, maybe fix bwakitPath in config.pm, command run: $bwakitPostalt -v\n";
+        die "E $0: bwakitPostalt test doesn't run as expected, maybe fix bwakitPath in config.pm, command run: $bwakitPostalt -v\n";
     (-f "$genome.alt") ||
-	die "E $0: provided ref genome found but we also need $genome.alt for bwa-postalt, ".
-	"as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
+        die "E $0: provided ref genome found but we also need $genome.alt for bwa-postalt, ".
+        "as produced by Heng Li's run-gen-ref (from bwa-kit)\n";
 }
 
 # make sure all progs can be found
@@ -201,31 +201,31 @@ system("which $binPath$samtools &> /dev/null") && die "E $0: the samtools execut
 my $bwa = "";
 foreach my $b (@bwas) {
     if (system("which $binPath$b &> /dev/null") == 0) {
-	# make sure genome is indexed for this flavor of BWA
-	if ($b =~ /mem/) {
-	    # bwa-mem2
-	    if ((-f "$genome.bwt.2bit.64") && (-f "$genome.0123") && (-f "$genome.pac") && 
-		(-f "$genome.ann") && (-f "$genome.amb")) {
-		$bwa = $b;
-		last;
-	    }
-	    else {
-		warn "W $0: found $b but ref genome $genome isn't indexed for it, please use '$b index'\n";
-		next;
-	    }
-	}
-	else {
-	    # classic BWA index
-	    if ((-f "$genome.bwt") && (-f "$genome.sa") && (-f "$genome.pac") && 
-		(-f "$genome.ann") && (-f "$genome.amb")) {
-		$bwa = $b;
-		last;
-	    }
-	    else {
-		warn "W $0: found $b but ref genome $genome isn't indexed for it, please use '$b index'\n";
-		next;
-	    }
-	}
+        # make sure genome is indexed for this flavor of BWA
+        if ($b =~ /mem/) {
+            # bwa-mem2
+            if ((-f "$genome.bwt.2bit.64") && (-f "$genome.0123") && (-f "$genome.pac") && 
+                (-f "$genome.ann") && (-f "$genome.amb")) {
+                $bwa = $b;
+                last;
+            }
+            else {
+                warn "W $0: found $b but ref genome $genome isn't indexed for it, please use '$b index'\n";
+                next;
+            }
+        }
+        else {
+            # classic BWA index
+            if ((-f "$genome.bwt") && (-f "$genome.sa") && (-f "$genome.pac") && 
+                (-f "$genome.ann") && (-f "$genome.amb")) {
+                $bwa = $b;
+                last;
+            }
+            else {
+                warn "W $0: found $b but ref genome $genome isn't indexed for it, please use '$b index'\n";
+                next;
+            }
+        }
     }
 }
 ($bwa) || die "E $0: cannot find any usable (indexed genome) BWA executable among (".join(',',@bwas).")\n";
@@ -253,23 +253,23 @@ my %samples;
 my $now = strftime("%F %T", localtime);
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	warn "W $now: $0 - sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
-	$nbWarnings++;
-	next;
+        warn "W $now: $0 - sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+        $nbWarnings++;
+        next;
     }
     # fastq files, this MUST MATCH $f1 and $f2 that we process later
     my $f1 = "$inDir/${sample}_1.fq.gz";
     my $f2 = "$inDir/${sample}_2.fq.gz";
     if ((! -f $f1) || (! -f $f2)) {
-	warn "W $now: $0 - sample $sample was specified but we don't have a pair of FASTQs for it in $inDir, skipping\n";
-	$nbWarnings++;
-	next;
+        warn "W $now: $0 - sample $sample was specified but we don't have a pair of FASTQs for it in $inDir, skipping\n";
+        $nbWarnings++;
+        next;
     }
     my $bam = "$outDir/$sample.bam";
     if (-e $bam) {
-	warn "W $now: $0 - sample $sample was specified but we already have the BAM $bam, remove it to re-process this sample, skipping\n";
-	$nbWarnings++;
-	next;
+        warn "W $now: $0 - sample $sample was specified but we already have the BAM $bam, remove it to re-process this sample, skipping\n";
+        $nbWarnings++;
+        next;
     }
 
     # AOK, sample will be processed
@@ -320,28 +320,28 @@ foreach my $sample (sort keys(%samples)) {
     
     $now = strftime("%F %T", localtime);
     if (! $real) {
-	warn "I $now: $0 - dryrun, would run: $com\n";
+        warn "I $now: $0 - dryrun, would run: $com\n";
     }
     else {
-	warn "I $now: $0 - starting processing of $sample with command: $com\n";
-	if (system($com)) {
-	    # non-zero exit status
-	    $now = strftime("%F %T", localtime);
-	    warn "E $now: $0 - processing of $sample exited with non-zero status. Something went wrong, investigate!\n";
-	    $nbErrors++;
-	    # remove (corrupt) bamfile if it exists
-	    unlink("$outFile.bam");
-	    next;
-	}
+        warn "I $now: $0 - starting processing of $sample with command: $com\n";
+        if (system($com)) {
+            # non-zero exit status
+            $now = strftime("%F %T", localtime);
+            warn "E $now: $0 - processing of $sample exited with non-zero status. Something went wrong, investigate!\n";
+            $nbErrors++;
+            # remove (corrupt) bamfile if it exists
+            unlink("$outFile.bam");
+            next;
+        }
 
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - done aligning $sample, indexing\n";
-	if(system("$samtools index $outFile.bam")) {
-	    # non-zero exit status
-	    $now = strftime("%F %T", localtime);
-	    warn "E $now: $0 - samtools index $sample exited with non-zero status. Strange because bam production succeeded, investigate!\n";
-	    $nbErrors++;
-	}
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - done aligning $sample, indexing\n";
+        if(system("$samtools index $outFile.bam")) {
+            # non-zero exit status
+            $now = strftime("%F %T", localtime);
+            warn "E $now: $0 - samtools index $sample exited with non-zero status. Strange because bam production succeeded, investigate!\n";
+            $nbErrors++;
+        }
     }
 }
 

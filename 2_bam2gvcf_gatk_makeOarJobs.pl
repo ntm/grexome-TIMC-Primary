@@ -114,14 +114,14 @@ foreach my $gNum ($first..$last) {
     $grexome = "grexome$grexome";
     push(@samples, $grexome);
     if ((@samples == $samplesPerJob) || ($gNum == $last)) {
-	# choose stdout and stderr filenames
-	my $sampsString = $samples[0]."-".$samples[$#samples];
-	my $oar = $oarBase."-O $logDir/bam2gvcfGatk.$sampsString.out -E $logDir/bam2gvcfGatk.$sampsString.err ";
-	$oar .= "\" perl $bam2gvcf --indir $inDir --genome $genome --chroms $chroms --outdir $outDir --samples ";
-	$oar .= join(',', @samples);
-	$oar .= " --tmpdir /var/tmp/NTM_$sampsString --jobs $jobs --gatk \'$gatk\' --real\"";
-	#warn "$oar\n";
-	system($oar);
-	@samples = ();
+        # choose stdout and stderr filenames
+        my $sampsString = $samples[0]."-".$samples[$#samples];
+        my $oar = $oarBase."-O $logDir/bam2gvcfGatk.$sampsString.out -E $logDir/bam2gvcfGatk.$sampsString.err ";
+        $oar .= "\" perl $bam2gvcf --indir $inDir --genome $genome --chroms $chroms --outdir $outDir --samples ";
+        $oar .= join(',', @samples);
+        $oar .= " --tmpdir /var/tmp/NTM_$sampsString --jobs $jobs --gatk \'$gatk\' --real\"";
+        #warn "$oar\n";
+        system($oar);
+        @samples = ();
     }
 }

@@ -93,23 +93,23 @@ while ($grex <= $last) {
     # build comma-separated list of samples
     my $samples = "";
     while ($slotsThisJob > 0) {
-	($grex <= $last) || last;
-	my $s = $grex;
-	$grex++;
-	# left-pad with zeroes to 4 digits
-	($s < 10) && ($s = "0$s");
-	($s < 100) && ($s = "0$s");
-	($s < 1000) && ($s = "0$s");
-	# skip if BAM doesn't exist
-	(-e "$inDir/grexome$s.bam") ||
-	    ((warn "W: $inDir/grexome$s.bam doesn't exist, skipping $s\n") && next);
-	# ok add this sample and decrement remaining slots for this job
-	$samples .= "grexome$s,";
-	$slotsThisJob--;
+        ($grex <= $last) || last;
+        my $s = $grex;
+        $grex++;
+        # left-pad with zeroes to 4 digits
+        ($s < 10) && ($s = "0$s");
+        ($s < 100) && ($s = "0$s");
+        ($s < 1000) && ($s = "0$s");
+        # skip if BAM doesn't exist
+        (-e "$inDir/grexome$s.bam") ||
+            ((warn "W: $inDir/grexome$s.bam doesn't exist, skipping $s\n") && next);
+        # ok add this sample and decrement remaining slots for this job
+        $samples .= "grexome$s,";
+        $slotsThisJob--;
     }
     # chop trailing comma
     (chop($samples) eq ',') ||
-	((warn "W: no remaining samples starting at $grexStartJob, all done\n") && last);
+        ((warn "W: no remaining samples starting at $grexStartJob, all done\n") && last);
     my $oar = $oarBase." -O $logDir/bam2gvcf.$grexStartJob.out -E $logDir/bam2gvcf.$grexStartJob.err ";
     $oar .= "\" perl $bam2gvcf --indir $inDir --samples $samples --genome $genome --chroms $chroms ";
     $oar .= "--outdir $outDir --tmpdir $tmpDir --deepvariant $deepvariant --jobs $jobs --real\"";

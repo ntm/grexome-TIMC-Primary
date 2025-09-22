@@ -169,13 +169,13 @@ Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --help : print this USAGE";
 
 GetOptions ("samples=s" => \$samplesFile,
-	    "SOIs=s" => \$SOIs,
-	    "callers=s" => \$callers,
-	    "workdir=s" => \$workDir,
-	    "datatype=s" => \$datatype,
-	    "jobs=i" => \$jobs,
-	    "config=s" => \$config,
-	    "help" => \$help)
+            "SOIs=s" => \$SOIs,
+            "callers=s" => \$callers,
+            "workdir=s" => \$workDir,
+            "datatype=s" => \$datatype,
+            "jobs=i" => \$jobs,
+            "config=s" => \$config,
+            "help" => \$help)
     or die("E $0: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
@@ -188,17 +188,17 @@ GetOptions ("samples=s" => \$samplesFile,
     # make sure every requested caller is known
     my %requestedCallers;
     foreach my $c (split(/,/,$callers)) {
-	# silently allow uppercase or mixed-case
-	my $cLow = lc($c);
-	defined($callerDirs{$cLow}) ||
-	    die "E $0: the provided variant-caller $c is unknown, this pipeline only knows ".
-	    join(',',keys(%callerDirs))."\n";
-	# OK remember this caller was requested
-	$requestedCallers{$cLow} = 1;
+        # silently allow uppercase or mixed-case
+        my $cLow = lc($c);
+        defined($callerDirs{$cLow}) ||
+            die "E $0: the provided variant-caller $c is unknown, this pipeline only knows ".
+            join(',',keys(%callerDirs))."\n";
+        # OK remember this caller was requested
+        $requestedCallers{$cLow} = 1;
     }
     # now delete %callerDirs entries for non-requested callers
     foreach my $c (keys(%callerDirs)) {
-	($requestedCallers{$c}) || (delete $callerDirs{$c});
+        ($requestedCallers{$c}) || (delete $callerDirs{$c});
     }
 }
 
@@ -209,7 +209,7 @@ GetOptions ("samples=s" => \$samplesFile,
 (-f $config) ||  die "E $0: the supplied config.pm doesn't exist: $config\n";
 require($config);
 grexomeTIMCprim_config->import( qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
-				   fastTmpPath binPath bwakitPath strelkaBin deepVariantSIF gatkBin elprepBin) );
+                                   fastTmpPath binPath bwakitPath strelkaBin deepVariantSIF gatkBin elprepBin) );
 
 ($workDir) || die "E $0: you must provide a workDir. Try $0 --help\n";
 (-e $workDir) && 
@@ -247,10 +247,10 @@ my $fastqDir = &fastqDir();
 # now that $dataDir exists, prepend $dataDir/$gvcfDir to %callerDirs and sanity-check
 foreach my $caller (keys %callerDirs) {
     foreach my $i (0..2) {
-	my $d = "$dataDir/$gvcfDir/".$callerDirs{$caller}->[$i];
-	(-d $d) || (mkdir $d) ||
-	    die "E $0: GVCF subdir $d for caller $caller doesn't exist and can't be mkdir'd\n";
-	$callerDirs{$caller}->[$i] = $d;
+        my $d = "$dataDir/$gvcfDir/".$callerDirs{$caller}->[$i];
+        (-d $d) || (mkdir $d) ||
+            die "E $0: GVCF subdir $d for caller $caller doesn't exist and can't be mkdir'd\n";
+        $callerDirs{$caller}->[$i] = $d;
     }
 }
 
@@ -268,24 +268,24 @@ my $haveSex = 0;
     (@parsed == 5) && ($haveSex=1);
     my $s2pathoR = $parsed[0];
     foreach my $s (keys %$s2pathoR) {
-	$samples{$s} = 1;
+        $samples{$s} = 1;
     }
 }
 
 if ($SOIs) {
     # make sure every listed sample is in %samples and promote it's value to 2
     foreach my $soi (split(/,/, $SOIs)) {
-	($samples{$soi}) ||
-	    die "E $0: processing --SOIs: a specified sample $soi does not exist in the samples metadata file\n";
-	($samples{$soi} == 1) ||
-	    warn "W $0: processing --SOIs: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
-	$samples{$soi} = 2;
+        ($samples{$soi}) ||
+            die "E $0: processing --SOIs: a specified sample $soi does not exist in the samples metadata file\n";
+        ($samples{$soi} == 1) ||
+            warn "W $0: processing --SOIs: sample $soi was specified twice, is that a typo? Skipping the dupe\n";
+        $samples{$soi} = 2;
     }
     # now ignore all other samples
     foreach my $s (keys %samples) {
-	if ($samples{$s} != 2) {
-	    delete($samples{$s});
-	}
+        if ($samples{$s} != 2) {
+            delete($samples{$s});
+        }
     }
 }
 
@@ -294,13 +294,13 @@ foreach my $s (sort(keys %samples)) {
     my $f1 = "$fastqDir/${s}_1.fq.gz";
     my $f2 = "$fastqDir/${s}_2.fq.gz";
     if ((! -f $f1) || (! -f $f2)) {
-	if ($samples{$s} == 2) {
-	    die "E $0: sample $s from --SOIs doesn't have FASTQs (looking for $f1 and $f2)\n";
-	}
-	else {
-	    warn "W $0: sample $s from samples metadata file doesn't have FASTQs, skipping it\n";
-	    delete($samples{$s});
-	}
+        if ($samples{$s} == 2) {
+            die "E $0: sample $s from --SOIs doesn't have FASTQs (looking for $f1 and $f2)\n";
+        }
+        else {
+            warn "W $0: sample $s from samples metadata file doesn't have FASTQs, skipping it\n";
+            delete($samples{$s});
+        }
     }
 }
 
@@ -336,7 +336,7 @@ foreach my $s (sort(keys %samples)) {
 if ($samples) {
     # remove trailing ','
     (chop($samples) eq ',') ||
-	die "E $0 chopped samples isn't ',' impossible\n";
+        die "E $0 chopped samples isn't ',' impossible\n";
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - fastq2bam will process sample(s) $samples\n";
     # make BAMs
@@ -369,31 +369,31 @@ foreach my $s (sort(keys %samples)) {
 if ($samples) {
     # remove trailing ','
     (chop($samples) eq ',') ||
-	die "E $0 chopped samples isn't ',' impossible\n";
-   
+        die "E $0 chopped samples isn't ',' impossible\n";
+    
     # building the relative path correctly is a bit tricky
     {
-	my @bDirs = File::Spec->splitdir($bamDir);
-	my @abDirs = File::Spec->splitdir($allBamsDir);
-	# remove common leading dirs
-	while($bDirs[0] eq $abDirs[0]) {
-	    shift(@bDirs);
-	    shift(@abDirs);
-	}
-	# remove last dir if empty  (happens if eg $bamDir was slash-terminated)
-	($bDirs[$#bDirs]) || pop(@bDirs);
-	($abDirs[$#abDirs]) || pop(@abDirs);
-	# build relative path from allBamsDir to bamDir
-	my $relPath = '../' x scalar(@abDirs);
-	$relPath .= join('/',@bDirs);
-	foreach my $s (split(/,/,$samples)) {
-	    foreach my $file ("$s.bam", "$s.bam.bai") {
-		(-e "$dataDir/$bamDir/$file") ||
-		    die "E $0: BAM/BAI doesn't exist but should have been made: $dataDir/$bamDir/$file\n";
-		symlink("$relPath/$file", "$dataDir/$allBamsDir/$file") ||
-		    die "E $0: cannot symlink $relPath/$file : $!";
-	    }
-	}
+        my @bDirs = File::Spec->splitdir($bamDir);
+        my @abDirs = File::Spec->splitdir($allBamsDir);
+        # remove common leading dirs
+        while($bDirs[0] eq $abDirs[0]) {
+            shift(@bDirs);
+            shift(@abDirs);
+        }
+        # remove last dir if empty  (happens if eg $bamDir was slash-terminated)
+        ($bDirs[$#bDirs]) || pop(@bDirs);
+        ($abDirs[$#abDirs]) || pop(@abDirs);
+        # build relative path from allBamsDir to bamDir
+        my $relPath = '../' x scalar(@abDirs);
+        $relPath .= join('/',@bDirs);
+        foreach my $s (split(/,/,$samples)) {
+            foreach my $file ("$s.bam", "$s.bam.bai") {
+                (-e "$dataDir/$bamDir/$file") ||
+                    die "E $0: BAM/BAI doesn't exist but should have been made: $dataDir/$bamDir/$file\n";
+                symlink("$relPath/$file", "$dataDir/$allBamsDir/$file") ||
+                    die "E $0: cannot symlink $relPath/$file : $!";
+            }
+        }
     }
 }
 $now = strftime("%F %T", localtime);
@@ -417,149 +417,149 @@ foreach my $caller (sort(keys %callerDirs)) {
     # samples to process: those without a raw GVCF
     $samples = "";
     foreach my $s (sort(keys %samples)) {
-	my $gvcf = $callerDirs{$caller}->[0]."/$s.g.vcf.gz";
-	(-e $gvcf) || ($samples .= "$s,");
+        my $gvcf = $callerDirs{$caller}->[0]."/$s.g.vcf.gz";
+        (-e $gvcf) || ($samples .= "$s,");
     }
     if ($samples) {
-	# remove trailing ','
-	(chop($samples) eq ',') ||
-	    die "E $0 chopped samples isn't ',' impossible\n";
+        # remove trailing ','
+        (chop($samples) eq ',') ||
+            die "E $0 chopped samples isn't ',' impossible\n";
 
-	my $callerWorkDir =  "$workDir/Results_$caller/";
+        my $callerWorkDir =  "$workDir/Results_$caller/";
 
-	# each caller-specific wrapper script MUST BE named precisely like this:
-	my $b2gBin = "$RealBin/2_bam2gvcf_$caller.pl";
-	(-e $b2gBin) ||
-	    die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
-	my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples";
-	(&refGenomeChromsBed()) && ($com .= " --chroms ".&refGenomeChromsBed());
-	$com .= " --outdir $callerWorkDir --jobs $jobs --real";
-	#caller-specific args
-	if ($caller eq "strelka") {
-	    $com .= " --datatype $datatype --genome ".&refGenome();
-	    $com .= " --strelka ".&strelkaBin();
-	}
-	elsif ($caller eq "deepvariant") {
-	    $com .= " --datatype $datatype --tmpdir $tmpDir/deepVariant --genome ".&refGenome();
-	    $com .= " --deepvariant ".&deepVariantSIF();
-	}
-	elsif ($caller eq "gatk") {
-	    $com .= " --tmpdir $tmpDir/gatk --genome ".&refGenome();
-	    $com .= " --gatk ".&gatkBin();
-	}
-	elsif ($caller eq "elprep") {
-	    $com .= " --tmpdir $tmpDir/elprep --logdir $callerWorkDir --genome ".&refGenomeElPrep();
-	    # we prefer SFM mode, filter mode is too resource-hungry and not
-	    # much faster in our hands. You can test it with "--mode filter"
-	    $com .= " --mode sfm";
-	    $com .= " --elprep ".&elprepBin();
-	}
-	else {
-	    die "E $0: unknown variant-caller $caller, need to implement caller-specific args";
-	}
-	
-	system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
+        # each caller-specific wrapper script MUST BE named precisely like this:
+        my $b2gBin = "$RealBin/2_bam2gvcf_$caller.pl";
+        (-e $b2gBin) ||
+            die "E $0: trying to bam2gvcf for $caller, but  b2gBin $b2gBin doesn't exist\n";
+        my $com = "perl $b2gBin --indir $dataDir/$allBamsDir --samples $samples";
+        (&refGenomeChromsBed()) && ($com .= " --chroms ".&refGenomeChromsBed());
+        $com .= " --outdir $callerWorkDir --jobs $jobs --real";
+        #caller-specific args
+        if ($caller eq "strelka") {
+            $com .= " --datatype $datatype --genome ".&refGenome();
+            $com .= " --strelka ".&strelkaBin();
+        }
+        elsif ($caller eq "deepvariant") {
+            $com .= " --datatype $datatype --tmpdir $tmpDir/deepVariant --genome ".&refGenome();
+            $com .= " --deepvariant ".&deepVariantSIF();
+        }
+        elsif ($caller eq "gatk") {
+            $com .= " --tmpdir $tmpDir/gatk --genome ".&refGenome();
+            $com .= " --gatk ".&gatkBin();
+        }
+        elsif ($caller eq "elprep") {
+            $com .= " --tmpdir $tmpDir/elprep --logdir $callerWorkDir --genome ".&refGenomeElPrep();
+            # we prefer SFM mode, filter mode is too resource-hungry and not
+            # much faster in our hands. You can test it with "--mode filter"
+            $com .= " --mode sfm";
+            $com .= " --elprep ".&elprepBin();
+        }
+        else {
+            die "E $0: unknown variant-caller $caller, need to implement caller-specific args";
+        }
+        
+        system($com) && die "E $0: bam2gvcf_$caller FAILED: $?";
 
-	##################
-	# caller-specific code: log-checking and house-keeping
-	if ($caller eq "strelka") {
-	    # check that logs are empty
-	    foreach my $s (split(/,/,$samples)) {
-		if (! -z "$callerWorkDir/$s/workflow.error.log.txt") {
-		    die "E $0: non-empty strelka error log for $s, go look in $callerWorkDir/$s/\n";
-		}
-		elsif (! -z "$callerWorkDir/$s/workflow.warning.log.txt") {
-		    warn"W $0: non-empty strelka warning log for $s, go look in $callerWorkDir/$s/\n";
-		}
-		else {
-		    # remove useless strelka left-overs
-		    remove_tree("$callerWorkDir/$s/workspace/pyflow.data/logs/tmp/");
-		}
-	    }
-	    # move STRELKA GVCFs and TBIs into $gvcfDir subtree
-	    $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $callerWorkDir ".$callerDirs{$caller}->[0];
-	    system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
-	}
-	elsif ($caller eq "deepvariant") {
-	    # DV log is a single file per sample, not trying to parse it, just moving it with the
-	    # GVCF and TBI (and HTML stats file if present) into $gvcfDir subtree and removing
-	    # now-empty callerWorkDir:
-	    foreach my $s (split(/,/,$samples)) {
-		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
-		    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
-			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
-		}
-		# hard-coded HTML stats file from DV
-		my $htmlStatsDV = "$s.visual_report.html";
-		if (-e "$callerWorkDir/$htmlStatsDV") {
-		    move("$callerWorkDir/$htmlStatsDV", $callerDirs{$caller}->[0]) ||
-			die "E $0: cannot move DV stats $callerWorkDir/$htmlStatsDV to ".$callerDirs{$caller}->[0]." : $!";
-		}
-	    }
-	    rmdir($callerWorkDir) || die "E $0: cannot rmdir $caller callerWorkDir $callerWorkDir: $!";
-	}
-	elsif ($caller eq "gatk") {
-	    # GATK logs are a mess: they seem to adopt a format but then don't respect it,
-	    # not even trying to parse it
-	    # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty callerWorkDir:
-	    foreach my $s (split(/,/,$samples)) {
-		foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
-		    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
-			die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
-		}
-	    }
-	    rmdir($callerWorkDir) || die "E $0: cannot rmdir gatk callerWorkDir $callerWorkDir: $!";
-	}
-	elsif ($caller eq "elprep") {
-	    # don't yet know what to expect in elprep logs when something goes wrong,
-	    # for now just hope that it returns non-zero if there's a problem, we are
-	    # keeping the logs so we can investigate if something is fishy...
-	    # move elPrep GVCFs into $gvcfDir subtree
-	    foreach my $s (split(/,/,$samples)) {
-		my $file = "$s.g.vcf.gz";
-		move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
-		    die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
-	    }
-	}
-	else {
-	    die "E $0: new caller $caller, need to implement log-checking and house-keeping after bam2gvcf\n";
-	}
-	# end of caller-specific code
-	##################
-	
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - variant-calling with $caller DONE\n";
+        ##################
+        # caller-specific code: log-checking and house-keeping
+        if ($caller eq "strelka") {
+            # check that logs are empty
+            foreach my $s (split(/,/,$samples)) {
+                if (! -z "$callerWorkDir/$s/workflow.error.log.txt") {
+                    die "E $0: non-empty strelka error log for $s, go look in $callerWorkDir/$s/\n";
+                }
+                elsif (! -z "$callerWorkDir/$s/workflow.warning.log.txt") {
+                    warn"W $0: non-empty strelka warning log for $s, go look in $callerWorkDir/$s/\n";
+                }
+                else {
+                    # remove useless strelka left-overs
+                    remove_tree("$callerWorkDir/$s/workspace/pyflow.data/logs/tmp/");
+                }
+            }
+            # move STRELKA GVCFs and TBIs into $gvcfDir subtree
+            $com = "perl $RealBin/2_bam2gvcf_strelka_moveGvcfs.pl $callerWorkDir ".$callerDirs{$caller}->[0];
+            system($com) && die "E $0: strelka moveGvcfs FAILED: $?";
+        }
+        elsif ($caller eq "deepvariant") {
+            # DV log is a single file per sample, not trying to parse it, just moving it with the
+            # GVCF and TBI (and HTML stats file if present) into $gvcfDir subtree and removing
+            # now-empty callerWorkDir:
+            foreach my $s (split(/,/,$samples)) {
+                foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
+                    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
+                        die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
+                }
+                # hard-coded HTML stats file from DV
+                my $htmlStatsDV = "$s.visual_report.html";
+                if (-e "$callerWorkDir/$htmlStatsDV") {
+                    move("$callerWorkDir/$htmlStatsDV", $callerDirs{$caller}->[0]) ||
+                        die "E $0: cannot move DV stats $callerWorkDir/$htmlStatsDV to ".$callerDirs{$caller}->[0]." : $!";
+                }
+            }
+            rmdir($callerWorkDir) || die "E $0: cannot rmdir $caller callerWorkDir $callerWorkDir: $!";
+        }
+        elsif ($caller eq "gatk") {
+            # GATK logs are a mess: they seem to adopt a format but then don't respect it,
+            # not even trying to parse it
+            # move GATK GVCFs + TBIs + logs into $gvcfDir subtree and remove now-empty callerWorkDir:
+            foreach my $s (split(/,/,$samples)) {
+                foreach my $file ("$s.g.vcf.gz", "$s.g.vcf.gz.tbi", "$s.log") {
+                    move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
+                        die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
+                }
+            }
+            rmdir($callerWorkDir) || die "E $0: cannot rmdir gatk callerWorkDir $callerWorkDir: $!";
+        }
+        elsif ($caller eq "elprep") {
+            # don't yet know what to expect in elprep logs when something goes wrong,
+            # for now just hope that it returns non-zero if there's a problem, we are
+            # keeping the logs so we can investigate if something is fishy...
+            # move elPrep GVCFs into $gvcfDir subtree
+            foreach my $s (split(/,/,$samples)) {
+                my $file = "$s.g.vcf.gz";
+                move("$callerWorkDir/$file", $callerDirs{$caller}->[0]) ||
+                    die "E $0: cannot move $callerWorkDir/$file to ".$callerDirs{$caller}->[0]." : $!";
+            }
+        }
+        else {
+            die "E $0: new caller $caller, need to implement log-checking and house-keeping after bam2gvcf\n";
+        }
+        # end of caller-specific code
+        ##################
+        
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - variant-calling with $caller DONE\n";
     }
     else {
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - variant-calling with $caller DONE, all samples already had raw $caller GVCFs\n";
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - variant-calling with $caller DONE, all samples already had raw $caller GVCFs\n";
     }
 
     ################################
     # filter INDIVIDUAL GVCFs
     foreach my $s (sort(keys %samples)) {
-	# samples to filter: those without a filtered GVCF
-	my $gvcf = $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz";
-	if (! -e $gvcf) {
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - starting filter of $caller $s\n";
-	    my $com = "$bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
-	    # giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-4)
-	    my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
-	    my $jobsFilter = $jf1;
-	    ($jf2 > $jf1) && ($jobsFilter = $jf2);
-	    $com .= "perl $RealBin/3_filterBadCalls.pl --samplesFile=$samplesFile --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
-	    $com .= "$bgzip -c -\@2 > $gvcf";
-	    # fail if any component of the pipe fails
-	    $com =~ s/"/\\"/g;
-	    $com = "$bash -o pipefail -c \" $com \"";
-	    system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
-	}
-	if (! -e "$gvcf.tbi") {
-	    # index filtered GVCF
-	    my $com = "$tabix -p vcf $gvcf";
-	    system($com) && die "E $0: tabix-index for individual GVCF $gvcf FAILED: $?";
-	}
+        # samples to filter: those without a filtered GVCF
+        my $gvcf = $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz";
+        if (! -e $gvcf) {
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - starting filter of $caller $s\n";
+            my $com = "$bgzip -cd -\@6 ".$callerDirs{$caller}->[0]."/$s.g.vcf.gz | ";
+            # giving 6+2 threads to bgzip, so reduce $jobs for filterBin: max(j/2, j-4)
+            my ($jf1,$jf2) = (int(($jobs+1)/2), $jobs-4);
+            my $jobsFilter = $jf1;
+            ($jf2 > $jf1) && ($jobsFilter = $jf2);
+            $com .= "perl $RealBin/3_filterBadCalls.pl --samplesFile=$samplesFile --tmpdir=$tmpDir/Filter --keepHR --jobs $jobsFilter | ";
+            $com .= "$bgzip -c -\@2 > $gvcf";
+            # fail if any component of the pipe fails
+            $com =~ s/"/\\"/g;
+            $com = "$bash -o pipefail -c \" $com \"";
+            system($com) && die "E $0: filterGVCFs for $caller $s FAILED: $?";
+        }
+        if (! -e "$gvcf.tbi") {
+            # index filtered GVCF
+            my $com = "$tabix -p vcf $gvcf";
+            system($com) && die "E $0: tabix-index for individual GVCF $gvcf FAILED: $?";
+        }
     }
     $now = strftime("%F %T", localtime);
     warn "I $now: $0 - filtering $caller GVCFs DONE\n";
@@ -568,28 +568,28 @@ foreach my $caller (sort(keys %callerDirs)) {
     # create/update QC file that counts HET/HV calls on sex chromosomes,
     # this requires knowing if samples are M or F
     if ($haveSex) {
-	# name of file to create/update
-	my $qcFile = $callerDirs{$caller}->[1]."/qc_sexChroms_$caller.csv";
+        # name of file to create/update
+        my $qcFile = $callerDirs{$caller}->[1]."/qc_sexChroms_$caller.csv";
 
-	my $com = "perl $RealBin/0_qc_checkSexChroms.pl  --samplesFile=$samplesFile";
-	$com .= " --indir=".$callerDirs{$caller}->[1];
-	$com .= " --tabix=$tabix";
-	# backup and use previous version (if any)
-	if (-e $qcFile) {
-	    my $qcPrev = $qcFile;
-	    ($qcPrev =~ s/\.csv$/_prev.csv/) ||
-		die "E $0: cannot subst csv in qcFile $qcFile, WTF?!\n";
-	    move($qcFile,$qcPrev) ||
-		die "E $0: qc file $qcFile exists but can't be moved to $qcPrev: $!";
-	    # we have a backup => can --force
-	    $com .= " --prevQC=$qcPrev --force";
-	}
-	$com .= " > $qcFile";
-	system($com) && die "E $0: qc_checkSexChroms for $caller FAILED: $?";
+        my $com = "perl $RealBin/0_qc_checkSexChroms.pl  --samplesFile=$samplesFile";
+        $com .= " --indir=".$callerDirs{$caller}->[1];
+        $com .= " --tabix=$tabix";
+        # backup and use previous version (if any)
+        if (-e $qcFile) {
+            my $qcPrev = $qcFile;
+            ($qcPrev =~ s/\.csv$/_prev.csv/) ||
+                die "E $0: cannot subst csv in qcFile $qcFile, WTF?!\n";
+            move($qcFile,$qcPrev) ||
+                die "E $0: qc file $qcFile exists but can't be moved to $qcPrev: $!";
+            # we have a backup => can --force
+            $com .= " --prevQC=$qcPrev --force";
+        }
+        $com .= " > $qcFile";
+        system($com) && die "E $0: qc_checkSexChroms for $caller FAILED: $?";
     }
     else {
-	$now = strftime("%F %T", localtime);
-	warn "W $now: $0 - no Sex column in metadata, skipping qc_checkSexChroms step\n";
+        $now = strftime("%F %T", localtime);
+        warn "W $now: $0 - no Sex column in metadata, skipping qc_checkSexChroms step\n";
     }
 
     ################################
@@ -606,135 +606,135 @@ foreach my $caller (sort(keys %callerDirs)) {
     my $prevMerged = `ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz 2> /dev/null | tail -n 1`;
     chomp($prevMerged);
     if ($prevMerged) {
-	open(CHR, "$zgrep -m 1 ^#CHROM $prevMerged |") ||
-	    die "E $0: cannot zgrep #CHROM line in prevMerged $prevMerged\n";
-	my $header = <CHR>;
-	chomp($header);
-	my @header = split(/\t/,$header);
-	# first 9 fields are regular VCF headers CHROM->FORMAT
-	splice(@header, 0, 9);
-	foreach my $s (@header) {
-	    $samplesPrev{$s} &&
-		die "E $0: most recent merged $caller GVCF has dupe sample $s! Investigate $prevMerged\n";
-	    $samplesPrev{$s} = 1;
-	}
-	close(CHR);
+        open(CHR, "$zgrep -m 1 ^#CHROM $prevMerged |") ||
+            die "E $0: cannot zgrep #CHROM line in prevMerged $prevMerged\n";
+        my $header = <CHR>;
+        chomp($header);
+        my @header = split(/\t/,$header);
+        # first 9 fields are regular VCF headers CHROM->FORMAT
+        splice(@header, 0, 9);
+        foreach my $s (@header) {
+            $samplesPrev{$s} &&
+                die "E $0: most recent merged $caller GVCF has dupe sample $s! Investigate $prevMerged\n";
+            $samplesPrev{$s} = 1;
+        }
+        close(CHR);
     }
     
     foreach my $s (sort(keys %samples)) {
-	# only merge $s if it's not already in prevMerged
-	if (! $samplesPrev{$s}) {
-	    push(@newToMerge, $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz");
-	}
+        # only merge $s if it's not already in prevMerged
+        if (! $samplesPrev{$s}) {
+            push(@newToMerge, $callerDirs{$caller}->[1]."/$s.filtered.g.vcf.gz");
+        }
     }
 
     # if we have more than $mergeBatchSize new GVCFs, merge them in batches
     if (@newToMerge >= $mergeBatchSize) {
-	my $batchNum = 0;
-	my @batchFiles;
-	my $batchFH;
-	foreach my $i (0..$#newToMerge) {
-	    if ($i % $mergeBatchSize == 0) {
-		$batchNum++;
-		($batchFH) && close($batchFH);
-		my $batchFile = "$workDir/batchFile_${caller}_BATCH$batchNum.txt";
-		push(@batchFiles, $batchFile);
-		open($batchFH, ">$batchFile") ||
-		    die "E $0: cannot create $caller batchFile $batchFile: $!\n";
-	    }
-	    print $batchFH $newToMerge[$i]."\n";
-	}
-	# close last batchFile
-	close($batchFH);
+        my $batchNum = 0;
+        my @batchFiles;
+        my $batchFH;
+        foreach my $i (0..$#newToMerge) {
+            if ($i % $mergeBatchSize == 0) {
+                $batchNum++;
+                ($batchFH) && close($batchFH);
+                my $batchFile = "$workDir/batchFile_${caller}_BATCH$batchNum.txt";
+                push(@batchFiles, $batchFile);
+                open($batchFH, ">$batchFile") ||
+                    die "E $0: cannot create $caller batchFile $batchFile: $!\n";
+            }
+            print $batchFH $newToMerge[$i]."\n";
+        }
+        # close last batchFile
+        close($batchFH);
 
-	# merge each batch
-	my @batchGVCFs;
-	foreach my $b (1..$batchNum) {
-	    my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_${date}_BATCH$b.g.vcf.gz";
-	    (-e $newMerged) &&
-		die "E $0: want to batchwise-merge GVCFs but newMerged already exists: $newMerged\n";
-	    push(@batchGVCFs, $newMerged);
-	    my $batchFile = $batchFiles[$b-1];
-	    # -> merge:
-	    my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --cleanheaders --jobs $jobs ";
-	    # uncomment below to make separate logs for merge
-	    # $com .= " 2> $workDir/merge_${caller}_BATCH${batch}.log ";
-	    # NOTE we are piping to bgzip -@8 , so we exceed $jobs quite a bit.
-	    # if this turns into a problem we can tune it down (eg $jobsFilter)
-	    $com .= "| $bgzip -c -\@8 > $newMerged";
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - starting to batchwise-merge $caller GVCFs batch $b\n";
-	    # fail if any component of the pipe fails
-	    $com =~ s/"/\\"/g;
-	    $com = "$bash -o pipefail -c \" $com \"";
-	    system($com) && die "E $0: batchwise-mergeGvcfs for $caller batch $b FAILED: $?";
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - batchwise-merging $caller GVCFs batch $b DONE\n";
- 	}
+        # merge each batch
+        my @batchGVCFs;
+        foreach my $b (1..$batchNum) {
+            my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_${date}_BATCH$b.g.vcf.gz";
+            (-e $newMerged) &&
+                die "E $0: want to batchwise-merge GVCFs but newMerged already exists: $newMerged\n";
+            push(@batchGVCFs, $newMerged);
+            my $batchFile = $batchFiles[$b-1];
+            # -> merge:
+            my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --cleanheaders --jobs $jobs ";
+            # uncomment below to make separate logs for merge
+            # $com .= " 2> $workDir/merge_${caller}_BATCH${batch}.log ";
+            # NOTE we are piping to bgzip -@8 , so we exceed $jobs quite a bit.
+            # if this turns into a problem we can tune it down (eg $jobsFilter)
+            $com .= "| $bgzip -c -\@8 > $newMerged";
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - starting to batchwise-merge $caller GVCFs batch $b\n";
+            # fail if any component of the pipe fails
+            $com =~ s/"/\\"/g;
+            $com = "$bash -o pipefail -c \" $com \"";
+            system($com) && die "E $0: batchwise-mergeGvcfs for $caller batch $b FAILED: $?";
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - batchwise-merging $caller GVCFs batch $b DONE\n";
+        }
 
-	# now replace individual files in @newToMerge by the new batchwise GVCFs,
-	# so the final merge works the same whether we did batchwise merging or not
-	@newToMerge = @batchGVCFs;
+        # now replace individual files in @newToMerge by the new batchwise GVCFs,
+        # so the final merge works the same whether we did batchwise merging or not
+        @newToMerge = @batchGVCFs;
     }
 
     # only merge if there's at least one new sample
     if (@newToMerge) {
-	my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_$date.g.vcf.gz";
-	(-e $newMerged) &&
-	    die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
-	# make batchfile with list of GVCFs to merge
-	my $batchFile = "$workDir/batchFile_$caller.txt";
-	open(my $bf, ">$batchFile") ||
-	    die "E $0: cannot create $caller batchFile $batchFile: $!\n";
-	($prevMerged) && (print $bf "$prevMerged\n");
-	foreach my $new (@newToMerge) {
-	    print $bf "$new\n";
-	}
-	close($bf);
+        my $newMerged = $callerDirs{$caller}->[2]."/grexomes_${caller}_merged_$date.g.vcf.gz";
+        (-e $newMerged) &&
+            die "E $0: want to merge GVCFs but newMerged already exists: $newMerged\n";
+        # make batchfile with list of GVCFs to merge
+        my $batchFile = "$workDir/batchFile_$caller.txt";
+        open(my $bf, ">$batchFile") ||
+            die "E $0: cannot create $caller batchFile $batchFile: $!\n";
+        ($prevMerged) && (print $bf "$prevMerged\n");
+        foreach my $new (@newToMerge) {
+            print $bf "$new\n";
+        }
+        close($bf);
 
-	# -> merge:
-	# NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
-	# if this turns into a problem we can tune it down (eg $jobsFilter)
-	my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --cleanheaders --jobs $jobs ";
-	# uncomment below to make separate logs for merge
-	# $com .= "2>  $workDir/merge_$caller.log ";
-	$com .= "| $bgzip -c -\@12 > $newMerged";
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - starting to merge $caller GVCFs\n";
-	# fail if any component of the pipe fails
-	$com =~ s/"/\\"/g;
-	$com = "$bash -o pipefail -c \" $com \"";
-	system($com) && die "E $0: mergeGvcfs for $caller FAILED: $!";
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - merging $caller GVCFs DONE\n";
+        # -> merge:
+        # NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
+        # if this turns into a problem we can tune it down (eg $jobsFilter)
+        my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --cleanheaders --jobs $jobs ";
+        # uncomment below to make separate logs for merge
+        # $com .= "2>  $workDir/merge_$caller.log ";
+        $com .= "| $bgzip -c -\@12 > $newMerged";
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - starting to merge $caller GVCFs\n";
+        # fail if any component of the pipe fails
+        $com =~ s/"/\\"/g;
+        $com = "$bash -o pipefail -c \" $com \"";
+        system($com) && die "E $0: mergeGvcfs for $caller FAILED: $!";
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - merging $caller GVCFs DONE\n";
 
-	# index:
-	# tabix takes a long time on large merged GVCFs but uses a single thread and
-	# almost no ressources (RAM or IO): it is cpu-bound but single-threaded
-	# -> fork a process for it so we can start working with the next $caller
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - indexing merged $caller GVCF\n";
-	$com = "$tabix -p vcf $newMerged";
-	my $pid = fork();
-	(defined $pid) ||
-	    die "E $0: could not fork for tabix-indexing $caller merged\n";
-	if ($pid == 0) {
-	    # child: run tabix and exit
-	    system($com) && die "E $0: tabix for merged $caller FAILED: $?";
-	    # this only killed the child but at least we sent E: message to stderr
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
-	    exit(0);
-	}
-	else {
-	    # parent
-	    push(@childrenPids, $pid);
-	}
+        # index:
+        # tabix takes a long time on large merged GVCFs but uses a single thread and
+        # almost no ressources (RAM or IO): it is cpu-bound but single-threaded
+        # -> fork a process for it so we can start working with the next $caller
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - indexing merged $caller GVCF\n";
+        $com = "$tabix -p vcf $newMerged";
+        my $pid = fork();
+        (defined $pid) ||
+            die "E $0: could not fork for tabix-indexing $caller merged\n";
+        if ($pid == 0) {
+            # child: run tabix and exit
+            system($com) && die "E $0: tabix for merged $caller FAILED: $?";
+            # this only killed the child but at least we sent E: message to stderr
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - indexing merged $caller GVCF DONE\n";
+            exit(0);
+        }
+        else {
+            # parent
+            push(@childrenPids, $pid);
+        }
     }
     else {
-	# every sample is already in $prevMerged, nothing to do
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - merging $caller GVCFs not needed, no new samples\n";
+        # every sample is already in $prevMerged, nothing to do
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - merging $caller GVCFs not needed, no new samples\n";
     }
 }
 
@@ -765,7 +765,7 @@ foreach my $caller (sort(keys %callerDirs)) {
     pop(@GvcfsToRm);
     my @TBIsToRm;
     foreach my $gvcf (@GvcfsToRm) {
-	(-e "$gvcf.tbi") && push(@TBIsToRm,"$gvcf.tbi");
+        (-e "$gvcf.tbi") && push(@TBIsToRm,"$gvcf.tbi");
     }
     # batchwise merged GVCFs were temp, remove them all
     push(@GvcfsToRm, split("\n",`ls -rt1 $callerDirs{$caller}->[2]/*.g.vcf.gz | grep _BATCH`));

@@ -89,14 +89,14 @@ foreach my $gNum ($first..$last) {
     $grexome = "grexome$grexome";
     push(@samples, $grexome);
     if ((@samples == $samplesPerJob) || ($gNum == $last)) {
-	# choose stdout and stderr filenames
-	my $sampsString = $samples[0]."-".$samples[$#samples];
-	my $oar = $oarBase."-O $logDir/fastq2bam.$sampsString.out -E $logDir/fastq2bam.$sampsString.err ";
-	$oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --samples ";
-	$oar .= join(',', @samples);
-	$oar .= " --bin $binDir --bwakit $binDir --threads $threads --genome $genome --real\"";
-	system($oar);
-	@samples = ();
+        # choose stdout and stderr filenames
+        my $sampsString = $samples[0]."-".$samples[$#samples];
+        my $oar = $oarBase."-O $logDir/fastq2bam.$sampsString.out -E $logDir/fastq2bam.$sampsString.err ";
+        $oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --samples ";
+        $oar .= join(',', @samples);
+        $oar .= " --bin $binDir --bwakit $binDir --threads $threads --genome $genome --real\"";
+        system($oar);
+        @samples = ();
     }
 }
 

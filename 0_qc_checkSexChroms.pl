@@ -52,7 +52,7 @@ use grexome_metaParse qw(parseSamples);
 # the program name, not the path
 $0 = basename($0);
 
-    
+
 #############################################
 ## options / params from the command-line
 
@@ -88,17 +88,17 @@ Arguments [defaults] (all can be abbreviated to shortest unambiguous prefixes):
 --samplesFile : samples metadata xlsx file, with path
 --indir : dir containing single-sample filtered GVCF files
 --prevQC : previous QC file (if any) produced by this script for some of the same samples,
-	   existing counts will be re-used instead of parsing every GVCF again
+           existing counts will be re-used instead of parsing every GVCF again
 --tabix [$tabix] : name of tabix binary, with path if it's not in PATH
 --force : discard lines from prevQC if they disagree with samplesFile (eg pathologyID mismatch)
 --help : print this USAGE";
 
 GetOptions ("samplesFile=s" => \$samplesFile,
-	    "indir=s" => \$inDir,
-	    "prevQC=s" => \$prevQC,
-	    "tabix=s" => \$tabix,
-	    "force" => \$force,
-	    "help" => \$help)
+            "indir=s" => \$inDir,
+            "prevQC=s" => \$prevQC,
+            "tabix=s" => \$tabix,
+            "force" => \$force,
+            "help" => \$help)
     or die("E $0: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
@@ -142,7 +142,7 @@ my $sample2sexR;
 {
     my @parsed = &parseSamples($samplesFile);
     (@parsed == 5) ||
-	die "E $0: need to know the sex of each patient but there's no Sex column in $samplesFile";
+        die "E $0: need to know the sex of each patient but there's no Sex column in $samplesFile";
     $sample2cohortR = $parsed[0];
     $sample2sexR = $parsed[4];
 }
@@ -150,7 +150,7 @@ my $sample2sexR;
 # parse counts from $prevQC if provided, save in %resultsPrev
 if ($prevQC) {
     open(PREV, $prevQC) ||
-	die "E $0: prevQC specified but cannot open file $prevQC: $!\n";
+        die "E $0: prevQC specified but cannot open file $prevQC: $!\n";
 
     # $ok: if false after parsing prevQC, there was at least one
     # metadata mismatch between prevQC and samplesFile
@@ -159,55 +159,55 @@ if ($prevQC) {
     <PREV>; # skip header
 
     while (my $line = <PREV>) {
-	chomp($line);
-	# file has per-sample counts, then at least one blank line, then
-	# comments and global summary stats. Stop at the blank line:
-	($line) || last;
+        chomp($line);
+        # file has per-sample counts, then at least one blank line, then
+        # comments and global summary stats. Stop at the blank line:
+        ($line) || last;
 
-	# -1 to grab "outlier" column even if it's empty
-	my @fields = split(/\t/, $line, -1);
-	(@fields == 10) ||
-	    die "E $0: line from prevQC doesn't have correct number of fields: $line\n";
-	# last field "Outlier" is always rebuilt, discard previous value
-	pop(@fields);
+        # -1 to grab "outlier" column even if it's empty
+        my @fields = split(/\t/, $line, -1);
+        (@fields == 10) ||
+            die "E $0: line from prevQC doesn't have correct number of fields: $line\n";
+        # last field "Outlier" is always rebuilt, discard previous value
+        pop(@fields);
 
-	my $sample = $fields[0];
-	# check that metadata matches $samplesFile
-	my $thisOK = 1;
-	if (!defined $sample2cohortR->{$sample}) {
-	    warn "W $0: sample $sample from prevQC doesn't exist in samplesFile $samplesFile\n";
-	    $thisOK = 0;
-	}
-	else {
-	    if ($fields[1] ne $sample2cohortR->{$sample}) {
-		warn "W $0: pathologyID for $sample in prevQC differs from samplesFile $samplesFile\n";
-		$thisOK = 0;
-	    }
-	    if ($fields[2] ne $sample2sexR->{$sample}) {
-		warn "W $0: sex for $sample in prevQC differs from samplesFile $samplesFile\n";
-		$thisOK = 0;
-	    }
-	}
-	
-	if ($thisOK) {
-	    ($resultsPrev{$sample}) &&
-		die "E $0: found 2 lines in prevQC $prevQC with the same sampleID $sample\n";
-	    $resultsPrev{$sample} = \@fields;
-	}
-	else {
-	    $ok = 0;
-	}
+        my $sample = $fields[0];
+        # check that metadata matches $samplesFile
+        my $thisOK = 1;
+        if (!defined $sample2cohortR->{$sample}) {
+            warn "W $0: sample $sample from prevQC doesn't exist in samplesFile $samplesFile\n";
+            $thisOK = 0;
+        }
+        else {
+            if ($fields[1] ne $sample2cohortR->{$sample}) {
+                warn "W $0: pathologyID for $sample in prevQC differs from samplesFile $samplesFile\n";
+                $thisOK = 0;
+            }
+            if ($fields[2] ne $sample2sexR->{$sample}) {
+                warn "W $0: sex for $sample in prevQC differs from samplesFile $samplesFile\n";
+                $thisOK = 0;
+            }
+        }
+        
+        if ($thisOK) {
+            ($resultsPrev{$sample}) &&
+                die "E $0: found 2 lines in prevQC $prevQC with the same sampleID $sample\n";
+            $resultsPrev{$sample} = \@fields;
+        }
+        else {
+            $ok = 0;
+        }
     }
 
     close(PREV);
     
     if (!$ok) {
-	if ($force) {
-	    warn "W $0: metadata mismatch between prevQC and samplesFile, --force mode => stale prevQC lines will be discarded\n";
-	}
-	else {
-	    die "E $0:  metadata mismatch between prevQC and samplesFile, dying. Use --force to discard stale prevQC lines\n";
-	}
+        if ($force) {
+            warn "W $0: metadata mismatch between prevQC and samplesFile, --force mode => stale prevQC lines will be discarded\n";
+        }
+        else {
+            die "E $0:  metadata mismatch between prevQC and samplesFile, dying. Use --force to discard stale prevQC lines\n";
+        }
     }
 }
 
@@ -219,7 +219,7 @@ foreach my $inFile (sort(readdir(INDIR))) {
     ($inFile =~ /vcf\.gz$/) || next;
     # this script requires tabix-indexed VCFs
     (-e "$inDir/$inFile.tbi") ||
-	((warn "W $0: can't find tabix index $inDir/$inFile.tbi , skipping (G)VCF $inFile\n") && next);
+        ((warn "W $0: can't find tabix index $inDir/$inFile.tbi , skipping (G)VCF $inFile\n") && next);
 
     my ($sample,$patho,$sex);
 
@@ -227,54 +227,54 @@ foreach my $inFile (sort(readdir(INDIR))) {
     my $header = `$tabix -H $inDir/$inFile | tail -n 1`;
     chomp($header);
     ($header =~ /^#CHROM\t/) ||
-	die "E $0: last header line of gvcf $inDir/$inFile doesn't start with CHROM?\n$header\n";
+        die "E $0: last header line of gvcf $inDir/$inFile doesn't start with CHROM?\n$header\n";
     my @headers = split(/\t/,$header);
     (@headers == 10) ||
-	die "E $0: gvcf $inDir/$inFile is not single-sample according to header:\n$header\n";
+        die "E $0: gvcf $inDir/$inFile is not single-sample according to header:\n$header\n";
     $sample = $headers[9];
 
     if ($sample2cohortR->{$sample}) {
-	$patho = $sample2cohortR->{$sample};
-	$sex = $sample2sexR->{$sample};
-	# empty $sample2cohortR as we go, for sanity testing
-	delete($sample2cohortR->{$sample});
+        $patho = $sample2cohortR->{$sample};
+        $sex = $sample2sexR->{$sample};
+        # empty $sample2cohortR as we go, for sanity testing
+        delete($sample2cohortR->{$sample});
     }
     else {
-	warn "W $0: inFile $inFile has data for sample $sample which isn't in $samplesFile, skipping it\n";
-	next;
+        warn "W $0: inFile $inFile has data for sample $sample which isn't in $samplesFile, skipping it\n";
+        next;
     }
 
     if ($resultsPrev{$sample}) {
-	# we already have counts from prevQC
-	$results{$sample} = $resultsPrev{$sample};
-	delete($resultsPrev{$sample});
-	next;
+        # we already have counts from prevQC
+        $results{$sample} = $resultsPrev{$sample};
+        delete($resultsPrev{$sample});
+        next;
     }
     else {
-	# otherwise parse $inFile to count HET/HV calls on X/Y/16
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - starting to parse $inDir/$inFile\n";
-	my @res = ($sample,$patho,$sex, &countCalls("$inDir/$inFile",$tabix));
-	$results{$sample} = \@res;
+        # otherwise parse $inFile to count HET/HV calls on X/Y/16
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - starting to parse $inDir/$inFile\n";
+        my @res = ($sample,$patho,$sex, &countCalls("$inDir/$inFile",$tabix));
+        $results{$sample} = \@res;
     }
 }
 
 # sanity
 if (my @prevMissing = sort(keys %resultsPrev)) {
     if ($force) {
-	warn "W $0: prevQC has data for samples that don't have files in inDir,".
-	    " --force mode => these prevQC lines will be discarded. Samples:\n".join(" ",@prevMissing)."\n";
+        warn "W $0: prevQC has data for samples that don't have files in inDir,".
+            " --force mode => these prevQC lines will be discarded. Samples:\n".join(" ",@prevMissing)."\n";
     }
     else {
-	die "E $0: prevQC has data for samples that don't have files in inDir,".
-	    " dying. Use --force to discard stale prevQC lines. Samples:\n".join(" ",@prevMissing)."\n";
+        die "E $0: prevQC has data for samples that don't have files in inDir,".
+            " dying. Use --force to discard stale prevQC lines. Samples:\n".join(" ",@prevMissing)."\n";
     }
 }
 # sanity: every sample from metadata should have been seen, assuming
 # we didn't analyze a subcohort/incomplete indir
 if (my @metaMissing = sort(keys %$sample2cohortR)) {
     warn "W $0: some samples from samplesFile have no GVCF in $inDir, ignoring them:\n".
-	join(" ",@metaMissing)."\n";
+        join(" ",@metaMissing)."\n";
 }
 closedir(INDIR);
 
@@ -298,21 +298,21 @@ my ($nbM,$nbF) = (0,0);
 # means
 foreach my $res (values(%results)) {
     if ($res->[2] eq "M") {
-	$nbM++;
-	$hetXMeanM += $res->[3];
-	$homXMeanM += $res->[4];
-	$hetYMeanM += $res->[5];
-	$homYMeanM += $res->[6];
+        $nbM++;
+        $hetXMeanM += $res->[3];
+        $homXMeanM += $res->[4];
+        $hetYMeanM += $res->[5];
+        $homYMeanM += $res->[6];
     }
     elsif ($res->[2] eq "F") {
-	$nbF++;
-	$hetXMeanF += $res->[3];
-	$homXMeanF += $res->[4];
-	$hetYMeanF += $res->[5];
-	$homYMeanF += $res->[6];
+        $nbF++;
+        $hetXMeanF += $res->[3];
+        $homXMeanF += $res->[4];
+        $hetYMeanF += $res->[5];
+        $homYMeanF += $res->[6];
     }
     else {
-	die "E $0: sex of ".$res->[1]." is neither M or F, it's ".$res->[2]."\n";
+        die "E $0: sex of ".$res->[1]." is neither M or F, it's ".$res->[2]."\n";
     }
     $het16Mean += $res->[7];
     $hom16Mean += $res->[8];
@@ -337,16 +337,16 @@ if (($nbF+$nbM) > 0) {
 # std devs
 foreach my $res (values(%results)) {
     if ($res->[2] eq "M") {
-	$hetXSdM += ($res->[3] - $hetXMeanM)**2;
-	$homXSdM += ($res->[4] - $homXMeanM)**2;
-	$hetYSdM += ($res->[5] - $hetYMeanM)**2;
-	$homYSdM += ($res->[6] - $homYMeanM)**2;
+        $hetXSdM += ($res->[3] - $hetXMeanM)**2;
+        $homXSdM += ($res->[4] - $homXMeanM)**2;
+        $hetYSdM += ($res->[5] - $hetYMeanM)**2;
+        $homYSdM += ($res->[6] - $homYMeanM)**2;
     }
     else {
-	$hetXSdF += ($res->[3] - $hetXMeanF)**2;
-	$homXSdF += ($res->[4] - $homXMeanF)**2;
-	$hetYSdF += ($res->[5] - $hetYMeanF)**2;
-	$homYSdF += ($res->[6] - $homYMeanF)**2;
+        $hetXSdF += ($res->[3] - $hetXMeanF)**2;
+        $homXSdF += ($res->[4] - $homXMeanF)**2;
+        $hetYSdF += ($res->[5] - $hetYMeanF)**2;
+        $homYSdF += ($res->[6] - $homYMeanF)**2;
     }
     $het16Sd += ($res->[7] - $het16Mean)**2;
     $hom16Sd += ($res->[8] - $hom16Mean)**2;
@@ -376,38 +376,38 @@ foreach my $sample (sort(keys %results)) {
     my $res = $results{$sample};
     my $outlier = "";
     if ($res->[2] eq "M") {
-	if (abs($res->[3] - $hetXMeanM) > 3 * $hetXSdM) {
-	    $outlier .= "HetXM:";
-	}
-	if (abs($res->[4] - $homXMeanM) > 3 * $homXSdM) {
-	    $outlier .= "HomXM:";
-	}
-	if (abs($res->[5] - $hetYMeanM) > 3 * $hetYSdM) {
-	    $outlier .= "HetYM:";
-	}
-	if (abs($res->[6] - $homYMeanM) > 3 * $homYSdM) {
-	    $outlier .= "HomYM:";
-	}
+        if (abs($res->[3] - $hetXMeanM) > 3 * $hetXSdM) {
+            $outlier .= "HetXM:";
+        }
+        if (abs($res->[4] - $homXMeanM) > 3 * $homXSdM) {
+            $outlier .= "HomXM:";
+        }
+        if (abs($res->[5] - $hetYMeanM) > 3 * $hetYSdM) {
+            $outlier .= "HetYM:";
+        }
+        if (abs($res->[6] - $homYMeanM) > 3 * $homYSdM) {
+            $outlier .= "HomYM:";
+        }
     }
     else {
-	if (abs($res->[3] - $hetXMeanF) > 3 * $hetXSdF) {
-	    $outlier .= "HetXF:";
-	}
-	if (abs($res->[4] - $homXMeanF) > 3 * $homXSdF) {
-	    $outlier .= "HomXF:";
-	}
-	if (abs($res->[5] - $hetYMeanF) > 3 * $hetYSdF) {
-	    $outlier .= "HetYF:";
-	}
-	if (abs($res->[6] - $homYMeanF) > 3 * $homYSdF) {
-	    $outlier .= "HomYF:";
-	}
+        if (abs($res->[3] - $hetXMeanF) > 3 * $hetXSdF) {
+            $outlier .= "HetXF:";
+        }
+        if (abs($res->[4] - $homXMeanF) > 3 * $homXSdF) {
+            $outlier .= "HomXF:";
+        }
+        if (abs($res->[5] - $hetYMeanF) > 3 * $hetYSdF) {
+            $outlier .= "HetYF:";
+        }
+        if (abs($res->[6] - $homYMeanF) > 3 * $homYSdF) {
+            $outlier .= "HomYF:";
+        }
     }
     if (abs($res->[7] - $het16Mean) > 3 * $het16Sd) {
-	$outlier .= "Het16:";
+        $outlier .= "Het16:";
     }
     if (abs($res->[8] - $hom16Mean) > 3 * $hom16Sd) {
-	$outlier .= "Hom16:";
+        $outlier .= "Hom16:";
     }
     # remove trailing ':'
     ($outlier) && (chop($outlier));
@@ -456,7 +456,7 @@ sub countCalls {
     (-e $gvcf) || die "E $0: countCalls called with GVCF that doesn't exist: $gvcf\n";
     (-e "$gvcf.tbi") || die "E $0: countCalls called with GVCF lacking a tbi: $gvcf.tbi\n";
     system("which $tabix &> /dev/null") &&
-	die "E $0: countCalls called with bad tabix binary: $tabix\n";
+        die "E $0: countCalls called with bad tabix binary: $tabix\n";
 
     # are the chromosomes chr-prefixed?
     my $chrPrefix = "";
@@ -473,31 +473,31 @@ sub countCalls {
     $ROIs .= "${chrPrefix}16 ";
     
     open(my $GVCF, "$tabix $gvcf $ROIs |") ||
-	die "E $0: countCalls cannot tabix-open GVCF $gvcf\n";
+        die "E $0: countCalls cannot tabix-open GVCF $gvcf\n";
 
     while (my $line = <$GVCF>) {
-	chomp($line);
-	# grab chrom
-	($line =~ /^$chrPrefix([\dXY]\d?)\t/o) ||
-	    die "E $0: countCalls cannot grab chrom from $gvcf in line:\n$line\n";
-	my $chr = $1;
-	# grab geno: single-sample => last column
-	($line =~ /\t(\d+)\/(\d+):[^\t]+$/) ||
-	    die "E $0: cannot grab genotype in:\n$line\n";
-	my ($gt1,$gt2) = ($1,$2);
-	if (($gt1 == $gt2) && ($gt1 != 0)) {
-	    # HV, non-HR
-	    if ($chr eq "X") { $nbHomoX++; }
-	    elsif ($chr eq "Y") { $nbHomoY++; }
-	    elsif ($chr eq "16") { $nbHomo16++; }
-	}
-	elsif ($gt1 != $gt2) {
-	    # HET
-	    if ($chr eq "X") { $nbHetX++; }
-	    elsif ($chr eq "Y") { $nbHetY++; }
-	    elsif ($chr eq "16") { $nbHet16++; }
-	}
-	# else: HR => NOOP
+        chomp($line);
+        # grab chrom
+        ($line =~ /^$chrPrefix([\dXY]\d?)\t/o) ||
+            die "E $0: countCalls cannot grab chrom from $gvcf in line:\n$line\n";
+        my $chr = $1;
+        # grab geno: single-sample => last column
+        ($line =~ /\t(\d+)\/(\d+):[^\t]+$/) ||
+            die "E $0: cannot grab genotype in:\n$line\n";
+        my ($gt1,$gt2) = ($1,$2);
+        if (($gt1 == $gt2) && ($gt1 != 0)) {
+            # HV, non-HR
+            if ($chr eq "X") { $nbHomoX++; }
+            elsif ($chr eq "Y") { $nbHomoY++; }
+            elsif ($chr eq "16") { $nbHomo16++; }
+        }
+        elsif ($gt1 != $gt2) {
+            # HET
+            if ($chr eq "X") { $nbHetX++; }
+            elsif ($chr eq "Y") { $nbHetY++; }
+            elsif ($chr eq "16") { $nbHet16++; }
+        }
+        # else: HR => NOOP
     }
 
     close($GVCF);

@@ -85,10 +85,10 @@ my $USAGE = "
 Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --indir : subdir containing the BAMs
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
-	  [sample].bam and [sample].bam.bai files in indir
+          [sample].bam and [sample].bam.bai files in indir
 --genome : ref genome fasta, with path
 --chroms : optional, if provided it must be a bgzipped and tabix-indexed BED file
-	   defining regions where variants should be called
+           defining regions where variants should be called
 --outdir : dir where GVCF-containing subdirs will be created (one subdir per sample)
 --strelka [$strelka] : must be either the path+name of configureStrelkaGermlineWorkflow.py
           (from strelka distrib), or a wrapper script that can be in your PATH
@@ -99,15 +99,15 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 
 
 GetOptions ("indir=s" => \$inDir,
-	    "samples=s" => \$samples,
-	    "genome=s" => \$refGenome,
-	    "chroms=s" => \$chromsBed,
-	    "outdir=s" => \$outDir,
-	    "strelka=s" => \$strelka,
-	    "datatype=s" => \$datatype,
-	    "jobs=i" => \$jobs, 
-	    "real" => \$real,
-	    "help" => \$help)
+            "samples=s" => \$samples,
+            "genome=s" => \$refGenome,
+            "chroms=s" => \$chromsBed,
+            "outdir=s" => \$outDir,
+            "strelka=s" => \$strelka,
+            "datatype=s" => \$datatype,
+            "jobs=i" => \$jobs, 
+            "real" => \$real,
+            "help" => \$help)
     or die("E $0: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
@@ -122,8 +122,8 @@ GetOptions ("indir=s" => \$inDir,
 my %samples;
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
-	next;
+        warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+        next;
     }
     $samples{$sample} = 1;
 }
@@ -134,7 +134,7 @@ foreach my $sample (split(/,/, $samples)) {
 if ($chromsBed) {
     (-f $chromsBed) || die "E $0: provided --chroms file doesn't exist\n";
     (-f "$chromsBed.tbi") || (-f "$chromsBed.csi") ||
-	die "E $0: can't find tabix index for provided --chroms file\n";
+        die "E $0: can't find tabix index for provided --chroms file\n";
 }
 
 ($datatype eq 'exome') || ($datatype eq 'genome') ||
@@ -163,7 +163,7 @@ foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
     my $bam = "$inDir/$sample.bam";
     ((-e $bam) && (-e "$bam.bai")) || 
-	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
+        ((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
 
     # strelka will produce a GVCF but also other files (stats etc) in $runDir
     my $runDir = "$outDir/$sample/";
@@ -176,17 +176,17 @@ foreach my $sample (sort keys(%samples)) {
 
     # only run the strelka configuration step if runDir doesn't exist
     if (! -e $runDir) {
-	if (! $real) {
-	    warn "I $0: dryrun, would configure strelka for $sample with: $com\n";
-	}
-	else {
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - configuring strelka for $sample\n";
-	    system($com);
-	}
+        if (! $real) {
+            warn "I $0: dryrun, would configure strelka for $sample with: $com\n";
+        }
+        else {
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - configuring strelka for $sample\n";
+            system($com);
+        }
     }
     else {
-	warn "I $0: runDir $runDir already exists, assuming strelka is already configured\n";
+        warn "I $0: runDir $runDir already exists, assuming strelka is already configured\n";
     }
 
     # now run strelka (does nothing if it was already completed, but resumes 
@@ -195,14 +195,14 @@ foreach my $sample (sort keys(%samples)) {
     # to workspace/pyflow.data/logs/pyflow_log.txt anyways
     $com = "$runDir/runWorkflow.py -m local -j $jobs --quiet";
     if (! $real) {
-	warn "I $0: dryrun, would run strelka for $sample with: $com\n";
+        warn "I $0: dryrun, would run strelka for $sample with: $com\n";
     }
     else {
-	(-e "$runDir/runWorkflow.py") ||
-	    ((warn "I $0: want to run strelka for $sample but runDir $runDir doesn't exist, configure failed??\n") && next);
-	$now = strftime("%F %T", localtime);
-	warn "I $now: $0 - running strelka for $sample\n";
-	system($com);
+        (-e "$runDir/runWorkflow.py") ||
+            ((warn "I $0: want to run strelka for $sample but runDir $runDir doesn't exist, configure failed??\n") && next);
+        $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - running strelka for $sample\n";
+        system($com);
     }
 }
 

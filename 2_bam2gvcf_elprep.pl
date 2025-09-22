@@ -97,10 +97,10 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 --mode [$mode] : elprep mode, filter or sfm (ie split-filter-merge)
 --indir : subdir containing the BAMs
 --samples : comma-separated list of sampleIDs to process, for each sample we expect
-	  [sample].bam and [sample].bam.bai files in indir
+          [sample].bam and [sample].bam.bai files in indir
 --genome : ref genome in elPrep5 elfasta format, with path
 --chroms : optional, if provided it must be a bgzipped and tabix-indexed BED file
-	   defining regions where variants should be called
+           defining regions where variants should be called
 --outdir : dir where GVCF files will be created
 --tmpdir : subdir where tmp files will be created, must not pre-exist and will be removed after execution
 --logdir [$logDir] : dir where elprep logs will be created
@@ -111,17 +111,17 @@ Arguments (all can be abbreviated to shortest unambiguous prefixes):
 
 
 GetOptions ("mode=s" => \$mode,
-	    "indir=s" => \$inDir,
-	    "samples=s" => \$samples,
-	    "genome=s" => \$refGenome,
-	    "chroms=s" => \$chromsBed,
-	    "outdir=s" => \$outDir,
-	    "tmpdir=s" => \$tmpDir,
-	    "logdir=s" => \$logDir,
-	    "elprep=s" => \$elprep,
-	    "jobs=i" => \$jobs, 
-	    "real" => \$real,
-	    "help" => \$help)
+            "indir=s" => \$inDir,
+            "samples=s" => \$samples,
+            "genome=s" => \$refGenome,
+            "chroms=s" => \$chromsBed,
+            "outdir=s" => \$outDir,
+            "tmpdir=s" => \$tmpDir,
+            "logdir=s" => \$logDir,
+            "elprep=s" => \$elprep,
+            "jobs=i" => \$jobs, 
+            "real" => \$real,
+            "help" => \$help)
     or die("E $0: Error in command line arguments\n$USAGE\n");
 
 # make sure required options were provided and sanity check them
@@ -140,8 +140,8 @@ my %samples;
 my $nbSamples = 0;
 foreach my $sample (split(/,/, $samples)) {
     if ($samples{$sample}) {
-	warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
-	next;
+        warn "W $0: sample $sample was specified twice, is that a typo? Ignoring the dupe\n";
+        next;
     }
     $samples{$sample} = 1;
     $nbSamples++;
@@ -153,7 +153,7 @@ foreach my $sample (split(/,/, $samples)) {
 if ($chromsBed) {
     (-f $chromsBed) || die "E $0: provided --chroms file doesn't exist\n";
     (-f "$chromsBed.tbi") || (-f "$chromsBed.csi") ||
-	die "E $0: can't find tabix index for provided --chroms file\n";
+        die "E $0: can't find tabix index for provided --chroms file\n";
 }
 
 ($outDir) || 
@@ -205,10 +205,10 @@ if ($mode eq 'sfm') {
 # { 
 #     my $gqb = 5;
 #     while ($gqb < 80) {
-# 	$cmdEnd .= " -GQB $gqb";
-# 	if ($gqb < 30) { $gqb += 3;}
-# 	elsif ($gqb < 50) { $gqb += 5;}
-# 	else {$gqb += 10;}
+#         $cmdEnd .= " -GQB $gqb";
+#         if ($gqb < 30) { $gqb += 3;}
+#         elsif ($gqb < 50) { $gqb += 5;}
+#         else {$gqb += 10;}
 #     }
 # }
 
@@ -225,13 +225,13 @@ foreach my $sample (sort keys(%samples)) {
     # make sure we have bam and bai files for $sample, otherwise skip
     my $bam = "$inDir/$sample.bam";
     ((-e $bam) && (-e "$bam.bai")) || 
-	((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
+        ((warn "W $0: no BAM or BAI for $sample in inDir $inDir, skipping $sample\n") && next);
 
     # gvcf to produce
     my $gvcf = "$outDir/${sample}.g.vcf.gz";
     # don't squash existing outfiles
     (-e "$gvcf") && 
-	(warn "W $0: GVCF for $sample already exists in outDir $outDir, skipping $sample\n") && next;
+        (warn "W $0: GVCF for $sample already exists in outDir $outDir, skipping $sample\n") && next;
 
     # OK build the full command, sending bamOut to /dev/null and also
     # discarding stderr (it gets duplicated in $logDir)
@@ -241,17 +241,17 @@ foreach my $sample (sort keys(%samples)) {
         warn "I $0: dryrun, would run elPrep5-HaplotypeCaller for $sample with:\n$fullCmd\n";
     }
     else {
-	$pm->start && next;
-	my $now = strftime("%F %T", localtime);
-	warn "I $now: $0 - starting elPrep5-HaplotypeCaller for $sample\n";
+        $pm->start && next;
+        my $now = strftime("%F %T", localtime);
+        warn "I $now: $0 - starting elPrep5-HaplotypeCaller for $sample\n";
         if (system($fullCmd) != 0) {
             $now = strftime("%F %T", localtime);
             warn "E $now: $0 - running elPrep5-HaplotypeCaller for $sample FAILED ($?)! INSPECT THE LOGS IN $logDir\n";
         }
-	else{
-	    $now = strftime("%F %T", localtime);
-	    warn "I $now: $0 - running elPrep5-HaplotypeCaller for $sample completed successfully\n";
-	}
+        else{
+            $now = strftime("%F %T", localtime);
+            warn "I $now: $0 - running elPrep5-HaplotypeCaller for $sample completed successfully\n";
+        }
         $pm->finish;
     }
 }
@@ -260,7 +260,7 @@ $pm->wait_all_children;
 {
     my $now = strftime("%F %T", localtime);
     rmdir($tmpDir) || 
-	die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
+        die "E $now: $0 - all done but cannot rmdir tmpDir $tmpDir, why? $!\n";
     warn "I $now: $0 - ALL DONE\n";
 }
 

@@ -175,8 +175,8 @@ foreach my $sample (sort keys(%$sample2specimenR)) {
     # Macrogen_2021: /${specimen}_1.fastq.gz
     # these are unified into the following globs, update if needed when
     # new datasets arrive (we error out if something is fishy)
-    my @files1 = glob("${inPath}/*/*${specimen}*[_-]R1[_.]fastq.gz ${inPath}/*/*${specimen}_1.fastq.gz ${inPath}/*/*${specimen}_*R1_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_1.fq.gz ${inPath}/*/*${specimen}_[0-9]_1_*.fastq.gz ${inPath}/*/${specimen}_1.fq.gz");
-    my @files2 = glob("${inPath}/*/*${specimen}*[_-]R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz");
+    my @files1 = glob("${inPath}/*/*${specimen}[_-]*R1[_.]fastq.gz ${inPath}/*/*${specimen}_1.fastq.gz ${inPath}/*/*${specimen}_*R1_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_1.fq.gz ${inPath}/*/*${specimen}_[0-9]_1_*.fastq.gz ${inPath}/*/${specimen}_1.fq.gz");
+    my @files2 = glob("${inPath}/*/*${specimen}[_-]*R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz");
 
     (@files1) || 
         ((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);

@@ -301,14 +301,14 @@ foreach my $sample (sort keys(%samples)) {
     # results when running with different numbers of threads!)
     $com .= "$bwa mem -p -t$numThreads -R \'\@RG\\tID:$sample\\tSM:$sample\' -K 100000000 $genome - 2> ${outFile}_bwa.log | ";
 
-    # samblaster: nothing special
-    $com .= "$samblaster 2> ${outFile}_samblaster.log |";
-
     # bwa-kit run-bwamem has a step for dealing correctly with ALT contigs (bwa-postalt.js),
     # we run that script too if --bwakit was provided
     # (see https://github.com/lh3/bwa/blob/master/README-alt.md )
     ($bwakitPostalt) && ($com .= "$bwakitPostalt -p $outFile.hla $genome.alt |");
     
+    # samblaster: nothing special
+    $com .= "$samblaster 2> ${outFile}_samblaster.log |";
+
     # sort with samtools
     $com .= "$samtools sort -\@ $numThreadsCapped -m1G -T $tmpDir -o $outFile.bam - ";
 

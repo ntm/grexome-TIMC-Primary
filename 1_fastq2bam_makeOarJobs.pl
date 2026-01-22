@@ -23,7 +23,7 @@
 # 19/06/2019
 # NTM
 #
-# submit fastq2bam jobs on the dahu cluster with OAR.
+# Submit fastq2bam jobs on a cluster with OAR.
 # Not sure if this script can be useful outside our organization:
 # it would need adapting for a different batch scheduler and/or
 # cluster, paths and filename patterns are hard-coded (eg samples
@@ -40,7 +40,7 @@ use warnings;
 
 
 # number of samples to process in a single OAR job
-my $samplesPerJob = 4;
+my $samplesPerJob = 40;
 
 (@ARGV == 2) || die "E: need two ints as arguments, first and last\n";
 my ($first,$last) = @ARGV;
@@ -54,26 +54,33 @@ my ($first,$last) = @ARGV;
 #################################
 # hard-coded stuff
 
-# number of cores/threads (16 on dahu is nice)
-my $threads = 16;
-
 # hard-coded dirs:
 # log to $logDir
-my $logDir = "/home/thierryn/Fastq2Bam_Dahu_stdouterr/";
+my $logDir = "/home/thierryn/Fastq2Bam_stdouterr/";
 (-d $logDir) || mkdir($logDir) || 
     die "E: logDir $logDir doesn't exist and can't be mkdir'd\n";
 # binaries are in $binDir
-my $binDir = "/home/thierryn/Fastq2Bam_PackagedWithBinaries/";
+my $binDir = "/home/thierryn/Software/Fastq2Bam/";
 # fastqs are in $inDir
 my $inDir = "/bettik/thierryn/FASTQs_All_Grexomized/";
 # produce bams in $outDir
-my $outDir = "/bettik/thierryn/BAMs_Dahu/";
+my $outDir = "/bettik/thierryn/BAMs_grexome/";
 # ref genome
 my $genome = "/bettik/thierryn/HumanGenome/hs38DH.fa";
 
+# OAR resources:
+# number of cores/threads (16 on dahu was nice, let's try 48 (ie two "numa nodes") on kraken),
+# $threads and $resources must correspond, this depends on the architecture of the cluster nodes
+my $threads = 48;
+my $resources = "/nodes=1/cpu=1/numa=2";
+# alternative: $resources = "/core=$threads" and then rely on the [ANTIFRAG] rule
+# to run the job on a single CPU and full numa nodes
+
 # oarsub command with params:
-# run on my project ngs-timc, ask for 16 cores on 1 node, 3h walltime max (should be enough for 4 samples)
-my $oarBase = "oarsub --project ngs-timc -l /nodes=1/core=$threads,walltime=3 ";
+# run on my project ngs-timc, ask for $resources and 7h walltime max (must be
+# enough for $samplesPerJob samples, 6h was barely enough in 21/01/26 run, 
+# 7h should be fine for any future jobs on the same cluster)
+my $oarBase = "oarsub --project ngs-timc -l $resources,walltime=7 ";
 
 
 #################################
@@ -91,10 +98,11 @@ foreach my $gNum ($first..$last) {
     if ((@samples == $samplesPerJob) || ($gNum == $last)) {
         # choose stdout and stderr filenames
         my $sampsString = $samples[0]."-".$samples[$#samples];
-        my $oar = $oarBase."-O $logDir/fastq2bam.$sampsString.out -E $logDir/fastq2bam.$sampsString.err ";
-        $oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --samples ";
+        my $oar = $oarBase."-O $logDir/fastq2bam.$sampsString.$threads.out -E $logDir/fastq2bam.$sampsString.$threads.err ";
+        $oar .= "\"perl $binDir/1_fastq2bam.pl --out $outDir --in $inDir --tmp /var/tmp/$sampsString --samples ";
         $oar .= join(',', @samples);
-        $oar .= " --bin $binDir --bwakit $binDir --threads $threads --genome $genome --real\"";
+        # no more "--bwakit $binDir" , it is super slow and doesn't seem useful for us
+        $oar .= " --bin $binDir --threads $threads --genome $genome --real\"";
         system($oar);
         @samples = ();
     }

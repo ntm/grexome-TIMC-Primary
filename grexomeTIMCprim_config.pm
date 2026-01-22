@@ -38,7 +38,7 @@ our @ISA = ('Exporter');
 # customized *config.pm as an argument, see --config in grexome-TIMC-primary.pl
 # for an example.
 our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeChromsBed 
-		    fastTmpPath binPath bwakitPath strelkaBin deepVariantSIF gatkBin elprepBin);
+                    fastTmpPath binPath bwakitPath strelkaBin deepVariantSIF gatkBin elprepBin);
 
 
 #################################################################
@@ -50,8 +50,8 @@ our @EXPORT_OK = qw(dataDir fastqDir mirror refGenome refGenomeElPrep refGenomeC
 # to change, but &dataDir() certainly does.
 sub dataDir {
     foreach my $dataDir ("/data/nthierry/PierreRay/",
-			 "/home/nthierry/PierreRay_DATA/") {
-	(-d $dataDir) && return($dataDir);
+                         "/home/nthierry/PierreRay_DATA/") {
+        (-d $dataDir) && return($dataDir);
     }
     # if we get here no file was found...
     die "E: no dataDir found, you need to edit *config.pm";
@@ -90,10 +90,10 @@ sub refGenome {
     # return the first file that exists, so this works on
     # all our servers
     foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.fa",
-			"/data/HumanGenome/hs38DH.fa",
-			"/bettik/nthierry/HumanGenome/hs38DH.fa",
-			"/home/nthierry/DATA/HumanGenome/hs38DH.fa") {
-	(-f $genome) && return($genome);
+                        "/data/HumanGenome/hs38DH.fa",
+                        "/bettik/nthierry/HumanGenome/hs38DH.fa",
+                        "/home/nthierry/DATA/HumanGenome/hs38DH.fa") {
+        (-f $genome) && return($genome);
     }
     # if we get here no file was found...
     die "E: no refGenome found, you need to edit *config.pm";
@@ -106,10 +106,10 @@ sub refGenomeElPrep {
     # return the first file that exists, so this works on
     # all our servers
     foreach my $genome ("/home/nthierry/HumanGenome/hs38DH.elfasta",
-			"/data/HumanGenome/hs38DH.elfasta",
-			"/bettik/nthierry/HumanGenome/hs38DH.elfasta",
-			"/home/nthierry/DATA/HumanGenome/hs38DH.fa") {
-	(-f $genome) && return($genome);
+                        "/data/HumanGenome/hs38DH.elfasta",
+                        "/bettik/nthierry/HumanGenome/hs38DH.elfasta",
+                        "/home/nthierry/DATA/HumanGenome/hs38DH.fa") {
+        (-f $genome) && return($genome);
     }
     # if we get here no file was found...
     die "E: no refGenome.elfasta found, you need to edit *config.pm";
@@ -127,13 +127,13 @@ sub refGenomeChromsBed {
     # It most likely needs to be adapted to your file naming conventions, or just commented out
     my $chroms = &refGenome();
     if ($chroms !~ s/hs38DH.fa$/hs38_chroms.bed.gz/) {
-	warn "W: in refGenomeChromsBed, cannot build BED filename, you should edit grexomeTIMCprim_config.pm";
+        warn "W: in refGenomeChromsBed, cannot build BED filename, you should edit grexomeTIMCprim_config.pm";
     }
     elsif (! -f $chroms) {
-	warn "W: in refGenomeChromsBed, $chroms doesn't exist, you should edit grexomeTIMCprim_config.pm";
+        warn "W: in refGenomeChromsBed, $chroms doesn't exist, you should edit grexomeTIMCprim_config.pm";
     }
     else {
-	$chromsBed = $chroms;
+        $chromsBed = $chroms;
     }
     return($chromsBed);
 }
@@ -149,7 +149,7 @@ sub refGenomeChromsBed {
 ### tmpfs /mnt/RamDisk tmpfs size=96g 0 0
 sub fastTmpPath {
     foreach my $ramdisk ("/mnt/RamDisk/", "/var/tmp") {
-	(-d $ramdisk) && return($ramdisk);
+        (-d $ramdisk) && return($ramdisk);
     }
     # if we get here no dir was found...
     die "E: no fastTmpPath found, you need to edit *config.pm";
@@ -201,7 +201,7 @@ sub strelkaBin {
 sub deepVariantSIF {
     my $dvSif = "/home/nthierry/Software/DeepVariant/deepvariant_1.4.0.sif";
     (-f $dvSif) ||
-	die "E: deepVariant singularity image $dvSif not found, you need to edit *config.pm";
+        die "E: deepVariant singularity image $dvSif not found, you need to edit *config.pm";
     return($dvSif);
 }
 

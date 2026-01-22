@@ -23,7 +23,7 @@
 # 08/10/2020
 # NTM
 #
-# submit bam2gvcf_gatk.pl jobs on the dahu cluster with OAR.
+# submit bam2gvcf_gatk.pl jobs on an OAR cluster.
 # Not sure if this script can be useful outside our organization:
 # it would need adapting for a different batch scheduler and/or
 # cluster, paths and filename patterns are hard-coded (eg samples
@@ -42,8 +42,7 @@ use warnings;
 
 
 # max number of grexomes to process in a single OAR job:
-# trying to run 8 samples in parallel on a 16-core resource in 8h
-my $samplesPerJob = 8;
+my $samplesPerJob = 24;
 
 (@ARGV == 2) || die "E: need two ints as arguments, first and last\n";
 my ($first,$last) = @ARGV;
@@ -58,16 +57,13 @@ my ($first,$last) = @ARGV;
 #################################
 # hard-coded stuff
 
-# number of cores/threads (16 on dahu is nice)
-my $jobs = 16;
-
 # hard-coded dirs:
 # log to $logDir
 my $logDir = "/home/thierryn/Bam2gvcf_GATK_stdouterr/";
 (-d $logDir) || mkdir($logDir) || 
     die "E: logDir $logDir doesn't exist and can't be mkdir'd\n";
 # path to bam2gvcf_gatk.pl
-my $bam2gvcf = "/home/thierryn/Bam2gvcf_GATK/2_bam2gvcf_gatk.pl";
+my $bam2gvcf = "/home/thierryn/Software/Bam2gvcf_GATK/2_bam2gvcf_gatk.pl";
 # bams are in $inDir
 my $inDir = "/bettik/thierryn/BAMs_All_Selected/";
 # produce gvcfs in $outDir
@@ -85,9 +81,7 @@ my $gatk = 'singularity exec';
 # /home/thierryn/ is bound by default
 $gatk .= ' --bind /bettik/thierryn/';
 # path/to/image
-$gatk .= ' /home/thierryn/Bam2gvcf_GATK/gatk-latest.sif';
-# running from the sif doesn't work, trying a sandbox
-# $gatk .= ' ~/gatk_4.1.8.1_SANDBOX';
+$gatk .= ' /home/thierryn/Software/Bam2gvcf_GATK/gatk_latest.sif';
 
 # run gatk in bash -c with leading "( so we can capture stderr... $bam2gvcf must
 # close the paren and quote after redirecting stderr
@@ -95,8 +89,14 @@ $gatk .= ' bash -c \" ( gatk';
 
 # oarsub command with params: run on my project ngs-timc, and...
 my $oarBase = "oarsub --project ngs-timc";
-# many samples: ask for 16 cores on 1 node, 8h walltime (should be enough for 8 samples)
-$oarBase .= " -l /nodes=1/core=$jobs,walltime=8 ";
+
+# number of cores/threads (16 on dahu was nice, trying 48 ie two "numa nodes" on kraken),
+# $jobs and $resources must correspond, this depends on the architecture of the cluster nodes
+my $jobs = 48;
+my $resources = "/nodes=1/cpu=1/numa=2";
+
+# trying to run 24 samples in parallel on a 48-core resource in 6h
+$oarBase .= " -l $resources,walltime=6 ";
 # for a single sample: 4 cores on 1 node for 12h:
 ## $oarBase .= " -l /nodes=1/core=4,walltime=12 ";
 

@@ -455,10 +455,12 @@ sub processBatch {
     my ($linesR,$outFH,$filterParamsR,$skippedColsR,$keepHR,$verbose) = @_;
 
     # counters for number of blatant errors fixed to HV or HET, and for fixed DPs
+    # and strand-discordant calls fixed to NOCALL
     my $fixedToHV = 0;
     my $fixedToHET = 0;
     my $fixedDP = 0;
-
+    my $discordant = 0;
+    
     # delay printing lines so we can decrement END= if needed
     # (to work-around strelka bug: indels can be preceded by HR calls
     # at the same POS or by non-variant blocks whose END= goes one too far)
@@ -683,7 +685,37 @@ sub processBatch {
                 }
             }
 
-            # other filters (eg strandDisc) could go here
+            # filter strand-discordant calls: if ADF and ADR are available (eg Strelka, but not GATK),
+            # fix HET/HV to NOCALL when one strand is clearly HR
+            if (($geno2 != 0)  && (defined $format{"ADF"}) && (defined $thisData[$format{"ADF"}]) &&
+                (defined $format{"ADR"}) && (defined $thisData[$format{"ADR"}])) {
+                (($thisData[$format{"ADF"}] =~ /^[\d,]+$/) && ($thisData[$format{"ADR"}] =~ /^[\d,]+$/)) ||
+                    die "E $0: we have ADF and ADR but data is BAD in @thisData - line is $line\n";
+                my @adfs = split(/,/, $thisData[$format{"ADF"}]);
+                my @adrs = split(/,/, $thisData[$format{"ADR"}]);
+                my ($sumOfADFs, $sumOfADRs) = (0, 0);
+                foreach my $ad (@adfs) {
+                    $sumOfADFs += $ad;
+                }
+                 foreach my $ad (@adrs) {
+                    $sumOfADRs += $ad;
+                }
+                if ((($sumOfADFs >= $filterParamsR->{"minDP"}) &&
+                     (($adfs[0] / $sumOfADFs) > (1 - $filterParamsR->{"minAF"}))) ||
+                    (($sumOfADRs >= $filterParamsR->{"minDP"}) &&
+                     (($adrs[0] / $sumOfADRs) > (1 - $filterParamsR->{"minAF"})))) {
+                    # one of the strands is a clear HR, change to NOCALL
+                    $discordant++;
+                    if ($verbose >= 2) {
+                        # warn with chrom pos ref > alts sample thisData
+                        warn "I $0: strand-discordant->NOCALL, $data[0]:$data[1] $data[3] > $data[4] sample ".($i-9)." thisData\n";
+                    }
+                    push(@lineToPrint, './.') ;
+                    next;
+                }
+            }
+            
+            # other filters could go here
 
             # OK data passed all filters, add/move fields (AF, DP) if needed, careful
             # with order of splices!
@@ -800,6 +832,7 @@ sub processBatch {
         ($fixedToHV) && (warn "I $0: fixed $fixedToHV calls from HET to HV\n");
         ($fixedToHET) && (warn "I $0: fixed $fixedToHET calls from HV to HET\n");
         ($fixedDP) && (warn "I $0: fixed $fixedDP DP values to sumOfADs (was larger)\n");
+        ($discordant) && (warn "I $0: fixed $discordant strand-discordant calls to NOCALL\n");
     }
 }
 

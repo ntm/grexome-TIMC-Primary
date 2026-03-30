@@ -708,7 +708,7 @@ sub processBatch {
                     $discordant++;
                     if ($verbose >= 2) {
                         # warn with chrom pos ref > alts sample thisData
-                        warn "I $0: strand-discordant->NOCALL, $data[0]:$data[1] $data[3] > $data[4] sample ".($i-9)." thisData\n";
+                        warn "I $0: strand-discordant->NOCALL, $data[0]:$data[1] $data[3] > $data[4] sample ".($i-9)." $thisData\n";
                     }
                     push(@lineToPrint, './.') ;
                     next;

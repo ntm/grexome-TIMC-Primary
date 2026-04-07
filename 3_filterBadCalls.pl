@@ -687,9 +687,9 @@ sub processBatch {
                 }
                 # GATK has SB (strelka also has SB but meaning is different, it doesn't have 4 comma-separated ints)
                 elsif ((defined $format{"SB"}) && (defined $thisData[$format{"SB"}]) &&
-                       (($thisData[$format{"SB"}] =~ /^(\d+),(\d+),(\d+),(\d+)$/))) {
-                    @adfs = ($0, $2);
-                    @adrs = ($1, $3);
+                       ($thisData[$format{"SB"}] =~ /^(\d+),(\d+),(\d+),(\d+)$/)) {
+                    @adfs = ($1, $3);
+                    @adrs = ($2, $4);
                 }
 
                 if (@adfs) {

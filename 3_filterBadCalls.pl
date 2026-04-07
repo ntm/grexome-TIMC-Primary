@@ -108,7 +108,7 @@ my $batchSize = 500000;
 # if max(GQ,GQX) < $minGQ , any call becomes NOCALL
 # if AF < $minAF and call was REF/VAR or VAR/VAR, call becomes NOCALL
 # if strand-specific counts are available and on one of the strands, depth >= $minDP
-#     and af <= $maxAF_DISC, call becomes NOCALL
+#     and af < $minAF_STRAND, call becomes NOCALL
 # if $dp >= $minDP_HV and AF >= $minAF_HV , call becomes HV
 # if $dp >= $minDP_HET and AF >= $minAF_HET and AF <= $maxAF_HET, call becomes HET
 my %filterParams = (
@@ -116,7 +116,7 @@ my %filterParams = (
     "minAD" => 4,
     "minGQ" => 20,
     "minAF" => 0.15,
-    "maxAF_DISC" => 0.1,
+    "minAF_STRAND" => 0.08,
     "minDP_HV" => 20,
     "minAF_HV" => 0.90,
     "minDP_HET" => 20,
@@ -701,9 +701,9 @@ sub processBatch {
                         $sumOfADRs += $ad;
                     }
                     if ((($sumOfADFs >= $filterParamsR->{"minDP"}) &&
-                         (($adfs[0] / $sumOfADFs) <= $filterParamsR->{"maxAF_DISC"})) ||
+                         ((($sumOfADFs - $adfs[0]) / $sumOfADFs) < $filterParamsR->{"minAF_STRAND"})) ||
                         (($sumOfADRs >= $filterParamsR->{"minDP"}) &&
-                         (($adrs[0] / $sumOfADRs) <= $filterParamsR->{"maxAF_DISC"}))) {
+                         ((($sumOfADRs - $adrs[0]) / $sumOfADRs) < $filterParamsR->{"minAF_STRAND"}))) {
                         # one of the strands is a clear HR, change to NOCALL
                         $discordant++;
                         if ($verbose >= 2) {

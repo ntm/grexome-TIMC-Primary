@@ -265,7 +265,7 @@ my $haveSex = 0;
 
 {
     my @parsed = &parseSamples($samplesFile);
-    (@parsed == 5) && ($haveSex=1);
+    (@parsed == 6) && ($haveSex=1);
     my $s2pathoR = $parsed[0];
     foreach my $s (keys %$s2pathoR) {
         $samples{$s} = 1;

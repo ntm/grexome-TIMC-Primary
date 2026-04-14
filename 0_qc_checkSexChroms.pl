@@ -141,10 +141,10 @@ my $sample2cohortR;
 my $sample2sexR;
 {
     my @parsed = &parseSamples($samplesFile);
-    (@parsed == 5) ||
+    (@parsed == 6) ||
         die "E $0: need to know the sex of each patient but there's no Sex column in $samplesFile";
     $sample2cohortR = $parsed[0];
-    $sample2sexR = $parsed[4];
+    $sample2sexR = $parsed[5];
 }
 
 # parse counts from $prevQC if provided, save in %resultsPrev

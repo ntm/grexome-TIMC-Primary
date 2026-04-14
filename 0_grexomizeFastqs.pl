@@ -139,10 +139,13 @@ else {
 
 # $sample2specimenR : hashref, key is sampleID, value is specimenID
 my $sample2specimenR;
+# $obsoleteSpecimensR: ref to array of obsolete specimenIDs (sampleID==0)
+my $obsoleteSpecimensR;
 
 {
     my @parsed = &parseSamples($samplesFile);
     $sample2specimenR = $parsed[1];
+    $obsoleteSpecimensR = $parsed[4];
 }
 
 
@@ -153,102 +156,112 @@ my $sample2specimenR;
 # key == infile (as found by the glob), value == $sample if file was already used
 my %infilesDone = ();
 
-foreach my $sample (sort keys(%$sample2specimenR)) {
-    my $specimen = $sample2specimenR->{$sample};
-
-    # precise filename patterns for each dataset:
-    # strasbourg: /${specimen}-R1.fastq.gz
-    # integragen: /Sample_${specimen}_R1_fastq.gz
-    # FV: /${specimen}_*_R1_001.fastq.gz
-    # genoscope13: /G430_CP_${specimen}_[0-9]_1_*.fastq.gz
-    # genoscope14 and 15: /E487_CP_${specimen}_[0-9]_1_*.fastq.gz
-    # novo16: /s${specimen}_*_1.fq.gz
-    # novo17: /P${specimen}_*_1.fq.gz
-    # novo19: /${specimen}_*_1.fq.gz
-    # Biomnis19: /${specimen}_*_R1_001.fastq.gz
-    # IBP_2019: /${specimen}_R1_001.fastq.gz (they fucked up the names with i for 1 but I fixed it)
-    # IBP_2019 second batch (01/08/2019): /${specimen}_R1.fastq.gz
-    # IBP_2019 later batches (10/11/2020): /${specimen}_*_R1_001.fastq.gz
-    # IBP_2019 auto-uploaded batches (04/01/2023): /INF-${specimen}_*_R1_001.fastq.gz
-    # IBP_2019 re-sequenced botched samples (20/01/2023): /INF-${specimen}BIS_*_R1_001.fastq.gz
-    # BGI_2021: /\w+_L\d_{$specimen}-\d+_1.fq.gz (eg: V300096729_L4_B5EHUMazpEBAAIBAA-522_1.fq.gz)
-    # Macrogen_2021: /${specimen}_1.fastq.gz
-    # these are unified into the following globs, update if needed when
-    # new datasets arrive (we error out if something is fishy)
-    my @files1 = glob("${inPath}/*/*${specimen}[_-]*R1[_.]fastq.gz ${inPath}/*/*${specimen}_1.fastq.gz ${inPath}/*/*${specimen}_*R1_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_1.fq.gz ${inPath}/*/*${specimen}_[0-9]_1_*.fastq.gz ${inPath}/*/${specimen}_1.fq.gz");
-    my @files2 = glob("${inPath}/*/*${specimen}[_-]*R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz");
-
-    (@files1) || 
-        ((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);
-    (@files1 == @files2) || 
-        die "E: different numbers of files for the 2 paired-ends of $sample == specimen $specimen:\n@files1\n@files2\n";
-
-    # make sure these files haven't been seen before
-    foreach my $f (@files1, @files2) {
-        (defined $infilesDone{$f}) &&
-            die "E: infile $f found for $sample == specimen $specimen, but it was previously used for $infilesDone{$f}! check the logs for it! Then fix the globs\n";
-        $infilesDone{$f} = $sample;
+foreach my $sample (sort(keys(%$sample2specimenR)), "0") {
+    # ugly trick to homogeneously deal with obsoletes and live samples
+    my @specimens;
+    if ($sample eq "0") {
+        @specimens = @$obsoleteSpecimensR;
     }
-
-    if ((-e "$parentDir$outDir/${sample}_1.fq.gz") && (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
-        # 09/09/2019: don't INFO when skipping, it's too much noise
-        # warn "I: skipping $sample == specimen $specimen because grexomized fastqs already exist\n";
-        next;
-    }
-    elsif ((-e "$parentDir$outDir/${sample}_1.fq.gz") || (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
-        die "E: $sample already has one grexomized FASTQ but not the other! Something is wrong, investigate!\n";
-    }
-    # else keep going, need to make the symlinks/files
-
-    if (@files1 == 1) {
-        # prepare symlink target names
-        my $f1 = $files1[0];
-        my $f2 = $files2[0];
-        # replace $inPath with ../$lastDir/
-        ($f1 =~ s~^$inPath~../$lastDir/~) || 
-            die "E: cannot replace inPath $inPath from file1 $f1 for specimen $specimen == $sample\n";
-        ($f2 =~ s~^$inPath~../$lastDir/~) || 
-            die "E: cannot replace inPath $inPath from file2 $f2 for specimen $specimen == $sample\n";
-
-        my $com = "cd $parentDir$outDir/; ln -s $f1 ${sample}_1.fq.gz ; ln -s $f2 ${sample}_2.fq.gz" ;
-
-        if (! $real) {
-            warn "I: dryrun, would run: $com\n";
-        }
-        else {
-            warn "I: single pair of files for $sample, symlinking with: $com\n";
-            system($com);
-        }
-    }
-
     else {
-        # several pairs of files, need to cat them
-        my $com1 = "cat @files1 > $parentDir$outDir/${sample}_1.fq.gz";
-        my $com2 = "cat @files2 > $parentDir$outDir/${sample}_2.fq.gz";
+        @specimens = ($sample2specimenR->{$sample});
+    }
 
-        if (! $real) {
-            warn "I: dryrun, would run: $com1\n";
-            warn "I: dryrun, would then run: $com2\n";
+    foreach my $specimen (@specimens) {
+        # precise filename patterns for each dataset:
+        # strasbourg: /${specimen}-R1.fastq.gz
+        # integragen: /Sample_${specimen}_R1_fastq.gz
+        # FV: /${specimen}_*_R1_001.fastq.gz
+        # genoscope13: /G430_CP_${specimen}_[0-9]_1_*.fastq.gz
+        # genoscope14 and 15: /E487_CP_${specimen}_[0-9]_1_*.fastq.gz
+        # novo16: /s${specimen}_*_1.fq.gz
+        # novo17: /P${specimen}_*_1.fq.gz
+        # novo19: /${specimen}_*_1.fq.gz
+        # Biomnis19: /${specimen}_*_R1_001.fastq.gz
+        # IBP_2019: /${specimen}_R1_001.fastq.gz (they fucked up the names with i for 1 but I fixed it)
+        # IBP_2019 second batch (01/08/2019): /${specimen}_R1.fastq.gz
+        # IBP_2019 later batches (10/11/2020): /${specimen}_*_R1_001.fastq.gz
+        # IBP_2019 auto-uploaded batches (04/01/2023): /INF-${specimen}_*_R1_001.fastq.gz
+        # IBP_2019 re-sequenced botched samples (20/01/2023): /INF-${specimen}BIS_*_R1_001.fastq.gz
+        # BGI_2021: /\w+_L\d_{$specimen}-\d+_1.fq.gz (eg: V300096729_L4_B5EHUMazpEBAAIBAA-522_1.fq.gz)
+        # Macrogen_2021: /${specimen}_1.fastq.gz
+        # these are unified into the following globs, update if needed when
+        # new datasets arrive (we error out if something is fishy)
+        my @files1 = glob("${inPath}/*/*${specimen}[_-]*R1[_.]fastq.gz ${inPath}/*/*${specimen}_1.fastq.gz ${inPath}/*/*${specimen}_*R1_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_1.fq.gz ${inPath}/*/*${specimen}_[0-9]_1_*.fastq.gz ${inPath}/*/${specimen}_1.fq.gz");
+        my @files2 = glob("${inPath}/*/*${specimen}[_-]*R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz");
+
+        (@files1) || ($sample eq "0") ||
+            ((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);
+        (@files1 == @files2) || 
+            die "E: different numbers of files for the 2 paired-ends of $sample == specimen $specimen:\n@files1\n@files2\n";
+
+        # make sure these files haven't been seen before
+        foreach my $f (@files1, @files2) {
+            (defined $infilesDone{$f}) &&
+                die "E: infile $f found for $sample == specimen $specimen, but it was previously used for $infilesDone{$f}! check the logs for it! Then fix the globs\n";
+            $infilesDone{$f} = $sample;
         }
+
+        if ($sample eq "0") {
+            # obsolete specimenID, nothing more to do
+            next;
+        }
+        elsif ((-e "$parentDir$outDir/${sample}_1.fq.gz") && (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
+            # 09/09/2019: don't INFO when skipping, it's too much noise
+            # warn "I: skipping $sample == specimen $specimen because grexomized fastqs already exist\n";
+            next;
+        }
+        elsif ((-e "$parentDir$outDir/${sample}_1.fq.gz") || (-e "$parentDir$outDir/${sample}_2.fq.gz")) {
+            die "E: $sample already has one grexomized FASTQ but not the other! Something is wrong, investigate!\n";
+        }
+        # else keep going, need to make the symlinks/files
+
+        if (@files1 == 1) {
+            # prepare symlink target names
+            my $f1 = $files1[0];
+            my $f2 = $files2[0];
+            # replace $inPath with ../$lastDir/
+            ($f1 =~ s~^$inPath~../$lastDir/~) || 
+                die "E: cannot replace inPath $inPath from file1 $f1 for specimen $specimen == $sample\n";
+            ($f2 =~ s~^$inPath~../$lastDir/~) || 
+                die "E: cannot replace inPath $inPath from file2 $f2 for specimen $specimen == $sample\n";
+
+            my $com = "cd $parentDir$outDir/; ln -s $f1 ${sample}_1.fq.gz ; ln -s $f2 ${sample}_2.fq.gz" ;
+
+            if (! $real) {
+                warn "I: dryrun, would run: $com\n";
+            }
+            else {
+                warn "I: single pair of files for $sample, symlinking with: $com\n";
+                system($com);
+            }
+        }
+
         else {
-            warn "I: starting cat of $sample with command: $com1\n";
-            system($com1);
-            warn "I: finishing cat of $sample with command: $com2\n";
-            system($com2);
+            # several pairs of files, need to cat them
+            my $com1 = "cat @files1 > $parentDir$outDir/${sample}_1.fq.gz";
+            my $com2 = "cat @files2 > $parentDir$outDir/${sample}_2.fq.gz";
+
+            if (! $real) {
+                warn "I: dryrun, would run: $com1\n";
+                warn "I: dryrun, would then run: $com2\n";
+            }
+            else {
+                warn "I: starting cat of $sample with command: $com1\n";
+                system($com1);
+                warn "I: finishing cat of $sample with command: $com2\n";
+                system($com2);
+            }
         }
     }
 }
 
+# nbInfiles processed, includes skipped obsoletes
 my $nbInfiles = scalar(keys(%infilesDone));
 my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
 chomp($nbFqFiles);
-# some grexomes have been obsoleted because they were dupes,
-# the corresponding FASTQs are still there, don't warn about them.
-# number of obsolete FASTQ files: hard-coded here, 
-my $nbObsoleteFiles = 74;
-if ($nbInfiles + $nbObsoleteFiles == $nbFqFiles) {
-    warn "\nI: nb of examined ($nbInfiles) + skipped obsolete ($nbObsoleteFiles) FASTQ files == nbFqFiles found with ls|wc, good!\n";
+if ($nbInfiles == $nbFqFiles) {
+    warn "\nI: nb of examined FASTQ files ($nbInfiles) == nbFqFiles found with ls|wc, good!\n";
 }
 else {
-    warn "\nW: examined $nbInfiles FASTQs and skipped $nbObsoleteFiles obsoletes, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
+    warn "\nW: examined $nbInfiles FASTQs, but we actually have $nbFqFiles! why didn't we examine them all? check this!!\n";
 }

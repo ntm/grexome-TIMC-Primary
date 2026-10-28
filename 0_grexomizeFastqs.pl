@@ -186,8 +186,8 @@ foreach my $sample (sort(keys(%$sample2specimenR)), "0") {
         # Macrogen_2021: /${specimen}_1.fastq.gz
         # these are unified into the following globs, update if needed when
         # new datasets arrive (we error out if something is fishy)
-        my @files1 = glob("${inPath}/*/*${specimen}[_-]*R1[_.]fastq.gz ${inPath}/*/*${specimen}_1.fastq.gz ${inPath}/*/*${specimen}_*R1_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_1.fq.gz ${inPath}/*/*${specimen}_[0-9]_1_*.fastq.gz ${inPath}/*/${specimen}_1.fq.gz");
-        my @files2 = glob("${inPath}/*/*${specimen}[_-]*R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz");
+        my @files1 = glob("${inPath}/*/*${specimen}[_-]*R1[_.]fastq.gz ${inPath}/*/*${specimen}_1.fastq.gz ${inPath}/*/*${specimen}_*R1_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_1.fq.gz ${inPath}/*/*${specimen}_[0-9]_1_*.fastq.gz ${inPath}/*/${specimen}_1.fq.gz ${inPath}/${specimen}_1_*DUAL*.fastq.gz");
+        my @files2 = glob("${inPath}/*/*${specimen}[_-]*R2[_.]fastq.gz ${inPath}/*/*${specimen}_2.fastq.gz ${inPath}/*/*${specimen}_*R2_001.fastq.gz ${inPath}/*/*${specimen}[_-]*_2.fq.gz ${inPath}/*/*${specimen}_[0-9]_2_*.fastq.gz ${inPath}/*/${specimen}_2.fq.gz ${inPath}/${specimen}_2_*DUAL*.fastq.gz");
 
         (@files1) || ($sample eq "0") ||
             ((warn "W: no files found for $sample == specimen $specimen, fix the globs, skipping this sample for now\n") && next);
@@ -257,7 +257,7 @@ foreach my $sample (sort(keys(%$sample2specimenR)), "0") {
 
 # nbInfiles processed, includes skipped obsoletes
 my $nbInfiles = scalar(keys(%infilesDone));
-my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz | wc -l` ;
+my $nbFqFiles = `cd $inPath ; /bin/ls -1 */*.gz *.gz | wc -l` ;
 chomp($nbFqFiles);
 if ($nbInfiles == $nbFqFiles) {
     warn "\nI: nb of examined FASTQ files ($nbInfiles) == nbFqFiles found with ls|wc, good!\n";

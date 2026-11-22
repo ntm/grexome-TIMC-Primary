@@ -24,7 +24,7 @@
 # NTM
 
 # Take as arg a filename containing a list of GVCF filenames (with full path, 
-# possible bgzipped, one file per line) with one or more data columns (ie samples).
+# possibly bgzipped, one file per line) with one or more data columns (ie samples).
 # These GVCFs should be produced by Strelka, GATK4, deepVariant or ElPrep, preferably
 # cleaned up by filterBadCalls.pl, and/or by this program.
 # If you feed random GVCF files you will probably need to adapt the code (although
@@ -46,8 +46,7 @@
 # - any remaining (adjusted) chrom:pos line from any infile will appear in the output, with:
 #   ID set to '.';
 #   the longest REF from all infiles;
-#   all ALTs from all infiles, adjusted to fit the longest REF (append extra 
-#      bases if needed);
+#   all ALTs from all infiles, adjusted to fit the longest REF (append extra bases if needed);
 #   QUAL and FILTER replaced by '.'
 #   INFO replaced by '.' except for non-variant blocks:
 #      * if all infiles have overlapping blocks, we produce a new block covering the intersection
@@ -303,19 +302,33 @@ my @numSamples;
 # print the sample-column IDs from all files.
 my $headerEnd = "$addToHeader";
 
-# copy header from first file
+# array of contigs listed in the header of the first file
+my @contigs = ();
+# hash of these contigs, for making sure subsequent files don't have
+# data with other contigs (key==contig, value==1)
+my %contigOK = ();
+
+# copy header from first file and build list of contigs
 my $infile = $infiles[0];
 while(my $line = <$infile>) {
     if (($line =~ /^##INFO/) && ($line !~ /^##INFO=<ID=END,/) && ($line !~ /^##INFO=<ID=BLOCKAVG_min30p3a,/)) {
         next;
     }
-    elsif (($cleanHeaders) && ($line =~ /^##contig=<ID=([^,]+),/)) {
+    elsif ($line =~ /^##contig=<ID=([^,]+),/) {
         my $contig = $1;
-        $contig =~ s/^chr//;
-        if (($contig =~ /^\d+$/) || ($contig =~ /^[XYM]$/) || ($contig =~ /^MT$/)) {
+        push(@contigs, $contig);
+        $contigOK{$contig} = 1;
+        if ($cleanHeaders) {
+            $contig =~ s/^chr//;
+            if (($contig =~ /^\d+$/) || ($contig =~ /^[XYM]$/) || ($contig =~ /^MT$/)) {
+                print $line;
+            }
+            # otherwise this is not a regular chrom, don't print
+        }
+        else {
+            # without --cleanHeaders we print all ##contig lines
             print $line;
         }
-        # otherwise this is not a regular chrom, don't print
     }
     elsif ($line =~ /^##/) {
         print $line;
@@ -395,175 +408,176 @@ foreach  my $i (0..$#infiles) {
     # every infile must have at least one non-filtered dataline
     ($lineR) || 
         die "E $0: infile $i doesn't have ANY non-filtered dataline?? Something must be wrong";
+    ($contigOK{$lineR->[0]}) ||
+        die "E $0: infile $i, CHROM in first non-filtered dataline is not a known contig";
     push(@startNextBatch, $lineR);
 }
 
 # need $batchNum for the tmpFiles
 my $batchNum = 0;
 
-# index of first file that still has at least one line
-my $firstFile = 0;
-
-# key== a CHROM that we believe we are done with, value==1
-# this allows to catch cases where the $firstFile doesn't contain
-# any line for a chrom but has lines for subsequent chroms.
-# Currently if this happens we just die, implementing a correct
-# processing of this corner-case isn't trivial and I don't expect 
-# it to happen...
-my %chromsDone;
-
 # timestamp for batchSizeAdaptive strategy
 my $timestampAdaptive = time();
 
-while ($firstFile <= $#infiles) {
-    # precondition: we must have a line for file $firstFile in @startNextBatch
-    $batchNum++;
-    if (($batchSizeAdaptive) && ($batchNum % ($jobs-1) == 0) && ($batchNum >= $jobs)) {
-        # jobs-1 because we want #workerThreads, excluding the eatTmpFiles job
-        # $batchNum >= $jobs so we don't adjust on first batch of workers
-        my $newTime = time();
-        my $elapsed = $newTime - $timestampAdaptive;
-        if ($elapsed < $batchTimeLow) {
-            # increase batchSize by factor (1.2 * $btLow / $elapsed)
-            $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
-            # however, never exceed $maxIV, otherwise when looping on 1..$batchSize we
-            # get an error "Range iterator outside integer range"
-            my $maxIV = -1 >> 1;
-            ($batchSize > $maxIV) && ($batchSize = $maxIV);
-            $now = strftime("%F %T", localtime);
-            warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize up to $batchSize\n";
-        }
-        elsif ($elapsed > $batchTimeHigh) {
-            # decrease batchSize by factor $btHigh / (1.2 * $elapsed) 
-            $batchSize = int($batchSize * $batchTimeHigh / $elapsed / 1.2);
-            $now = strftime("%F %T", localtime);
-            warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize down to $batchSize\n";
-        }
-        $timestampAdaptive = $newTime;
-    }
-
-    # chrom to deal with in the current batch, grab it from first file
-    my $thisChr = $startNextBatch[$firstFile]->[0] ;
-    ($chromsDone{$thisChr}) &&
-        die "E $0: found line with chrom $thisChr in file $firstFile, but we thought we had processed all lines for this chrom. ".
-        "Expected cause: some file < $firstFile has NO lines for a chrom (probably just before $thisChr). ".
-        "Fix the code if you want to deal with this corner-case.";
-    ($firstFile > 0) &&
-        warn "W $0: surprisingly one or more infiles (indexes 0-".($firstFile-1).
-        ") don't have any variants for chrom $thisChr, maybe check that they aren't truncated. Proceeding anyways.\n";
-
-    # array of refs (one per infile) to arrays of (lines == arrayrefs)
-    my @batchToMerge;
-    # move stored line from first file to @batchToMerge
-    $batchToMerge[$firstFile] = [$startNextBatch[$firstFile]];
-    $startNextBatch[$firstFile] = undef;
-
-    # smallest position to deal with in next batch, or 0 if all remaining
-    # lines for current chrom must be eaten (ie next batch is another chrom or 
-    # this is the last batch). Initialize with some non-zero value.
-    my $posNextBatch = 1;
-
-    # start with first file, so we can set $posNextBatch
-    my $infile = $infiles[$firstFile];
-    foreach my $j (1..$batchSize) {
-        if (my $lineR = &grabNextLine($infile)) {
-            my $chr = $lineR->[0];
-            if ($chr eq $thisChr) {
-                &addLineToBatch($batchToMerge[$firstFile], $lineR);
-            }
-            else {
-                # $lineR is from another chrom, will be for next batch
-                $posNextBatch = 0;
-                $startNextBatch[$firstFile] = $lineR;
-                $chromsDone{$thisChr} = 1;
-                last;
-            }
-        }
-        else {
-            # no more non-filtered lines in $infile
-            $posNextBatch = 0;
+foreach my $thisChr (@contigs) {
+    # find first file that has data for $thisChr (if any)
+    my $firstFile = -1;
+    foreach my $ff (0..$#infiles) {
+        if (($startNextBatch[$ff]) && ($startNextBatch[$ff]->[0] eq $thisChr)) {
+            $firstFile = $ff;
             last;
         }
     }
-    # 3 possibilities:
-    # - we ran out of lines -> $posNextBatch==0
-    # - we read a line with a different chrom -> $posNextBatch==0 again
-    # - otherwise we have one too many lines in @{$batchToMerge[$firstFile]},
-    #   move it to @startNextBatch and set $posNextBatch
-    if ($posNextBatch) {
-        my $lineR = pop(@{$batchToMerge[$firstFile]});
-        $posNextBatch = $lineR->[1];
-        $startNextBatch[$firstFile] = $lineR;
+    if ($firstFile == -1) {
+        # none of the infiles has any data for $thisChr, skip it
+        next;
     }
 
-    # Now deal with all files except the first:
-    # move relevant previously stored lines of non-first files to @batchToMerge
-    foreach my $i ($firstFile+1..$#infiles) {
-        if (my $lineR = $startNextBatch[$i]) {
-            my $chr = $lineR->[0];
-            my $pos = $lineR->[1];
-            if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
-                # stored line for file $i is from good chrom and pos, we will move it to
-                # @batchToMerge, but if it's a long non-var block that extends beyond 
-                # $posNextBatch we also have to continue the block for the next batch.
-                # splitBlockLine does it all
-                $startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
-                $batchToMerge[$i] = [$lineR];
+    # we will use $firstFile to define the batches for $thisChr
+    while (($startNextBatch[$firstFile]) && ($startNextBatch[$firstFile]->[0] eq $thisChr)) {
+        $batchNum++;
+        
+        if (($batchSizeAdaptive) && ($batchNum % ($jobs-1) == 0) && ($batchNum >= $jobs)) {
+            # jobs-1 because we want #workerThreads, excluding the eatTmpFiles job
+            # $batchNum >= $jobs so we don't adjust on first batch of workers
+            my $newTime = time();
+            my $elapsed = $newTime - $timestampAdaptive;
+            if ($elapsed < $batchTimeLow) {
+                # increase batchSize by factor (1.2 * $btLow / $elapsed)
+                $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
+                # however, never exceed $maxIV, otherwise when looping on 1..$batchSize we
+                # get an error "Range iterator outside integer range"
+                my $maxIV = -1 >> 1;
+                ($batchSize > $maxIV) && ($batchSize = $maxIV);
+                $now = strftime("%F %T", localtime);
+                warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize up to $batchSize\n";
             }
-            # else: file $i doesn't have any more lines for this chrom before $posNextBatch,
-            # leave its next line in @startNextBatch ie NOOP
+            elsif ($elapsed > $batchTimeHigh) {
+                # decrease batchSize by factor $btHigh / (1.2 * $elapsed) 
+                $batchSize = int($batchSize * $batchTimeHigh / $elapsed / 1.2);
+                $now = strftime("%F %T", localtime);
+                warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize down to $batchSize\n";
+            }
+            $timestampAdaptive = $newTime;
         }
-    }
 
-    # fill @batchToMerge for non-first files from the infiles themselves
-    foreach my $i ($firstFile+1..$#infiles) {
-        # if we already have a line in startNextBatch, this file doesn't
-        # have any more lines for $thisChr before $posNextBatch
-        ($startNextBatch[$i]) && next;
-        # otherwise:
-        my $infile = $infiles[$i];
-        while (my $lineR = &grabNextLine($infile)) {
-            my $chr = $lineR->[0];
-            my $pos = $lineR->[1];
-            if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
-                $startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
-                &addLineToBatch($batchToMerge[$i], $lineR);
-                # if we produced a continuation blockline, this was the last line for infile $i
-                ($startNextBatch[$i]) && last;
+        ($firstFile > 0) &&
+            warn "W $0: surprisingly one or more infiles (indexes 0-".($firstFile-1).
+            ") don't have any variants for chrom $thisChr (truncated files?). Proceeding anyways.\n";
+
+        # array of refs (one per infile) to arrays of (lines == arrayrefs)
+        my @batchToMerge;
+        # move stored line from first file to @batchToMerge
+        $batchToMerge[$firstFile] = [$startNextBatch[$firstFile]];
+        $startNextBatch[$firstFile] = undef;
+
+        # smallest position to deal with in next batch, or 0 if all remaining
+        # lines for current chrom must be eaten (ie next batch is another chrom or 
+        # this is the last batch). Initialize with some non-zero value.
+        my $posNextBatch = 1;
+
+        # start with first file, so we can set $posNextBatch
+        my $infile = $infiles[$firstFile];
+        foreach my $j (1..$batchSize) {
+            if (my $lineR = &grabNextLine($infile)) {
+                my $chr = $lineR->[0];
+                if ($chr eq $thisChr) {
+                    &addLineToBatch($batchToMerge[$firstFile], $lineR);
+                }
+                elsif ($contigOK{$chr}) {
+                    # $lineR is from another chrom, will be for next batch
+                    $posNextBatch = 0;
+                    $startNextBatch[$firstFile] = $lineR;
+                    last;
+                }
+                else {
+                    die "E $0: infile $firstFile has CHROM==$chr but this is not a known contig";
+                }
             }
             else {
-                # wrong chrom or position too big, store for next batch
-                $startNextBatch[$i] = $lineR;
-                last; # last line for infile $i
+                # no more non-filtered lines in $infile
+                $posNextBatch = 0;
+                last;
             }
         }
-    }
+        # 3 possibilities:
+        # - we ran out of lines -> $posNextBatch==0
+        # - we read a line with a different chrom -> $posNextBatch==0 again
+        # - otherwise we have one too many lines in @{$batchToMerge[$firstFile]},
+        #   move it to @startNextBatch and set $posNextBatch
+        if ($posNextBatch) {
+            my $lineR = pop(@{$batchToMerge[$firstFile]});
+            $posNextBatch = $lineR->[1];
+            $startNextBatch[$firstFile] = $lineR;
+        }
 
-    # increment $firstFile if needed, for next batch
-    while ((!$startNextBatch[$firstFile]) && ($firstFile <= $#infiles)) {
-        $firstFile++;
-    }
+        # Now deal with all remaining files:
+        # move relevant previously stored lines of non-first files to @batchToMerge
+        foreach my $i ($firstFile+1..$#infiles) {
+            if (my $lineR = $startNextBatch[$i]) {
+                my $chr = $lineR->[0];
+                my $pos = $lineR->[1];
+                if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
+                    # stored line for file $i is from good chrom and pos, we will move it to
+                    # @batchToMerge, but if it's a long non-var block that extends beyond 
+                    # $posNextBatch we also have to continue the block for the next batch.
+                    # splitBlockLine does it all
+                    $startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
+                    $batchToMerge[$i] = [$lineR];
+                }
+                # else: file $i doesn't have any more lines for this chrom before $posNextBatch,
+                # leave its next line in @startNextBatch ie NOOP
+            }
+        }
 
-    # OK we can merge the batch and print the result to a tmpfile, but wait a bit if we already
-    # have a lot of *done tmpfiles, otherwise in some scenarios we saturate tmpDir
-    while(1) {
-        my @doneFiles = glob("$tmpDir/*_done");
-        (@doneFiles <= 1 + int($jobs / 4)) && last;
-        sleep(10);
+        # fill @batchToMerge for non-first files from the infiles themselves
+        foreach my $i ($firstFile+1..$#infiles) {
+            # if we already have a line in startNextBatch, this file doesn't
+            # have any more lines for $thisChr before $posNextBatch
+            ($startNextBatch[$i]) && next;
+            # otherwise:
+            my $infile = $infiles[$i];
+            while (my $lineR = &grabNextLine($infile)) {
+                my $chr = $lineR->[0];
+                my $pos = $lineR->[1];
+                if (($chr eq $thisChr) && (($pos < $posNextBatch) || ($posNextBatch == 0))) {
+                    $startNextBatch[$i] = &splitBlockLine($lineR, $posNextBatch-1);
+                    &addLineToBatch($batchToMerge[$i], $lineR);
+                    # if we produced a continuation blockline, this was the last line for infile $i
+                    ($startNextBatch[$i]) && last;
+                }
+                elsif (! $contigOK{$chr}) {
+                    die "E $0: infile $i, CHROM $chr in dataline is not a known contig";
+                }
+                else {
+                    # wrong chrom or position too big, store for next batch
+                    $startNextBatch[$i] = $lineR;
+                    last; # last line for infile $i
+                }
+            }
+        }
+
+        # OK we can merge the batch and print the result to a tmpfile, but wait a bit if we already
+        # have a lot of *done tmpfiles, otherwise in some scenarios we saturate tmpDir
+        while(1) {
+            my @doneFiles = glob("$tmpDir/*_done");
+            (@doneFiles <= 1 + int($jobs / 4)) && last;
+            sleep(10);
+        }
+        
+        $pm->start && next;
+        # if you change $tmpOut or $tmpOutFlag you MUST EDIT &eatTmpFiles()
+        my $tmpOut = "$tmpDir/$batchNum.g.vcf";
+        open(my $outFH, "> $tmpOut") || die "E $0: cannot open $tmpOut for writing\n";
+        &mergeBatchOfLines(\@batchToMerge, \@numSamples, $outFH);
+        close($outFH) || die "E $0: cannot close $tmpOut after writing ($!), is your tmpDir full?\n";
+        # done building this tmpfile, create flag-file
+        my $tmpOutFlag = $tmpOut."_done";
+        open(OUTFLAG, "> $tmpOutFlag") || die "E $0: cannot open flagfile $tmpOutFlag for writing\n";
+        print OUTFLAG "$batchNum\n";
+        close(OUTFLAG) || die "E $0: cannot close $tmpOutFlag ($!), is your tmpDir full?\n";
+        $pm->finish;
     }
-    
-    $pm->start && next;
-    # if you change $tmpOut or $tmpOutFlag you MUST EDIT &eatTmpFiles()
-    my $tmpOut = "$tmpDir/$batchNum.g.vcf";
-    open(my $outFH, "> $tmpOut") || die "E $0: cannot open $tmpOut for writing\n";
-    &mergeBatchOfLines(\@batchToMerge, \@numSamples, $outFH);
-    close($outFH) || die "E $0: cannot close $tmpOut after writing ($!), is your tmpDir full?\n";
-    # done building this tmpfile, create flag-file
-    my $tmpOutFlag = $tmpOut."_done";
-    open(OUTFLAG, "> $tmpOutFlag") || die "E $0: cannot open flagfile $tmpOutFlag for writing\n";
-    print OUTFLAG "$batchNum\n";
-    close(OUTFLAG) || die "E $0: cannot close $tmpOutFlag ($!), is your tmpDir full?\n";
-    $pm->finish;
 }
 
 # some children are still processing batches, but we know the last

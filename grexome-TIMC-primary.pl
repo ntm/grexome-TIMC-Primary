@@ -656,7 +656,7 @@ foreach my $caller (sort(keys %callerDirs)) {
             push(@batchGVCFs, $newMerged);
             my $batchFile = $batchFiles[$b-1];
             # -> merge:
-            my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --cleanheaders --jobs $jobs ";
+            my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --jobs $jobs ";
             # uncomment below to make separate logs for merge
             # $com .= " 2> $workDir/merge_${caller}_BATCH${batch}.log ";
             # NOTE we are piping to bgzip -@8 , so we exceed $jobs quite a bit.
@@ -695,7 +695,7 @@ foreach my $caller (sort(keys %callerDirs)) {
         # -> merge:
         # NOTE we are piping to bgzip -@12 , so we exceed $jobs quite a bit.
         # if this turns into a problem we can tune it down (eg $jobsFilter)
-        my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --cleanheaders --jobs $jobs ";
+        my $com = "perl $RealBin/4_mergeGVCFs.pl --filelist $batchFile --tmpdir $tmpDir/Merge --jobs $jobs ";
         # uncomment below to make separate logs for merge
         # $com .= "2>  $workDir/merge_$caller.log ";
         $com .= "| $bgzip -c -\@12 > $newMerged";

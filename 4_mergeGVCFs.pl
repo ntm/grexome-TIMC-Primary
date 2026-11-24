@@ -443,14 +443,17 @@ foreach my $thisChr (@contigs) {
             my $newTime = time();
             my $elapsed = $newTime - $timestampAdaptive;
             if ($elapsed < $batchTimeLow) {
-                # increase batchSize by factor (1.2 * $btLow / $elapsed)
-                $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
-                # however, never exceed $maxIV, otherwise when looping on 1..$batchSize we
-                # get an error "Range iterator outside integer range"
                 my $maxIV = -1 >> 1;
-                ($batchSize > $maxIV) && ($batchSize = $maxIV);
-                $now = strftime("%F %T", localtime);
-                warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize up to $batchSize\n";
+                if ($batchSize < $maxIV) {
+                    # increase batchSize by factor (1.2 * $btLow / $elapsed)
+                    $batchSize = int(1.2 * $batchSize * $batchTimeLow / $elapsed);
+                    # however, never exceed $maxIV, otherwise when looping on 1..$batchSize we
+                    # get an error "Range iterator outside integer range"
+                    ($batchSize > $maxIV) && ($batchSize = $maxIV);
+                    $now = strftime("%F %T", localtime);
+                    warn "I $now: $0 - batchNum=$batchNum, adjusting batchSize up to $batchSize\n";
+                }
+                # else $batchSize is already maxed, NOOP (happens eg with extremely fragmented genomes)
             }
             elsif ($elapsed > $batchTimeHigh) {
                 # decrease batchSize by factor $btHigh / (1.2 * $elapsed) 

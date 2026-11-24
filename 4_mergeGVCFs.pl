@@ -464,10 +464,6 @@ foreach my $thisChr (@contigs) {
             $timestampAdaptive = $newTime;
         }
 
-        ($firstFile > 0) &&
-            warn "W $0: surprisingly one or more infiles (indexes 0-".($firstFile-1).
-            ") don't have any variants for chrom $thisChr (truncated files?). Proceeding anyways.\n";
-
         # array of refs (one per infile) to arrays of (lines == arrayrefs)
         my @batchToMerge;
         # move stored line from first file to @batchToMerge
